@@ -1820,7 +1820,6 @@ function AskScreen({ engine, setEngine, verifiedCount, onVerify, toast, realSche
   const [settingsOpen,setSettingsOpen] = React.useState(false);
   const [loading,setLoading] = React.useState(false);
   const feedRef = React.useRef(null);
-  const verifiedQs = React.useRef([]); // ids/keys of verified bank items
 
   React.useEffect(()=>{
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
