@@ -77,10 +77,26 @@ def test_truncation_flag_is_exact(db):
     assert res["truncated"] is True
 
 
-def test_sanitize_url_masks_password():
-    assert sanitize_url("postgresql://user:secret@host:5432/db") == \
-        "postgresql://user:***@host:5432/db"
-    assert sanitize_url("sqlite:///C:/path/to/file.db") == "sqlite:///C:/path/to/file.db"
+@pytest.mark.parametrize("url,expected", [
+    # Standard URL with username and password
+    ("postgresql://user:secret@host:5432/db", "postgresql://user:***@host:5432/db"),
+    # SQLite URL without credentials
+    ("sqlite:///C:/path/to/file.db", "sqlite:///C:/path/to/file.db"),
+    # URL with username but no password
+    ("postgresql://user@host/db", "postgresql://user:***@host/db"),
+    # Empty username but present password
+    ("postgresql://:password@host/db", "postgresql://:***@host/db"),
+    # URL with @ in the password
+    ("postgresql://user:p@ssword@host/db", "postgresql://user:***@ssword@host/db"),
+    # URL with : in the password
+    ("postgresql://user:pass:word@host/db", "postgresql://user:***@host/db"),
+    # URL without a scheme but with @
+    ("user:pass@host/db", "user:pass@host/db"),
+    # Completely plain string with no @ or ://
+    ("just_a_string", "just_a_string"),
+])
+def test_sanitize_url_masks_password(url, expected):
+    assert sanitize_url(url) == expected
 
 
 def test_db_id_is_stable_and_ignores_password():
