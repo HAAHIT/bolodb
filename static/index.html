@@ -2077,7 +2077,25 @@ function TrustToast({ toast }) {
 function Settings({ engine, setEngine, onClose }) {
   const B = window.BOLO;
   const [sel,setSel] = React.useState(engine);
+  const [localModel,setLocalModel] = React.useState("llama3.2");
+  const [apiKey,setApiKey] = React.useState("");
+  const [saving,setSaving] = React.useState(false);
+  const [error,setError] = React.useState("");
   const prov = B.providers.find(p=>p.id===sel);
+
+  async function save(){
+    setSaving(true); setError("");
+    try {
+      await window.apiCall('/api/config',{provider:sel, model:sel==="ollama"?localModel:"",
+        api_key: sel!=="ollama"?(apiKey||undefined):undefined});
+      setEngine(sel);
+      onClose();
+    } catch(e) {
+      setError(e.message || "Could not save settings.");
+      setSaving(false);
+    }
+  }
+
   return (
     <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:50,background:"rgba(20,28,24,.4)",
       backdropFilter:"blur(3px)",display:"grid",placeItems:"center",animation:"fadein .2s ease both",padding:24}}>
@@ -2110,7 +2128,7 @@ function Settings({ engine, setEngine, onClose }) {
           {sel==="ollama" ? (
             <div>
               <div style={{fontSize:13,fontWeight:700,color:"var(--ink-2)",marginBottom:8}}>Local model</div>
-              <select className="field" defaultValue="llama3.2" style={{cursor:"pointer"}}>
+              <select className="field" value={localModel} onChange={e=>setLocalModel(e.target.value)} style={{cursor:"pointer"}}>
                 <option value="qwen2.5:0.5b">qwen2.5:0.5b — tiny, ~1–2 GB RAM</option>
                 <option value="llama3.2">llama3.2 — recommended, ~4 GB RAM</option>
                 <option value="mistral">mistral — better quality, ~8 GB RAM</option>
@@ -2122,16 +2140,19 @@ function Settings({ engine, setEngine, onClose }) {
           ) : (
             <div>
               <div style={{fontSize:13,fontWeight:700,color:"var(--ink-2)",marginBottom:8}}>{prov.name} API key</div>
-              <input className="field mono" type="password" placeholder={sel==="claude"?"sk-ant-•••":sel==="openai"?"sk-•••":"gsk_•••"} style={{fontSize:13.5}}/>
+              <input className="field mono" type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder={sel==="claude"?"sk-ant-•••":sel==="openai"?"sk-•••":"gsk_•••"} style={{fontSize:13.5}}/>
               <div style={{display:"flex",alignItems:"center",gap:8,marginTop:12,padding:"10px 13px",background:"var(--c-med-tint)",borderRadius:"var(--radius-sm)",color:"var(--c-med-ink)",fontSize:12.5,fontWeight:550}}>
                 <Ico.lock style={{width:15,height:15,flexShrink:0}}/> Stored locally only. Schema + question are sent to {prov.name} to generate SQL — never your table data.
               </div>
             </div>
           )}
         </div>
+        {error && (
+          <div style={{margin:"0 24px 16px",padding:"11px 15px",background:"var(--c-low-tint)",border:"1px solid #EBC6BD",borderRadius:"var(--radius-sm)",color:"var(--c-low-ink)",fontSize:13.5,fontWeight:550}}>{error}</div>
+        )}
         <div style={{padding:"16px 24px",borderTop:"1px solid var(--border)",display:"flex",justifyContent:"flex-end",gap:10,background:"var(--surface-2)"}}>
           <Button kind="ghost" onClick={onClose}>Cancel</Button>
-          <Button kind="primary" onClick={()=>{setEngine(sel);onClose();}} icon={<Ico.check style={{width:16,height:16}}/>}>Save changes</Button>
+          <Button kind="primary" disabled={saving} onClick={save} icon={saving?<Spinner/>:<Ico.check style={{width:16,height:16}}/>}>{saving?"Saving…":"Save changes"}</Button>
         </div>
       </div>
     </div>
