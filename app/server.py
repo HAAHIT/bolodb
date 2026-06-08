@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+import asyncio
 
 from app import config as cfgmod
 from app.database import DatabaseManager, sanitize_url
@@ -113,11 +114,15 @@ def create_app(initial_db_url="", readonly=True):
         _need_db(db)
         try:
             starters = await generate_starters(providers.get(), db.schema_as_text(), db.dialect)
-            for s in starters:
-                res = db.execute(s.get("sql",""))
-                s["columns"] = res.get("columns",[])
-                s["rows"]    = res.get("rows",[])[:5]
+
+            async def _run_starter(s):
+                res = await asyncio.to_thread(db.execute, s.get("sql", ""))
+                s["columns"] = res.get("columns", [])
+                s["rows"]    = res.get("rows", [])[:5]
                 s["error"]   = res.get("error")
+                return s
+
+            starters = await asyncio.gather(*[_run_starter(s) for s in starters])
             return {"starters": starters}
         except Exception as e:
             raise HTTPException(502, f"LLM error: {e}")
