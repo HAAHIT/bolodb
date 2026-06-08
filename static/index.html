@@ -1371,6 +1371,7 @@ function OnboardScreen({ onDone }) {
   const [step,setStep] = React.useState("profile");
   const [realGlossary,setRealGlossary] = React.useState(null);
   const [realStarters,setRealStarters] = React.useState(null);
+  const [confirmedGlossary,setConfirmedGlossary] = React.useState(null);
   const [loadErr,setLoadErr] = React.useState("");
   const B = window.BOLO;
 
@@ -1403,8 +1404,8 @@ function OnboardScreen({ onDone }) {
         <Stepper step={step}/>
 
         {step==="profile"  && <ProfileStep onNext={()=>{ loadOnboardData(); setStep("glossary"); }}/>}
-        {step==="glossary" && <GlossaryStep glossaryItems={realGlossary || B.glossary} onNext={()=>setStep("starters")}/>}
-        {step==="starters" && <StartersStep starterItems={realStarters || B.starters} onDone={onDone}/>}
+        {step==="glossary" && <GlossaryStep glossaryItems={realGlossary || B.glossary} onNext={(g)=>{ setConfirmedGlossary(g); setStep("starters"); }}/>}
+        {step==="starters" && <StartersStep starterItems={realStarters || B.starters} glossary={confirmedGlossary || []} onDone={onDone}/>}
       </div>
     </div>
   );
@@ -1493,6 +1494,13 @@ function GlossaryStep({ onNext, glossaryItems }) {
   const mkItem = (g) => g.def !== undefined ? g : {term:g.term, def:g.maps_to||g.def||"", maps_to:g.maps_to||"", alt:g.alt||[], sql_hint:g.sql_hint||""};
   const glossList = items.map(mkItem);
   const [choices,setChoices] = React.useState(glossList.map(()=>0)); // 0 = the proposed def
+  function next(){
+    const confirmed = glossList.map((g,gi)=>{
+      const opts = [g.def||g.maps_to||"", ...(g.alt||[])];
+      return {term:g.term, maps_to: opts[choices[gi]] ?? opts[0], sql_hint: g.sql_hint||""};
+    });
+    onNext(confirmed);
+  }
   return (
     <div className="rise">
       <div className="card" style={{padding:26,marginBottom:16}}>
@@ -1533,14 +1541,14 @@ function GlossaryStep({ onNext, glossaryItems }) {
         ))}
       </div>
       <div style={{display:"flex",justifyContent:"flex-end",marginTop:20}}>
-        <Button kind="primary" size="lg" iconRight={<Ico.arrow/>} onClick={onNext}>Save terms &amp; verify answers</Button>
+        <Button kind="primary" size="lg" iconRight={<Ico.arrow/>} onClick={next}>Save terms &amp; verify answers</Button>
       </div>
     </div>
   );
 }
 
 /* ---- starters ---- */
-function StartersStep({ onDone, starterItems }) {
+function StartersStep({ onDone, starterItems, glossary }) {
   const B = window.BOLO;
   const starters = starterItems && starterItems.length ? starterItems : B.starters;
   const [ready,setReady] = React.useState(false);
@@ -1558,7 +1566,7 @@ function StartersStep({ onDone, starterItems }) {
       const verified = starters
         .filter((_,i)=>verdicts[i]==="yes")
         .map(s=>({question:s.q||s.question||"",sql:s.sql||"",restatement:s.restatement||""}));
-      await window.apiCall('/api/onboard/save',{glossary:[],starters:verified});
+      await window.apiCall('/api/onboard/save',{glossary:glossary||[],starters:verified});
     } catch(e) { /* best-effort */ }
     onDone(verifiedCount);
   }
