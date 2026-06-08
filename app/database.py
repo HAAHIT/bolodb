@@ -49,7 +49,22 @@ class DatabaseManager:
         schema = {}
         MAX_T = 40; BIG = 100_000
         SKIP = ("date","time","name","email","phone","address","id","desc","url","note","comment","title","code")
+
+        table_row_counts = {}
         with self.engine.connect() as conn:
+            try:
+                if self.dialect == "postgresql":
+                    res = conn.execute(text("SELECT relname, reltuples FROM pg_class WHERE relkind IN ('r', 'p')"))
+                    table_row_counts = {row[0]: int(row[1]) for row in res}
+                elif self.dialect == "mysql":
+                    res = conn.execute(text("SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE()"))
+                    table_row_counts = {row[0]: int(row[1]) if row[1] is not None else 0 for row in res}
+                elif self.dialect == "mssql":
+                    res = conn.execute(text("SELECT t.name, SUM(p.rows) FROM sys.tables t JOIN sys.partitions p ON t.object_id = p.object_id WHERE p.index_id IN (0,1) GROUP BY t.name"))
+                    table_row_counts = {row[0]: int(row[1]) if row[1] is not None else 0 for row in res}
+            except Exception:
+                pass
+
             for tbl in inspector.get_table_names()[:MAX_T]:
                 try:
                     cols_raw = inspector.get_columns(tbl)
@@ -68,9 +83,13 @@ class DatabaseManager:
                         for k,v in r.items():
                             if isinstance(v,str) and len(v)>50: r[k]=v[:47]+"..."
                 except Exception: samples = []
-                try:
-                    rc = conn.execute(text(f"SELECT COUNT(*) FROM {self._q(tbl)}")).scalar()
-                except Exception: rc = None
+
+                rc = table_row_counts.get(tbl)
+                if rc is None:
+                    try:
+                        rc = conn.execute(text(f"SELECT COUNT(*) FROM {self._q(tbl)}")).scalar()
+                    except Exception: rc = None
+
                 low_card = {}
                 if rc is None or rc <= BIG:
                     for c in columns:
