@@ -43,6 +43,45 @@ class DatabaseManager:
     def _q(self, n):
         return f"`{n}`" if self.dialect=="mysql" else f'"{n}"'
 
+    def _introspect_table(self, inspector, conn, tbl, big_threshold, skip_columns):
+        try:
+            cols_raw = inspector.get_columns(tbl)
+            pk = inspector.get_pk_constraint(tbl).get("constrained_columns",[]) or []
+            fks = [{"column":fk["constrained_columns"][0] if fk["constrained_columns"] else "",
+                    "references":f"{fk['referred_table']}.{fk['referred_columns'][0]}" if fk["referred_columns"] else ""}
+                   for fk in inspector.get_foreign_keys(tbl)]
+            columns = [{"name":c["name"],"type":str(c["type"]),"primary_key":c["name"] in pk}
+                       for c in cols_raw]
+        except Exception:
+            return None
+
+        try:
+            res = conn.execute(text(f"SELECT * FROM {self._q(tbl)} LIMIT {self.sample_rows}"))
+            names = list(res.keys())
+            samples = [dict(zip(names, row)) for row in res.fetchall()]
+            for r in samples:
+                for k,v in r.items():
+                    if isinstance(v,str) and len(v)>50: r[k]=v[:47]+"..."
+        except Exception: samples = []
+
+        try:
+            rc = conn.execute(text(f"SELECT COUNT(*) FROM {self._q(tbl)}")).scalar()
+        except Exception: rc = None
+
+        low_card = {}
+        if rc is None or rc <= big_threshold:
+            for c in columns:
+                if any(s in c["name"].lower() for s in skip_columns): continue
+                if any(t in c["type"].lower() for t in ("char","text","enum","varchar")):
+                    try:
+                        dv = conn.execute(text(f"SELECT DISTINCT {self._q(c['name'])} FROM {self._q(tbl)} LIMIT 12")).fetchall()
+                        vals = [row[0] for row in dv if row[0] is not None]
+                        if 0 < len(vals) <= 8: low_card[c["name"]] = vals
+                    except Exception: pass
+
+        return {"columns":columns,"foreign_keys":fks,"sample_rows":samples,
+                "row_count":rc,"distinct_values":low_card}
+
     def get_schema(self, refresh=False):
         if self._schema_cache and not refresh: return self._schema_cache
         inspector = inspect(self.engine)
@@ -51,38 +90,9 @@ class DatabaseManager:
         SKIP = ("date","time","name","email","phone","address","id","desc","url","note","comment","title","code")
         with self.engine.connect() as conn:
             for tbl in inspector.get_table_names()[:MAX_T]:
-                try:
-                    cols_raw = inspector.get_columns(tbl)
-                    pk = inspector.get_pk_constraint(tbl).get("constrained_columns",[]) or []
-                    fks = [{"column":fk["constrained_columns"][0] if fk["constrained_columns"] else "",
-                            "references":f"{fk['referred_table']}.{fk['referred_columns'][0]}" if fk["referred_columns"] else ""}
-                           for fk in inspector.get_foreign_keys(tbl)]
-                    columns = [{"name":c["name"],"type":str(c["type"]),"primary_key":c["name"] in pk}
-                               for c in cols_raw]
-                except Exception: continue
-                try:
-                    res = conn.execute(text(f"SELECT * FROM {self._q(tbl)} LIMIT {self.sample_rows}"))
-                    names = list(res.keys())
-                    samples = [dict(zip(names, row)) for row in res.fetchall()]
-                    for r in samples:
-                        for k,v in r.items():
-                            if isinstance(v,str) and len(v)>50: r[k]=v[:47]+"..."
-                except Exception: samples = []
-                try:
-                    rc = conn.execute(text(f"SELECT COUNT(*) FROM {self._q(tbl)}")).scalar()
-                except Exception: rc = None
-                low_card = {}
-                if rc is None or rc <= BIG:
-                    for c in columns:
-                        if any(s in c["name"].lower() for s in SKIP): continue
-                        if any(t in c["type"].lower() for t in ("char","text","enum","varchar")):
-                            try:
-                                dv = conn.execute(text(f"SELECT DISTINCT {self._q(c['name'])} FROM {self._q(tbl)} LIMIT 12")).fetchall()
-                                vals = [row[0] for row in dv if row[0] is not None]
-                                if 0 < len(vals) <= 8: low_card[c["name"]] = vals
-                            except Exception: pass
-                schema[tbl] = {"columns":columns,"foreign_keys":fks,"sample_rows":samples,
-                               "row_count":rc,"distinct_values":low_card}
+                tbl_info = self._introspect_table(inspector, conn, tbl, BIG, SKIP)
+                if tbl_info is not None:
+                    schema[tbl] = tbl_info
         self._schema_cache = schema
         return schema
 
