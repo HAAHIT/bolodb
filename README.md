@@ -74,3 +74,7 @@ python main.py --no-browser             # don't auto-open browser
 - With an API model, only the schema and your question are sent to generate SQL
 - No telemetry, no cloud sync
 - Delete `~/.bolodb/` to wipe everything BoloDB has learned
+
+## License
+
+MIT &mdash; see [LICENSE](LICENSE).
