@@ -1,6 +1,62 @@
 """Tests for model budgeting and signal-based confidence scoring."""
 import pytest
-from app.schema_link import model_budget, compute_confidence
+from app.schema_link import model_budget, compute_confidence, link_relevant_tables
+
+@pytest.fixture
+def dummy_schema():
+    return {
+        "users": {"columns": [{"name": "id"}, {"name": "name"}], "row_count": 100},
+        "orders": {
+            "columns": [{"name": "id"}, {"name": "user_id"}],
+            "foreign_keys": [{"references": "users.id"}],
+            "row_count": 50
+        },
+        "products": {"columns": [{"name": "id"}, {"name": "title"}, {"name": "price"}], "row_count": 200},
+        "reviews": {"columns": [{"name": "id"}, {"name": "product_id"}, {"name": "rating"}], "row_count": 10},
+        "categories": {"columns": [{"name": "id"}, {"name": "name"}], "row_count": 5}
+    }
+
+
+def test_link_relevant_tables_returns_all_if_under_max(dummy_schema):
+    # 5 tables in schema, max_tables=10
+    result = link_relevant_tables("test question", dummy_schema, [], [], max_tables=10)
+    assert set(result) == {"users", "orders", "products", "reviews", "categories"}
+
+
+def test_link_relevant_tables_prioritizes_token_matches(dummy_schema):
+    # Question mentions "products" and "rating" (from reviews)
+    result = link_relevant_tables("which products have the highest rating?", dummy_schema, [], [], max_tables=2)
+    assert set(result) == {"products", "reviews"}
+
+
+def test_link_relevant_tables_uses_glossary(dummy_schema):
+    # "clients" isn't a table, but mapped to "users"
+    glossary = [{"term": "clients", "maps_to": "users"}]
+    result = link_relevant_tables("how many clients do we have?", dummy_schema, glossary, [], max_tables=1)
+    assert "users" in result
+
+
+def test_link_relevant_tables_uses_retrieved_sql(dummy_schema):
+    # A generic question, no direct matches, but the retrieved SQL explicitly queries "categories"
+    retrieved = [{"sql": "SELECT * FROM categories"}]
+    result = link_relevant_tables("list them", dummy_schema, [], retrieved, max_tables=1)
+    assert "categories" in result
+
+
+def test_link_relevant_tables_fallback_to_row_count(dummy_schema):
+    # Unrelated question, no glossary, no retrieved
+    # Should fall back to largest tables: products (200), users (100)
+    result = link_relevant_tables("what is the meaning of life?", dummy_schema, [], [], max_tables=2)
+    assert result[:2] == ["products", "users"]
+
+
+def test_link_relevant_tables_expands_foreign_keys(dummy_schema):
+    # Matches "orders" table, but "orders" references "users", so users should be included too
+    result = link_relevant_tables("how many orders?", dummy_schema, [], [], max_tables=1)
+    # Expected orders (from token) + users (from FK)
+    assert "orders" in result
+    assert "users" in result
+    assert len(result) == 2
 
 
 @pytest.mark.parametrize("provider,model,expected_tier", [
