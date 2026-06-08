@@ -1,4 +1,7 @@
 """FastAPI application."""
+import socket
+import ipaddress
+from sqlalchemy.engine.url import make_url
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
@@ -32,6 +35,31 @@ class GlossaryItem(BaseModel): term: str; maps_to: str = ""; sql_hint: str = ""
 class SaveOnboardReq(BaseModel):
     glossary: list[GlossaryItem] = []
     starters: list[dict] = []
+
+def is_safe_db_url(url_str: str) -> bool:
+    try:
+        u = make_url(url_str)
+        # Check query parameters for hidden host bypasses
+        if u.query.get("host") or u.query.get("hostname") or u.query.get("socket"):
+            return False
+
+        host = u.host
+        if not host:
+            return True
+
+        try:
+            ip_info = socket.getaddrinfo(host, None)
+        except socket.gaierror:
+            return False
+
+        for info in ip_info:
+            ip_str = info[4][0]
+            ip = ipaddress.ip_address(ip_str)
+            if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_multicast or ip.is_unspecified:
+                return False
+        return True
+    except Exception:
+        return False
 
 def create_app(initial_db_url="", readonly=True):
     cfg = cfgmod.load_config()
@@ -74,6 +102,8 @@ def create_app(initial_db_url="", readonly=True):
 
     @app.post("/api/connect")
     async def connect(req: ConnectReq):
+        if not is_safe_db_url(req.db_url):
+            raise HTTPException(400, "Blocked: Connections to local or internal IPs are not allowed.")
         result = db.connect(req.db_url)
         if not result["ok"]: raise HTTPException(400, result["error"])
         cfg["last_db_url"] = req.db_url; cfgmod.save_config(cfg)
