@@ -2,6 +2,7 @@
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
+from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -114,7 +115,7 @@ def create_app(initial_db_url="", readonly=True):
         try:
             starters = await generate_starters(providers.get(), db.schema_as_text(), db.dialect)
             for s in starters:
-                res = db.execute(s.get("sql",""))
+                res = await run_in_threadpool(db.execute, s.get("sql",""))
                 s["columns"] = res.get("columns",[])
                 s["rows"]    = res.get("rows",[])[:5]
                 s["error"]   = res.get("error")
@@ -151,7 +152,7 @@ def create_app(initial_db_url="", readonly=True):
             out["query_id"] = session_log.log_query(db.db_id, q, out)
             return out
         sql = gen.get("sql",""); restatement = gen.get("restatement","")
-        exec_result = db.execute(sql)
+        exec_result = await run_in_threadpool(db.execute, sql)
         confidence, reason, based = compute_confidence(retrieved, exec_result)
         out = {"answered":True,"sql":sql,"restatement":restatement,
                "confidence":confidence,"confidence_reason":reason,"based_on_verified":based,
@@ -180,7 +181,7 @@ def create_app(initial_db_url="", readonly=True):
     @app.post("/api/execute")
     async def execute(req: RawSQLReq):
         _need_db(db)
-        res = db.execute(req.sql)
+        res = await run_in_threadpool(db.execute, req.sql)
         if "error" in res: raise HTTPException(400, res["error"])
         return res
 
