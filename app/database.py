@@ -1,7 +1,11 @@
 """Database connection, schema introspection (guarded), read-only execution."""
-import hashlib
+import hashlib, re
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
+
+WRITE_KEYWORDS = re.compile(
+    r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|REPLACE|GRANT|REVOKE|"
+    r"ATTACH|DETACH|EXEC|EXECUTE|MERGE|PRAGMA|VACUUM|CALL|INTO)\b", re.IGNORECASE)
 
 def sanitize_url(url):
     if "@" not in url: return url
@@ -100,11 +104,13 @@ class DatabaseManager:
         return "\n".join(lines)
 
     def execute(self, sql):
-        cleaned = sql.strip().rstrip(";")
+        cleaned = sql.strip().rstrip(";").strip()
         if self.readonly:
             first = cleaned.split()[0].upper() if cleaned else ""
             if first not in ("SELECT","WITH","EXPLAIN"):
                 return {"error":"Only SELECT queries are allowed (read-only mode).","sql":cleaned}
+            if ";" in cleaned or WRITE_KEYWORDS.search(cleaned):
+                return {"error":"Only read-only SELECT queries are allowed.","sql":cleaned}
         try:
             with self.engine.connect() as conn:
                 res = conn.execute(text(cleaned))

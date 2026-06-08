@@ -3,7 +3,6 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app import config as cfgmod
@@ -42,8 +41,6 @@ def create_app(initial_db_url="", readonly=True):
     session_log = SessionLog(cfgmod.CONFIG_DIR)
 
     app = FastAPI(title="BoloDB", version="2.0.0")
-    app.add_middleware(CORSMiddleware, allow_origins=["*"],
-                       allow_methods=["*"], allow_headers=["*"])
 
     if initial_db_url:
         db.connect(initial_db_url)
