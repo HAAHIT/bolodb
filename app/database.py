@@ -73,14 +73,42 @@ class DatabaseManager:
                 except Exception: rc = None
                 low_card = {}
                 if rc is None or rc <= BIG:
+                    queries = []
+                    query_cols = []
                     for c in columns:
                         if any(s in c["name"].lower() for s in SKIP): continue
                         if any(t in c["type"].lower() for t in ("char","text","enum","varchar")):
-                            try:
-                                dv = conn.execute(text(f"SELECT DISTINCT {self._q(c['name'])} FROM {self._q(tbl)} LIMIT 12")).fetchall()
-                                vals = [row[0] for row in dv if row[0] is not None]
-                                if 0 < len(vals) <= 8: low_card[c["name"]] = vals
-                            except Exception: pass
+                            safe_col_name = c['name'].replace("'", "''")
+                            queries.append(f"SELECT '{safe_col_name}' as col, {self._q(c['name'])} as val FROM (SELECT DISTINCT {self._q(c['name'])} FROM {self._q(tbl)} LIMIT 12) AS tmp")
+                            query_cols.append(c["name"])
+
+                    # Process queries in batches to avoid max compound select limits and isolate errors
+                    BATCH_SIZE = 50
+                    for i in range(0, len(queries), BATCH_SIZE):
+                        batch_queries = queries[i:i+BATCH_SIZE]
+                        batch_cols = query_cols[i:i+BATCH_SIZE]
+                        try:
+                            union_query = " UNION ALL ".join(batch_queries)
+                            dv_res = conn.execute(text(union_query)).fetchall()
+
+                            temp_low_card = {c: set() for c in batch_cols}
+                            for row in dv_res:
+                                col_name, val = row[0], row[1]
+                                if val is not None and col_name in temp_low_card:
+                                    temp_low_card[col_name].add(val)
+
+                            for c_name, vals in temp_low_card.items():
+                                if 0 < len(vals) <= 8:
+                                    low_card[c_name] = list(vals)
+                        except Exception:
+                            # If a batch fails, fall back to individual queries for that batch
+                            # to ensure we get as much info as possible and mimic previous behavior
+                            for b_col in batch_cols:
+                                try:
+                                    dv = conn.execute(text(f"SELECT DISTINCT {self._q(b_col)} FROM {self._q(tbl)} LIMIT 12")).fetchall()
+                                    vals = [row[0] for row in dv if row[0] is not None]
+                                    if 0 < len(vals) <= 8: low_card[b_col] = vals
+                                except Exception: pass
                 schema[tbl] = {"columns":columns,"foreign_keys":fks,"sample_rows":samples,
                                "row_count":rc,"distinct_values":low_card}
         self._schema_cache = schema
