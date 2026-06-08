@@ -49,17 +49,70 @@ class DatabaseManager:
         schema = {}
         MAX_T = 40; BIG = 100_000
         SKIP = ("date","time","name","email","phone","address","id","desc","url","note","comment","title","code")
+
+        table_names = inspector.get_table_names()[:MAX_T]
+
+        # Only use get_multi methods for dialects where it is known to be optimized
+        # or for dialects that are not sqlite. sqlite get_multi executes PRAGMA table_xinfo for each table anyway
+        # actually postgresql/mysql get_multi is highly optimized using single information_schema queries
+
+        try:
+            schema_name = inspector.default_schema_name
+            multi_cols = inspector.get_multi_columns(schema=schema_name)
+            multi_pks = inspector.get_multi_pk_constraint(schema=schema_name)
+            multi_fks = inspector.get_multi_foreign_keys(schema=schema_name)
+        except Exception:
+            schema_name = None
+            multi_cols = {}
+            multi_pks = {}
+            multi_fks = {}
+
         with self.engine.connect() as conn:
-            for tbl in inspector.get_table_names()[:MAX_T]:
+            for tbl in table_names:
                 try:
-                    cols_raw = inspector.get_columns(tbl)
-                    pk = inspector.get_pk_constraint(tbl).get("constrained_columns",[]) or []
-                    fks = [{"column":fk["constrained_columns"][0] if fk["constrained_columns"] else "",
-                            "references":f"{fk['referred_table']}.{fk['referred_columns'][0]}" if fk["referred_columns"] else ""}
-                           for fk in inspector.get_foreign_keys(tbl)]
+                    key = (schema_name, tbl)
+                    if key in multi_cols:
+                        cols_raw = multi_cols[key]
+                        pk = multi_pks.get(key, {}).get("constrained_columns", []) or []
+                        fks = [{"column":fk["constrained_columns"][0] if fk["constrained_columns"] else "",
+                                "references":f"{fk['referred_table']}.{fk['referred_columns'][0]}" if fk["referred_columns"] else ""}
+                               for fk in multi_fks.get(key, [])]
+                    elif (None, tbl) in multi_cols:
+                        key = (None, tbl)
+                        cols_raw = multi_cols[key]
+                        pk = multi_pks.get(key, {}).get("constrained_columns", []) or []
+                        fks = [{"column":fk["constrained_columns"][0] if fk["constrained_columns"] else "",
+                                "references":f"{fk['referred_table']}.{fk['referred_columns'][0]}" if fk["referred_columns"] else ""}
+                               for fk in multi_fks.get(key, [])]
+                    else:
+                        cols_raw = inspector.get_columns(tbl)
+                        pk = inspector.get_pk_constraint(tbl).get("constrained_columns",[]) or []
+                        fks = [{"column":fk["constrained_columns"][0] if fk["constrained_columns"] else "",
+                                "references":f"{fk['referred_table']}.{fk['referred_columns'][0]}" if fk["referred_columns"] else ""}
+                               for fk in inspector.get_foreign_keys(tbl)]
                     columns = [{"name":c["name"],"type":str(c["type"]),"primary_key":c["name"] in pk}
                                for c in cols_raw]
                 except Exception: continue
+                schema[tbl] = {"columns":columns,"foreign_keys":fks,"sample_rows":[],
+                               "row_count":None,"distinct_values":{}}
+
+            if schema:
+                count_query_parts = []
+                for tbl in schema.keys():
+                    count_query_parts.append(f"(SELECT COUNT(*) FROM {self._q(tbl)})")
+                count_query = "SELECT " + ", ".join(count_query_parts)
+                try:
+                    res = conn.execute(text(count_query)).fetchone()
+                    for idx, tbl in enumerate(schema.keys()):
+                        schema[tbl]["row_count"] = res[idx]
+                except Exception:
+                    for tbl in schema.keys():
+                        try:
+                            schema[tbl]["row_count"] = conn.execute(text(f"SELECT COUNT(*) FROM {self._q(tbl)}")).scalar()
+                        except Exception:
+                            pass
+
+            for tbl in schema.keys():
                 try:
                     res = conn.execute(text(f"SELECT * FROM {self._q(tbl)} LIMIT {self.sample_rows}"))
                     names = list(res.keys())
@@ -67,13 +120,13 @@ class DatabaseManager:
                     for r in samples:
                         for k,v in r.items():
                             if isinstance(v,str) and len(v)>50: r[k]=v[:47]+"..."
-                except Exception: samples = []
-                try:
-                    rc = conn.execute(text(f"SELECT COUNT(*) FROM {self._q(tbl)}")).scalar()
-                except Exception: rc = None
-                low_card = {}
+                    schema[tbl]["sample_rows"] = samples
+                except Exception: pass
+
+                rc = schema[tbl]["row_count"]
                 if rc is None or rc <= BIG:
-                    for c in columns:
+                    low_card = {}
+                    for c in schema[tbl]["columns"]:
                         if any(s in c["name"].lower() for s in SKIP): continue
                         if any(t in c["type"].lower() for t in ("char","text","enum","varchar")):
                             try:
@@ -81,8 +134,8 @@ class DatabaseManager:
                                 vals = [row[0] for row in dv if row[0] is not None]
                                 if 0 < len(vals) <= 8: low_card[c["name"]] = vals
                             except Exception: pass
-                schema[tbl] = {"columns":columns,"foreign_keys":fks,"sample_rows":samples,
-                               "row_count":rc,"distinct_values":low_card}
+                    schema[tbl]["distinct_values"] = low_card
+
         self._schema_cache = schema
         return schema
 
