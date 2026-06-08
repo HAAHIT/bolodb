@@ -95,3 +95,20 @@ def test_db_id_differs_for_different_targets():
     a = db_id_for("postgresql://user:secret@host/db")
     b = db_id_for("postgresql://user:secret@otherhost/db")
     assert a != b
+
+
+def test_q_escapes_identifiers(db):
+    """Ensure that the _q method correctly escapes quotes in identifiers to prevent SQL injection."""
+    # Test sqlite/postgres double quotes escaping
+    assert db._q('normal_table') == '"normal_table"'
+    assert db._q('malicious"table') == '"malicious""table"'
+    assert db._q('table"name"with"quotes') == '"table""name""with""quotes"'
+
+    # Test mysql backtick escaping
+    db.dialect = "mysql"
+    assert db._q('normal_table') == '`normal_table`'
+    assert db._q('malicious`table') == '`malicious``table`'
+    assert db._q('table`name`with`quotes') == '`table``name``with``quotes`'
+
+    # Reset dialect back to default sqlite for fixture
+    db.dialect = "sqlite"

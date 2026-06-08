@@ -41,7 +41,13 @@ class DatabaseManager:
             return {"ok":False,"error":str(e)}
 
     def _q(self, n):
-        return f"`{n}`" if self.dialect=="mysql" else f'"{n}"'
+        n = str(n)
+        if self.dialect == "mysql":
+            escaped = n.replace("`", "``")
+            return f"`{escaped}`"
+        else:
+            escaped = n.replace('"', '""')
+            return f'"{escaped}"'
 
     def get_schema(self, refresh=False):
         if self._schema_cache and not refresh: return self._schema_cache
