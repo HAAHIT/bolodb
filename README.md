@@ -67,6 +67,13 @@ python main.py --port 8080              # different port
 python main.py --no-browser             # don't auto-open browser
 ```
 
+## Running tests
+
+```bash
+pip install -r requirements.txt
+pytest
+```
+
 ## Privacy
 
 - All learned knowledge is stored locally in `~/.bolodb/`
