@@ -9,14 +9,12 @@ def parse_json(text):
     return json.loads(s)
 
 class LLMProvider(ABC):
-    name = "base"
     @abstractmethod
     async def complete(self, system, user, json_mode=False): ...
     @abstractmethod
     async def health_check(self): ...
 
 class OllamaProvider(LLMProvider):
-    name = "ollama"
     def __init__(self, model="bolodb-sql", base_url="http://localhost:11434"):
         self.model = model or "bolodb-sql"; self.base_url = base_url.rstrip("/")
     async def complete(self, system, user, json_mode=False):
@@ -35,10 +33,6 @@ class OllamaProvider(LLMProvider):
                 return {"ok":True,"models":[m["name"] for m in r.json().get("models",[])]}
         except Exception as e:
             return {"ok":False,"error":str(e)}
-    async def list_models(self):
-        r = await self.health_check()
-        return r.get("models",[])
-
 class APIKeyProvider(LLMProvider):
     DEFAULT = ""
     def __init__(self, api_key, model=""):
@@ -47,7 +41,7 @@ class APIKeyProvider(LLMProvider):
         return {"ok":bool(self.api_key),"models":[self.model] if self.api_key else []}
 
 class ClaudeProvider(APIKeyProvider):
-    name = "claude"; DEFAULT = "claude-haiku-4-5-20251001"
+    DEFAULT = "claude-haiku-4-5-20251001"
     async def complete(self, system, user, json_mode=False):
         if json_mode: system += "\n\nRespond with ONLY a valid JSON object, no other text."
         async with httpx.AsyncClient(timeout=60) as c:
@@ -58,7 +52,7 @@ class ClaudeProvider(APIKeyProvider):
             return r.json()["content"][0]["text"]
 
 class OpenAIProvider(APIKeyProvider):
-    name = "openai"; DEFAULT = "gpt-4o-mini"
+    DEFAULT = "gpt-4o-mini"
     async def complete(self, system, user, json_mode=False):
         body = {"model":self.model,"temperature":0.05,"max_tokens":1500,
                 "messages":[{"role":"system","content":system},{"role":"user","content":user}]}
@@ -70,7 +64,7 @@ class OpenAIProvider(APIKeyProvider):
             return r.json()["choices"][0]["message"]["content"]
 
 class GroqProvider(APIKeyProvider):
-    name = "groq"; DEFAULT = "llama-3.3-70b-versatile"
+    DEFAULT = "llama-3.3-70b-versatile"
     async def complete(self, system, user, json_mode=False):
         body = {"model":self.model,"temperature":0.05,"max_tokens":1500,
                 "messages":[{"role":"system","content":system},{"role":"user","content":user}]}
