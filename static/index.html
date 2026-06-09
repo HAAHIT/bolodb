@@ -958,7 +958,7 @@ function ConnectScreen({ engine, setEngine, onConnect }) {
                 {connecting==="url"?"Connecting…":"Connect database"}
               </Button>
               <div style={{display:"flex",alignItems:"center",gap:7,marginTop:11,color:"var(--faint)",fontSize:12.5}}>
-                <Ico.shield style={{width:14,height:14}}/> Tip: use a read-only database account for extra safety.
+                <Ico.shield style={{width:14,height:14}}/> Tip: use a view-only database account — BoloDB never writes to your data.
               </div>
             </div>
 
@@ -1070,7 +1070,7 @@ Object.assign(window, { ConnectScreen, Spinner, Section });
    BoloDB — Onboarding crawl
    profile  ->  glossary  ->  verify starters
    ============================================================ */
-function OnboardScreen({ onDone, dbInfo }) {
+function OnboardScreen({ onDone, dbInfo, schema }) {
   const [step,setStep] = React.useState("profile");
   const [realGlossary,setRealGlossary] = React.useState(null);
   const [realStarters,setRealStarters] = React.useState(null);
@@ -1121,7 +1121,7 @@ function OnboardScreen({ onDone, dbInfo }) {
           </div>
         )}
 
-        {step==="profile"  && <ProfileStep onNext={()=>{ loadOnboardData(); setStep("glossary"); }}/>}
+        {step==="profile"  && <ProfileStep onNext={()=>{ loadOnboardData(); setStep("glossary"); }} schema={schema}/>}
         {step==="glossary" && <GlossaryStep glossaryItems={realGlossary || B.glossary} onNext={(g)=>{ setConfirmedGlossary(g); setStep("starters"); }}/>}
         {step==="starters" && <StartersStep starterItems={realStarters || B.starters} glossary={confirmedGlossary || []} onDone={onDone}/>}
       </div>
@@ -1155,12 +1155,14 @@ function Stepper({ step }) {
 }
 
 /* ---- profile / crawl ---- */
-function ProfileStep({ onNext }) {
+function ProfileStep({ onNext, schema }) {
   const B = window.BOLO;
+  // Use real schema if passed; otherwise fall back to TechStore demo
+  const tableList = (schema && schema.length > 0) ? schema : B.schema;
   const [done,setDone] = React.useState(0);
-  const allDone = done >= B.schema.length;
+  const allDone = done >= tableList.length;
   React.useEffect(()=>{
-    if (done < B.schema.length){
+    if (done < tableList.length){
       const t=setTimeout(()=>setDone(d=>d+1), 360 + Math.random()*220);
       return ()=>clearTimeout(t);
     }
@@ -1173,7 +1175,7 @@ function ProfileStep({ onNext }) {
         Nothing is uploaded or sent anywhere.
       </p>
       <div style={{display:"flex",flexDirection:"column",gap:9}}>
-        {B.schema.map((t,i)=>{
+        {tableList.map((t,i)=>{
           const state = i<done?"done":i===done?"active":"wait";
           return (
             <div key={t.name} style={{display:"flex",alignItems:"center",gap:13,padding:"12px 15px",
@@ -1371,7 +1373,7 @@ function StarterCard({ s, verdict, onYes, onNo, delay }) {
       </div>
       <div style={{marginBottom:13,padding:"11px 14px",
         background:"var(--surface-2)",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)"}}>
-        <div style={{fontSize:10.5,fontWeight:800,color:"var(--faint)",letterSpacing:".07em",marginBottom:5}}>HERE'S WHAT I DID</div>
+        <div style={{fontSize:10.5,fontWeight:800,color:"var(--faint)",letterSpacing:".07em",marginBottom:5}}>WHAT I UNDERSTOOD</div>
         <div style={{fontSize:14,color:"var(--ink)",fontWeight:550,lineHeight:1.4}}>{s.restatement}</div>
       </div>
       <ResultTable columns={s.columns||[]} rows={window.rowsToArrays(s.columns||[], s.rows||[])} max={4}/>
@@ -1453,7 +1455,7 @@ const AnswerCard = React.memo(function AnswerCard({ turn, onVerify, isLatest }) 
             {/* restatement + confidence */}
             <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:14,marginBottom:15}}>
               <div style={{flex:1}}>
-                <div style={{fontSize:11,fontWeight:800,color:"var(--faint)",letterSpacing:".07em",marginBottom:6}}>HERE'S WHAT I DID</div>
+                <div style={{fontSize:11,fontWeight:800,color:"var(--faint)",letterSpacing:".07em",marginBottom:6}}>WHAT I UNDERSTOOD</div>
                 <div style={{fontSize:16.5,fontWeight:600,letterSpacing:"-.01em",lineHeight:1.4,color:"var(--ink)",textWrap:"pretty"}}>{turn.restatement}</div>
                 {turn.basedOn && (
                   <div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:9,fontSize:12.5,fontWeight:650,
@@ -1571,7 +1573,7 @@ function Thinking({ confidenceHint }) {
               background:i<active?"var(--brand)":"transparent",border:i<active?"none":"1.5px solid var(--border-2)"}}>
               {i<active && <Ico.check style={{width:10,height:10,color:"#fff"}}/>}
             </span>
-            {s}{i===2&&<span style={{fontSize:10.5,fontWeight:700,color:"var(--brand)",background:"var(--brand-tint)",padding:"1px 6px",borderRadius:99}}>schema-linked</span>}
+            {s}
           </div>
         ))}
       </div>
@@ -1603,8 +1605,8 @@ Object.assign(window, { AnswerCard });
    ============================================================ */
 function AskScreen({ engine, setEngine, modelName, setModelName, verifiedCount, onVerify, onUpdateStarters, toast, realSchema, dbInfo, starters, onDisconnect }) {
   const B = window.BOLO;
-  const dbLabel = dbInfo ? (dbInfo.url||"").split("/").pop()||dbInfo.dialect : "TechStore";
-  const tableCount = dbInfo ? dbInfo.tables : 5;
+  const dbLabel = dbInfo ? (dbInfo.url||"").split("/").pop()||dbInfo.dialect||"your database" : "your database";
+  const tableCount = dbInfo ? dbInfo.tables : 0;
   const [turns,setTurns] = React.useState([]);
   const [input,setInput] = React.useState("");
   const [settingsOpen,setSettingsOpen] = React.useState(false);
@@ -1680,12 +1682,12 @@ function AskScreen({ engine, setEngine, modelName, setModelName, verifiedCount, 
             <span style={{width:30,height:30,borderRadius:9,background:"var(--brand-tint)",color:"var(--brand)",display:"grid",placeItems:"center"}}><Ico.db/></span>
             <div>
               <div style={{fontWeight:700,fontSize:14.5,lineHeight:1.1}}>{dbLabel}</div>
-              <div style={{fontSize:11.5,color:"var(--faint)",fontWeight:600}}>{tableCount} tables · read-only</div>
+              <div style={{fontSize:11.5,color:"var(--faint)",fontWeight:600}}>{tableCount} tables · view only</div>
             </div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <TrustPill level={trust} count={verifiedCount}/>
-            {turns.length>0 && <Button kind="quiet" size="sm" icon={<Ico.plus/>} onClick={()=>setTurns([])}>New thread</Button>}
+            {turns.length>0 && <Button kind="quiet" size="sm" icon={<Ico.plus/>} onClick={()=>setTurns([])}>New conversation</Button>}
           </div>
         </div>
 
@@ -1768,8 +1770,8 @@ function Sidebar({ engine, modelName, verifiedCount, onSettings, schema, dbInfo 
   const prov = B.providers.find(p=>p.id===engine);
   const [openTable,setOpenTable] = React.useState(null);
   const schemaData = schema || B.schema;
-  const dbLabel = dbInfo ? (dbInfo.url||"").split("/").pop()||dbInfo.dialect : "TechStore";
-  const tableCount = dbInfo ? dbInfo.tables : 5;
+  const dbLabel = dbInfo ? (dbInfo.url||"").split("/").pop()||dbInfo.dialect||"your database" : "your database";
+  const tableCount = dbInfo ? dbInfo.tables : 0;
   return (
     <div style={{width:286,flexShrink:0,borderRight:"1px solid var(--border)",background:"var(--surface)",
       display:"flex",flexDirection:"column",height:"100%"}}>
@@ -2109,7 +2111,7 @@ function App(){
         </div>
       )}
       {phase==="connect" && <ConnectScreen engine={engine} setEngine={setEngine} onConnect={onConnect}/>}
-      {phase==="onboard" && <OnboardScreen onDone={onOnboardDone} dbInfo={dbInfo}/>}
+      {phase==="onboard" && <OnboardScreen onDone={onOnboardDone} dbInfo={dbInfo} schema={realSchema}/>}
       {phase==="ask"     && <AskScreen engine={engine} setEngine={setEngine} modelName={modelName} setModelName={setModelName} verifiedCount={verifiedCount} onVerify={onVerify} onUpdateStarters={setStarters} toast={toast} realSchema={realSchema} dbInfo={dbInfo} starters={starters} onDisconnect={onDisconnect}/>}
     </div>
   );
