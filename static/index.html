@@ -1070,7 +1070,7 @@ Object.assign(window, { ConnectScreen, Spinner, Section });
    BoloDB — Onboarding crawl
    profile  ->  glossary  ->  verify starters
    ============================================================ */
-function OnboardScreen({ onDone }) {
+function OnboardScreen({ onDone, dbInfo }) {
   const [step,setStep] = React.useState("profile");
   const [realGlossary,setRealGlossary] = React.useState(null);
   const [realStarters,setRealStarters] = React.useState(null);
@@ -1078,7 +1078,14 @@ function OnboardScreen({ onDone }) {
   const [loadErr,setLoadErr] = React.useState("");
   const B = window.BOLO;
 
+  // Real DB chip — fallback to "Your database" if info not yet available
+  const dbLabel = dbInfo
+    ? (dbInfo.url||"").split("/").pop() || dbInfo.dialect || "Your database"
+    : "Your database";
+  const tableLabel = dbInfo ? `${dbInfo.tables} table${dbInfo.tables===1?"":"s"}` : "";
+
   async function loadOnboardData() {
+    setLoadErr("");
     try {
       const [g, s] = await Promise.all([
         window.apiCall('/api/onboard/glossary',{}),
@@ -1087,8 +1094,8 @@ function OnboardScreen({ onDone }) {
       setRealGlossary(g.glossary || []);
       setRealStarters(s.starters || []);
     } catch(e) {
-      setLoadErr(e.message);
-      // fall back to canned data if API fails
+      setLoadErr(e.message || "Couldn't reach the AI — using built-in examples instead.");
+      // fall back to canned data so the user can still continue
       setRealGlossary(B.glossary);
       setRealStarters(B.starters);
     }
@@ -1100,11 +1107,19 @@ function OnboardScreen({ onDone }) {
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:30}}>
           <Logo size={26}/>
           <span className="chip" style={{cursor:"default",background:"var(--surface)",color:"var(--brand-ink)",borderColor:"var(--brand-tint-2)"}}>
-            <Ico.db style={{width:14,height:14}}/> TechStore · 5 tables
+            <Ico.db style={{width:14,height:14}}/> {dbLabel}{tableLabel ? ` · ${tableLabel}` : ""}
           </span>
         </div>
 
         <Stepper step={step}/>
+
+        {/* LLM unavailable notice — shown after the profile step if AI couldn't be reached */}
+        {loadErr && (
+          <div style={{marginBottom:16,padding:"11px 15px",background:"#FFF8ED",border:"1px solid #F5D78A",
+            borderRadius:"var(--radius-sm)",color:"#7A5C0A",fontSize:13,fontWeight:550,lineHeight:1.5}}>
+            <b>AI not available:</b> {loadErr} The setup will continue with example data — you can re-run it later from Settings.
+          </div>
+        )}
 
         {step==="profile"  && <ProfileStep onNext={()=>{ loadOnboardData(); setStep("glossary"); }}/>}
         {step==="glossary" && <GlossaryStep glossaryItems={realGlossary || B.glossary} onNext={(g)=>{ setConfirmedGlossary(g); setStep("starters"); }}/>}
@@ -1115,7 +1130,7 @@ function OnboardScreen({ onDone }) {
 }
 
 function Stepper({ step }) {
-  const steps = [["profile","Profile"],["glossary","Define terms"],["starters","Verify answers"]];
+  const steps = [["profile","Read your DB"],["glossary","Define terms"],["starters","Check answers"]];
   const idx = steps.findIndex(s=>s[0]===step);
   return (
     <div style={{display:"flex",alignItems:"center",gap:0,marginBottom:26}}>
@@ -1265,7 +1280,8 @@ function StartersStep({ onDone, starterItems, glossary }) {
   const starters = starterItems && starterItems.length ? starterItems : B.starters;
   const [ready,setReady] = React.useState(false);
   const [verdicts,setVerdicts] = React.useState(starters.map(()=>null));
-  const [saving,setSaving] = React.useState(false); // 'yes'|'no'|null
+  const [saving,setSaving]   = React.useState(false);
+  const [saveErr,setSaveErr] = React.useState("");
   React.useEffect(()=>{ const t=setTimeout(()=>setReady(true),900); return ()=>clearTimeout(t); },[]);
 
   const verifiedCount = verdicts.filter(v=>v==="yes").length;
@@ -1273,23 +1289,26 @@ function StartersStep({ onDone, starterItems, glossary }) {
   function set(i,v){ setVerdicts(arr=>arr.map((x,j)=>j===i?v:x)); }
 
   async function saveAndFinish() {
-    setSaving(true);
+    setSaving(true); setSaveErr("");
     try {
       const verified = starters
         .filter((_,i)=>verdicts[i]==="yes")
         .map(s=>({question:s.q||s.question||"",sql:s.sql||"",restatement:s.restatement||""}));
       await window.apiCall('/api/onboard/save',{glossary:glossary||[],starters:verified});
-    } catch(e) { /* best-effort */ }
-    onDone(verifiedCount);
+      onDone(verifiedCount);
+    } catch(e) {
+      setSaveErr("Couldn't save your answers — check that the server is still running, then try again.");
+      setSaving(false);
+    }
   }
 
   return (
     <div className="rise">
       <div className="card" style={{padding:26,marginBottom:16}}>
-        <h2 style={{margin:"0 0 5px",fontSize:21,fontWeight:700,letterSpacing:"-.02em"}}>Verify a few answers to start warm</h2>
+        <h2 style={{margin:"0 0 5px",fontSize:21,fontWeight:700,letterSpacing:"-.02em"}}>Check a few answers before you start</h2>
         <p style={{margin:0,color:"var(--muted)",fontSize:14.5}}>
-          BoloDB ran some safe questions for you. Confirm the ones that look right — each becomes a verified
-          example, so you begin accurate instead of cold.
+          BoloDB ran these questions against your database. Confirm the ones that look right — each one
+          you approve becomes a reference answer that keeps future results accurate.
         </p>
       </div>
 
@@ -1312,18 +1331,29 @@ function StartersStep({ onDone, starterItems, glossary }) {
       )}
 
       {ready && (
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:22,
-          padding:"15px 20px",borderRadius:"var(--radius)",background:"var(--surface)",border:"1px solid var(--border)",boxShadow:"var(--shadow-sm)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:11}}>
-            <span style={{width:34,height:34,borderRadius:10,background:"var(--brand-tint)",color:"var(--brand)",display:"grid",placeItems:"center"}}><Ico.spark/></span>
-            <div>
-              <div style={{fontWeight:700,fontSize:14.5}}>{verifiedCount} answer{verifiedCount===1?"":"s"} verified</div>
-              <div style={{fontSize:12.5,color:"var(--faint)"}}>{verifiedCount>=3?"Enough to reach the Assisted level.":"Verify a couple to seed the knowledge base."}</div>
+        <div style={{marginTop:22}}>
+          {saveErr && (
+            <div style={{marginBottom:12,padding:"11px 15px",background:"var(--c-low-tint)",
+              border:"1px solid #EBC6BD",borderRadius:"var(--radius-sm)",color:"var(--c-low-ink)",
+              fontSize:13.5,fontWeight:550}}>{saveErr}</div>
+          )}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+            padding:"15px 20px",borderRadius:"var(--radius)",background:"var(--surface)",border:"1px solid var(--border)",boxShadow:"var(--shadow-sm)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:11}}>
+              <span style={{width:34,height:34,borderRadius:10,background:"var(--brand-tint)",color:"var(--brand)",display:"grid",placeItems:"center"}}><Ico.spark/></span>
+              <div>
+                <div style={{fontWeight:700,fontSize:14.5}}>{verifiedCount} answer{verifiedCount===1?"":"s"} confirmed</div>
+                <div style={{fontSize:12.5,color:"var(--faint)"}}>
+                  {verifiedCount>=3
+                    ? "Great start — BoloDB will answer confidently from the beginning."
+                    : "Mark at least a few as correct so BoloDB has something to go on."}
+                </div>
+              </div>
             </div>
+            <Button kind="primary" size="lg" disabled={!allAnswered||saving} iconRight={saving?<Spinner/>:<Ico.arrow/>} onClick={saveAndFinish}>
+              {saving?"Saving…":allAnswered?"Start asking →":"Review each answer above"}
+            </Button>
           </div>
-          <Button kind="primary" size="lg" disabled={!allAnswered||saving} iconRight={saving?<Spinner/>:<Ico.arrow/>} onClick={saveAndFinish}>
-            {allAnswered?"Start asking":"Review each answer"}
-          </Button>
         </div>
       )}
     </div>
@@ -1911,12 +1941,15 @@ function Settings({ engine, setEngine, modelName, setModelName, onClose, onDisco
           {sel==="ollama" ? (
             <div>
               <div style={{fontSize:13,fontWeight:700,color:"var(--ink-2)",marginBottom:8}}>Local model</div>
-              <select className="field" value={localModel} onChange={e=>setLocalModel(e.target.value)} style={{cursor:"pointer"}}>
-                <option value="qwen2.5:0.5b">qwen2.5:0.5b — tiny, ~1–2 GB RAM</option>
-                <option value="llama3.2">llama3.2 — recommended, ~4 GB RAM</option>
-                <option value="mistral">mistral — better quality, ~8 GB RAM</option>
+              <select className="field" value={localModel} onChange={e=>setLocalModel(e.target.value)} style={{cursor:"pointer",fontSize:14}}>
+                <option value="qwen2.5:0.5b">Fast &amp; lightweight — lower accuracy (qwen2.5:0.5b, ~1 GB)</option>
+                <option value="llama3.2">Balanced — recommended for most uses (llama3.2, ~4 GB)</option>
+                <option value="mistral">Best accuracy — slower to respond (mistral, ~8 GB)</option>
               </select>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginTop:12,padding:"10px 13px",background:"var(--brand-tint)",borderRadius:"var(--radius-sm)",color:"var(--brand-ink)",fontSize:12.5,fontWeight:550}}>
+              <div style={{fontSize:12,color:"var(--faint)",marginTop:7,fontWeight:550}}>
+                Not sure? Stay with "Balanced" — it works well for most databases.
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,padding:"10px 13px",background:"var(--brand-tint)",borderRadius:"var(--radius-sm)",color:"var(--brand-ink)",fontSize:12.5,fontWeight:550}}>
                 <Ico.shield style={{width:15,height:15,flexShrink:0}}/> Fully private — your schema and questions never leave this machine.
               </div>
             </div>
@@ -2044,14 +2077,14 @@ function App(){
   }
   function onVerify(apiCount){
     setVerifiedCount(c=>{
-      if (apiCount !== undefined) return (()=>{ const next=apiCount; const lv=window.BOLO.trustFor(next); if(lv.key!==prevLevel.current){prevLevel.current=lv.key; const msg=lv.key==="assisted"?{title:"You've reached Assisted",body:"Confident answers now show directly."}:{title:"You've reached Trusted",body:"Answers appear directly now."}; setToast(msg); setTimeout(()=>setToast(null),4200);} return next; })();
+      if (apiCount !== undefined) return (()=>{ const next=apiCount; const lv=window.BOLO.trustFor(next); if(lv.key!==prevLevel.current){prevLevel.current=lv.key; const msg=lv.key==="assisted"?{title:"Accuracy milestone reached",body:"Confident answers now show immediately — new questions still get a second look."}:{title:"Fully calibrated",body:"All answers appear directly now. Reasoning is always one tap away."}; setToast(msg); setTimeout(()=>setToast(null),4200);} return next; })();
       const next = c+1;
       const lv = window.BOLO.trustFor(next);
       if (lv.key !== prevLevel.current){
         prevLevel.current = lv.key;
         const msg = lv.key==="assisted"
-          ? { title:"You've reached Assisted", body:"Confident answers now show directly; novel ones get a second look." }
-          : { title:"You've reached Trusted", body:"Answers appear directly now — reasoning is one tap away." };
+          ? { title:"Accuracy milestone reached", body:"Confident answers now show immediately — new questions still get a second look." }
+          : { title:"Fully calibrated", body:"All answers appear directly now. Reasoning is always one tap away." };
         setToast(msg);
         setTimeout(()=>setToast(null), 4200);
       }
@@ -2076,7 +2109,7 @@ function App(){
         </div>
       )}
       {phase==="connect" && <ConnectScreen engine={engine} setEngine={setEngine} onConnect={onConnect}/>}
-      {phase==="onboard" && <OnboardScreen onDone={onOnboardDone}/>}
+      {phase==="onboard" && <OnboardScreen onDone={onOnboardDone} dbInfo={dbInfo}/>}
       {phase==="ask"     && <AskScreen engine={engine} setEngine={setEngine} modelName={modelName} setModelName={setModelName} verifiedCount={verifiedCount} onVerify={onVerify} onUpdateStarters={setStarters} toast={toast} realSchema={realSchema} dbInfo={dbInfo} starters={starters} onDisconnect={onDisconnect}/>}
     </div>
   );
