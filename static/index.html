@@ -1563,7 +1563,7 @@ function Settings({ engine, setEngine, modelName, setModelName, onClose }) {
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <Ico.gear style={{color:"var(--brand)"}}/><span style={{fontWeight:800,fontSize:17}}>Settings</span>
           </div>
-          <button onClick={onClose} className="btn btn-quiet btn-sm" style={{padding:8}}><Ico.x/></button>
+          <button onClick={onClose} aria-label="Close settings" className="btn btn-quiet btn-sm" style={{padding:8}}><Ico.x/></button>
         </div>
         <div style={{padding:24}}>
           <div style={{fontSize:13,fontWeight:700,color:"var(--ink-2)",marginBottom:12}}>AI engine</div>
