@@ -67,6 +67,21 @@ def test_keyword_inside_identifier_is_not_blocked(db):
     assert "error" not in res
 
 
+def test_keyword_inside_string_literal_is_not_blocked(db):
+    """A write keyword inside a string literal must not cause a false rejection.
+
+    The AST guard inspects the parse tree, so 'DELETE' as data is allowed where a
+    naive keyword regex would have wrongly blocked the whole query.
+    """
+    res = db.execute("SELECT * FROM items WHERE name = 'please DELETE this later'")
+    assert "error" not in res
+
+
+def test_explain_select_allowed(db):
+    res = db.execute("EXPLAIN SELECT * FROM items")
+    assert "error" not in res
+
+
 def test_truncation_flag_is_exact(db):
     res = db.execute("SELECT * FROM items LIMIT 5")
     assert res["row_count"] == 5

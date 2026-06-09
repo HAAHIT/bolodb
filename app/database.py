@@ -1,14 +1,26 @@
 """Database connection, schema introspection (guarded), read-only execution."""
 import hashlib, re
 import logging
+import sqlglot
+import sqlglot.expressions as exp
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
+# Conservative keyword guard, used as a fallback when a statement cannot be
+# parsed into an AST (see _readonly_violation). The AST check is the primary
+# defence; this regex only runs when sqlglot can't understand the SQL.
 WRITE_KEYWORDS = re.compile(
     r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|REPLACE|GRANT|REVOKE|"
     r"ATTACH|DETACH|EXEC|EXECUTE|MERGE|PRAGMA|VACUUM|CALL|INTO)\b", re.IGNORECASE)
+
+# sqlalchemy dialect name -> sqlglot dialect name (only where they differ)
+_GLOT_DIALECT = {"postgresql": "postgres", "mssql": "tsql"}
+
+# AST node types that mutate data/schema and must never run in read-only mode
+_MODIFYING_NODES = (exp.Insert, exp.Update, exp.Delete, exp.Create, exp.Drop,
+                    exp.Alter, exp.Command)
 
 def sanitize_url(url):
     if "@" not in url: return url
@@ -167,14 +179,60 @@ class DatabaseManager:
                 lines.append(f"  sample: {info['sample_rows'][:1]}")
         return "\n".join(lines)
 
+    def _readonly_violation(self, cleaned):
+        """Return an error string if `cleaned` is not a safe read-only query, else None.
+
+        Primary check parses the SQL into an AST (sqlglot) and rejects anything
+        that isn't a single SELECT/WITH/EXPLAIN or that contains a modifying node
+        anywhere in the tree (e.g. a DELETE inside a CTE, or SELECT INTO). This is
+        precise: identifiers that merely *contain* a keyword (e.g. `updates_log`)
+        are not flagged. If the statement can't be parsed, we fall back to the
+        conservative keyword regex so unparseable SQL is never executed blindly.
+        """
+        if not cleaned:
+            return "Empty statement."
+        glot_dialect = _GLOT_DIALECT.get(self.dialect, self.dialect)
+        try:
+            stmts = sqlglot.parse(cleaned, dialect=glot_dialect)
+        except Exception:
+            # Fallback: couldn't build an AST — apply the conservative regex guard.
+            first = cleaned.split()[0].upper() if cleaned else ""
+            if first not in ("SELECT", "WITH", "EXPLAIN"):
+                return "Only SELECT queries are allowed (read-only mode)."
+            if ";" in cleaned or WRITE_KEYWORDS.search(cleaned):
+                return "Only read-only SELECT queries are allowed."
+            return None
+
+        stmts = [s for s in stmts if s is not None]
+        if len(stmts) > 1:
+            return "Only one statement is allowed (no stacked queries)."
+        if not stmts:
+            return "Empty statement."
+        stmt = stmts[0]
+
+        # Root must be a read-only statement type.
+        root = type(stmt).__name__
+        is_explain = root == "Command" and str(stmt.this).upper() == "EXPLAIN"
+        if root not in ("Select", "Union", "Explain") and not is_explain:
+            return "Only SELECT queries are allowed (read-only mode)."
+
+        # No modifying node may appear anywhere in the tree (catches CTE writes).
+        for node in stmt.find_all(*_MODIFYING_NODES):
+            if type(node).__name__ == "Command" and str(node.this).upper() == "EXPLAIN":
+                continue
+            return "Only read-only SELECT queries are allowed."
+
+        # Block SELECT ... INTO (creates/overwrites a table).
+        if next(stmt.find_all(exp.Into), None) is not None:
+            return "SELECT INTO is not allowed."
+        return None
+
     def execute(self, sql):
         cleaned = sql.strip().rstrip(";").strip()
         if self.readonly:
-            first = cleaned.split()[0].upper() if cleaned else ""
-            if first not in ("SELECT","WITH","EXPLAIN"):
-                return {"error":"Only SELECT queries are allowed (read-only mode).","sql":cleaned}
-            if ";" in cleaned or WRITE_KEYWORDS.search(cleaned):
-                return {"error":"Only read-only SELECT queries are allowed.","sql":cleaned}
+            violation = self._readonly_violation(cleaned)
+            if violation:
+                return {"error": violation, "sql": cleaned}
         try:
             with self.engine.connect() as conn:
                 res = conn.execute(text(cleaned))
