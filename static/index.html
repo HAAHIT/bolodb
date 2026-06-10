@@ -1719,7 +1719,7 @@ function AskScreen({ engine, setEngine, modelName, setModelName, verifiedCount, 
                 boxShadow:"var(--shadow-sm)",transition:"border-color .15s, box-shadow .15s"}}
               onFocus={e=>{e.currentTarget.style.borderColor="var(--brand)";e.currentTarget.style.boxShadow="0 0 0 4px var(--ring)";}}
               onBlur={e=>{e.currentTarget.style.borderColor="var(--border-2)";e.currentTarget.style.boxShadow="var(--shadow-sm)";}}>
-              <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask anything about your data…"
+              <input aria-label="Ask a question about your data" autoFocus value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask anything about your data…"
                 style={{flex:1,border:"none",outline:"none",background:"transparent",fontSize:15.5,color:"var(--ink)"}}/>
               <Button kind="primary" type="submit" disabled={!input.trim()||loading} icon={loading?<Spinner/>:<Ico.send/>}>Ask</Button>
             </form>
