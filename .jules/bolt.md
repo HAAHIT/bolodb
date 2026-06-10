@@ -1,0 +1,3 @@
+## 2024-05-18 - Avoid Event Loop Blocking in FastAPI
+**Learning:** Making synchronous SQLAlchemy `execute` or database inspection calls directly inside an `async def` FastAPI endpoint route blocks the main event loop. This starves other concurrent requests.
+**Action:** Always wrap synchronous backend I/O operations (like database interactions and file reads/writes) with `fastapi.concurrency.run_in_threadpool` or `asyncio.to_thread` when executing inside async endpoint routes. For multiple synchronous calls that depend on each other, bundle them into a synchronous helper function and run the helper in the threadpool to minimize overhead.

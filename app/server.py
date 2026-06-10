@@ -56,10 +56,19 @@ def create_app(initial_db_url="", readonly=True):
             s["database"] = {"url":sanitize_url(db.url) if db.url else None,
                              "dialect":db.dialect,"db_id":db.db_id,
                              "tables":db._table_count}
-            s["trust"]    = kb.trust_level(db.db_id)
-            s["glossary"] = kb.get_glossary(db.db_id)
+
+            def _fetch():
+                trust = kb.trust_level(db.db_id)
+                glossary = kb.get_glossary(db.db_id)
+                verified = kb.get_verified(db.db_id)
+                return trust, glossary, verified
+
+            trust, glossary, verified = await run_in_threadpool(_fetch)
+
+            s["trust"]    = trust
+            s["glossary"] = glossary
             # Surface verified starter questions so the UI can show them as chips
-            s["starters"] = [v["question"] for v in kb.get_verified(db.db_id)[:6]]
+            s["starters"] = [v["question"] for v in verified[:6]]
         return s
 
     @app.get("/api/ollama-check")
@@ -94,31 +103,51 @@ def create_app(initial_db_url="", readonly=True):
 
     @app.post("/api/connect")
     async def connect(req: ConnectReq):
-        result = db.connect(req.db_url)
+        result = await run_in_threadpool(db.connect, req.db_url)
         if not result["ok"]: raise HTTPException(400, result["error"])
         cfg["last_db_url"] = req.db_url; cfgmod.save_config(cfg)
-        result["trust"]        = kb.trust_level(db.db_id)
-        result["glossary"]     = kb.get_glossary(db.db_id)
-        result["has_knowledge"]= kb.count_verified(db.db_id) > 0
-        result["starters"]     = [v["question"] for v in kb.get_verified(db.db_id)[:6]]
+
+        def _fetch():
+            trust = kb.trust_level(db.db_id)
+            glossary = kb.get_glossary(db.db_id)
+            has_k = kb.count_verified(db.db_id)
+            verified = kb.get_verified(db.db_id)
+            return trust, glossary, has_k, verified
+
+        trust, glossary, has_k, verified = await run_in_threadpool(_fetch)
+
+        result["trust"]        = trust
+        result["glossary"]     = glossary
+        result["has_knowledge"]= has_k > 0
+        result["starters"]     = [v["question"] for v in verified[:6]]
         return result
 
     @app.post("/api/connect-sample")
     async def connect_sample():
-        url = ensure_sample_db()
-        result = db.connect(url)
+        url = await run_in_threadpool(ensure_sample_db)
+        result = await run_in_threadpool(db.connect, url)
         if not result["ok"]: raise HTTPException(500, result["error"])
         cfg["last_db_url"] = url; cfgmod.save_config(cfg)
-        result["trust"]        = kb.trust_level(db.db_id)
-        result["glossary"]     = kb.get_glossary(db.db_id)
-        result["has_knowledge"]= kb.count_verified(db.db_id) > 0
-        result["starters"]     = [v["question"] for v in kb.get_verified(db.db_id)[:6]]
+
+        def _fetch():
+            trust = kb.trust_level(db.db_id)
+            glossary = kb.get_glossary(db.db_id)
+            has_k = kb.count_verified(db.db_id)
+            verified = kb.get_verified(db.db_id)
+            return trust, glossary, has_k, verified
+
+        trust, glossary, has_k, verified = await run_in_threadpool(_fetch)
+
+        result["trust"]        = trust
+        result["glossary"]     = glossary
+        result["has_knowledge"]= has_k > 0
+        result["starters"]     = [v["question"] for v in verified[:6]]
         result["is_sample"]    = True
         return result
 
     @app.post("/api/disconnect")
     async def disconnect():
-        db.disconnect()
+        await run_in_threadpool(db.disconnect)
         cfg.pop("last_db_url", None)
         try:
             cfgmod.save_config(cfg)
@@ -131,13 +160,14 @@ def create_app(initial_db_url="", readonly=True):
     @app.get("/api/schema")
     async def schema(refresh: bool = False):
         _need_db(db)
-        return db.get_schema(refresh=refresh)
+        return await run_in_threadpool(db.get_schema, refresh=refresh)
 
     @app.post("/api/onboard/glossary")
     async def onboard_glossary():
         _need_db(db)
         try:
-            terms = await generate_glossary(providers.get(), db.schema_as_text())
+            schema_text = await run_in_threadpool(db.schema_as_text)
+            terms = await generate_glossary(providers.get(), schema_text)
             return {"glossary": terms}
         except Exception as e:
             raise HTTPException(502, f"LLM error: {e}")
@@ -146,7 +176,8 @@ def create_app(initial_db_url="", readonly=True):
     async def onboard_starters():
         _need_db(db)
         try:
-            starters = await generate_starters(providers.get(), db.schema_as_text(), db.dialect)
+            schema_text = await run_in_threadpool(db.schema_as_text)
+            starters = await generate_starters(providers.get(), schema_text, db.dialect)
 
             async def _run_starter(s):
                 res = await run_in_threadpool(db.execute, s.get("sql", ""))
@@ -163,20 +194,31 @@ def create_app(initial_db_url="", readonly=True):
     @app.post("/api/onboard/save")
     async def onboard_save(req: SaveOnboardReq):
         _need_db(db)
-        kb.set_glossary(db.db_id, [g.dict() for g in req.glossary])
-        for s in req.starters:
-            kb.add_verified(db.db_id, s.get("question",""), s.get("sql",""), s.get("restatement",""))
-        return {"ok":True,"trust":kb.trust_level(db.db_id)}
+
+        def _save():
+            kb.set_glossary(db.db_id, [g.dict() for g in req.glossary])
+            for s in req.starters:
+                kb.add_verified(db.db_id, s.get("question",""), s.get("sql",""), s.get("restatement",""))
+            return kb.trust_level(db.db_id)
+
+        trust = await run_in_threadpool(_save)
+        return {"ok":True,"trust":trust}
 
     @app.post("/api/query")
     async def query(req: QueryReq):
         _need_db(db)
         q = req.question.strip()
         if not q: raise HTTPException(400, "Empty question")
-        glossary  = kb.get_glossary(db.db_id)
-        retrieved = kb.retrieve_similar(db.db_id, q, k=3)
+
+        def _fetch():
+            glossary = kb.get_glossary(db.db_id)
+            retrieved = kb.retrieve_similar(db.db_id, q, k=3)
+            full_schema = db.get_schema()
+            return glossary, retrieved, full_schema
+
+        glossary, retrieved, full_schema = await run_in_threadpool(_fetch)
+
         budget    = model_budget(cfg.get("provider","ollama"), cfg.get("model",""))
-        full_schema = db.get_schema()
         tables    = link_relevant_tables(q, full_schema, glossary, retrieved, budget["max_tables"])
         schema_text = compact_schema(full_schema, tables, budget["samples"])
         try:
@@ -186,7 +228,7 @@ def create_app(initial_db_url="", readonly=True):
             out = {"answered":True,"sql":"","restatement":"",
                    "confidence":"low","confidence_reason":"Could not form a query - try rephrasing",
                    "based_on_verified":False,"execution_error":str(e),"columns":[],"rows":[]}
-            out["query_id"] = session_log.log_query(db.db_id, q, out)
+            out["query_id"] = await run_in_threadpool(session_log.log_query, db.db_id, q, out)
             return out
         sql = gen.get("sql",""); restatement = gen.get("restatement","")
         exec_result = await run_in_threadpool(db.execute, sql)
@@ -198,25 +240,38 @@ def create_app(initial_db_url="", readonly=True):
                "truncated":exec_result.get("truncated",False),
                "tables_used":tables}
         if "error" in exec_result: out["execution_error"] = exec_result["error"]
-        out["query_id"] = session_log.log_query(db.db_id, q, out)
+        out["query_id"] = await run_in_threadpool(session_log.log_query, db.db_id, q, out)
         return out
 
     @app.post("/api/feedback")
     async def feedback(req: FeedbackReq):
         _need_db(db)
-        session_log.log_feedback(req.query_id, req.verdict, req.reason)
+
+        def _log_and_fetch():
+            session_log.log_feedback(req.query_id, req.verdict, req.reason)
+            if req.verdict == "correct":
+                kb.add_verified(db.db_id, req.question, req.sql, req.restatement)
+            trust = kb.trust_level(db.db_id)
+            verified = kb.get_verified(db.db_id) if req.verdict == "correct" else []
+            return trust, verified
+
+        trust, verified = await run_in_threadpool(_log_and_fetch)
+
+        out = {"ok": True, "trust": trust}
         if req.verdict == "correct":
-            kb.add_verified(db.db_id, req.question, req.sql, req.restatement)
-        out = {"ok": True, "trust": kb.trust_level(db.db_id)}
-        if req.verdict == "correct":
-            out["starters"] = [v["question"] for v in kb.get_verified(db.db_id)[:6]]
+            out["starters"] = [v["question"] for v in verified[:6]]
         return out
 
     @app.post("/api/verify")
     async def verify(req: VerifyReq):
         _need_db(db)
-        kb.add_verified(db.db_id, req.question, req.sql, req.restatement)
-        return {"ok":True,"trust":kb.trust_level(db.db_id)}
+
+        def _verify():
+            kb.add_verified(db.db_id, req.question, req.sql, req.restatement)
+            return kb.trust_level(db.db_id)
+
+        trust = await run_in_threadpool(_verify)
+        return {"ok":True,"trust":trust}
 
     @app.post("/api/execute")
     async def execute(req: RawSQLReq):
@@ -227,8 +282,10 @@ def create_app(initial_db_url="", readonly=True):
 
     @app.get("/", response_class=HTMLResponse)
     async def root():
-        idx = STATIC / "index.html"
-        if idx.exists(): return HTMLResponse(idx.read_text(encoding="utf-8"))
+        import anyio
+        idx = anyio.Path(STATIC) / "index.html"
+        if await idx.exists():
+            return HTMLResponse(await idx.read_text(encoding="utf-8"))
         return HTMLResponse("<h1>BoloDB running</h1>")
 
     if STATIC.exists():
