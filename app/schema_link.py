@@ -16,13 +16,15 @@ def link_relevant_tables(question, schema, glossary, retrieved, max_tables):
     q_tokens = _tokens(question)
     for g in glossary:
         q_tokens |= _tokens(g.get("term","")) | _tokens(g.get("maps_to",""))
-    table_patterns = {t: re.compile(r"\b"+re.escape(t.lower())+r"\b") for t in all_tables}
+    # ⚡ Bolt: Optimize regex matching. We map normalized names to original case to avoid O(N*M) regex compilation and searches.
+    normalized_tables = {t.lower(): t for t in all_tables}
+    table_pattern = re.compile(r'\b(' + '|'.join(re.escape(t) for t in sorted(normalized_tables.keys(), key=len, reverse=True)) + r')\b')
     verified_tables = set()
     for ex in retrieved:
         sql_low = (ex.get("sql","") or "").lower()
-        for t in all_tables:
-            if table_patterns[t].search(sql_low):
-                verified_tables.add(t)
+        for match in table_pattern.findall(sql_low):
+            if match in normalized_tables:
+                verified_tables.add(normalized_tables[match])
     scores = {}
     for t, info in schema.items():
         toks = _tokens(t)
