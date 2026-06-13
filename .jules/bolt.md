@@ -1,0 +1,3 @@
+## 2024-06-13 - O(N*M) Regex Parsing in Schema Linking is a massive bottleneck
+**Learning:** Checking for table names in SQL strings using `re.compile(r"\b" + table_name + r"\b").search(sql_string)` inside a nested loop `for retrieved_sql in queries: for table in tables:` becomes a huge bottleneck on large databases with many tables. This leads to $O(tables \times retrieved)$ regex searches.
+**Action:** Always prefer extracting words from the SQL string into a set first, and then iterating over the tables to perform an $O(1)$ lookup in the set: `sql_words = set(re.findall(r'\b\w+\b', sql))`. This changes complexity to $O(retrieved) + O(tables)$ hash lookups.
