@@ -1,0 +1,3 @@
+## 2024-06-15 - Tokenizer Memoization
+**Learning:** The application heavily relies on tokenization for schema linking (`_tokens` in `app/utils.py`). The same terms (schema names, table names, glossary terms) are tokenized repeatedly during schema linking (`link_relevant_tables`) and knowledge base similarity checks (`_similarity`), creating a measurable CPU overhead. Returning a `frozenset` instead of a `set` makes it possible to safely memoize this operation with `functools.lru_cache`, avoiding unintended mutations by the caller.
+**Action:** When working on collection-returning functions that are called frequently with identical arguments, use `frozenset` or `tuple` with `lru_cache` to boost performance without cache poisoning.
