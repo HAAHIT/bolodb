@@ -1,0 +1,3 @@
+## 2024-06-20 - Schema Tokenization Bottleneck and Cache Poisoning
+**Learning:** Schema elements (table names, column names) and verified questions are redundantly tokenized via regex on every single query during the schema linking phase (`link_relevant_tables`). When using `functools.lru_cache` to optimize this, if the cached function returns a mutable collection (like `set`), caller functions doing in-place union operations (like `q_tokens |= _tokens(c)`) will mutate the cached object, poisoning it for all future requests.
+**Action:** Always return an immutable collection type (e.g., `frozenset`, `tuple`) when memoizing a function that returns a collection, especially if callers might manipulate the returned object directly.
