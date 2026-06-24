@@ -66,7 +66,8 @@ class DatabaseManager:
     def connect(self, url):
         try:
             engine = create_engine(url)
-            with engine.connect() as c: c.execute(text("SELECT 1"))
+            with engine.connect() as c:
+                c.execute(text("SELECT 1"))
             self.engine = engine
             self.url = url
             self.db_id = db_id_for(url)
