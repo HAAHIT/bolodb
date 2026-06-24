@@ -62,7 +62,7 @@ def ensure_sample_db():
       (6,106,'card',798.00,'2026-05-20');
     """)
     c.commit()
-c.close()
+    c.close()
     print(f"Sample database created: {path}")
     return f"sqlite:///{path.as_posix()}"
 
