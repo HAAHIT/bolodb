@@ -89,13 +89,18 @@ def create_provider(cfg):
     raise ValueError(f"Unknown provider: {p}")
 
 class ProviderManager:
-    def __init__(self, cfg): self.cfg = cfg
-    self._p = None
+    def __init__(self, cfg): 
+        self.cfg = cfg
+        self._p = None
+
     def get(self):
-        if not self._p: self._p = create_provider(self.cfg)
+        if not self._p: 
+            self._p = create_provider(self.cfg)
         return self._p
-def reconfigure(self, cfg): self.cfg = cfg
-self._p = None
+        
+    def reconfigure(self, cfg): 
+        self.cfg = cfg
+        self._p = None
 
 async def generate_sql(provider, question, schema_text, dialect, glossary, retrieved, max_examples=3):
     gloss = ("Term meanings:\n" + "\n".join(f'- {g["term"]} = {g["maps_to"]}' for g in glossary) + "\n") if glossary else ""
