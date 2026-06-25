@@ -64,6 +64,11 @@ class DatabaseManager:
         self._table_count = 0
 
     def connect(self, url):
+        import os
+        if os.environ.get("RUNNING_IN_DOCKER") == "true":
+            if "localhost" in url or "127.0.0.1" in url:
+                url = url.replace("localhost", "host.docker.internal").replace("127.0.0.1", "host.docker.internal")
+        
         try:
             engine = create_engine(url)
             with engine.connect() as c:

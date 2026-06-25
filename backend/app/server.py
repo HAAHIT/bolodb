@@ -1,10 +1,7 @@
 """FastAPI application."""
 import asyncio
 import logging
-from pathlib import Path
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
-from fastapi.concurrency import run_in_threadpool
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
