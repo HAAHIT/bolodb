@@ -87,12 +87,10 @@ export function schemaObjToDisplay(obj: Record<string, any>): SchemaTable[] {
   return Object.entries(obj || {}).map(([name, info]) => ({
     name,
     rows: info.row_count != null ? Number(info.row_count).toLocaleString() : '?',
-    cols: info.columns.map((c: any) =>
-      c.name + (c.primary_key ? ' PK' : '') +
-      ((info.foreign_keys || []).find((fk: any) => fk.column === c.name)
-        ? '→' + ((info.foreign_keys || []).find((fk: any) => fk.column === c.name)?.references || '')
-        : '')
-    ),
+    cols: info.columns.map((c: any) => {
+      const fk = (info.foreign_keys || []).find((f: any) => f.column === c.name);
+      return c.name + (c.primary_key ? ' PK' : '') + (fk ? '→' + (fk.references || '') : '');
+    }),
     compact: `${name}(${info.columns.map((c: any) => c.name).join(', ')})`
   }));
 }

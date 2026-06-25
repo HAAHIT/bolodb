@@ -13,7 +13,19 @@
     };
     const header = columns.map(cell).join(',');
     const body = rows.map((r) => r.map(cell).join(',')).join('\n');
-    navigator.clipboard.writeText(header + '\n' + body).catch(() => {});
+    const csv = header + '\n' + body;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(csv).catch(() => {});
+      return;
+    }
+    // Fallback for environments without Clipboard API
+    const ta = document.createElement('textarea');
+    ta.value = csv;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
   }
 </script>
 

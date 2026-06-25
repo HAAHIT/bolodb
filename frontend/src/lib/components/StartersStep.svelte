@@ -12,6 +12,7 @@
   const items = $derived(starterItems && starterItems.length ? starterItems : defaultStarters);
   let ready = $state(false);
   let verdicts: (string | null)[] = $state(items.map(() => null));
+  $effect(() => { if (verdicts.length !== items.length) verdicts = items.map(() => null); });
   let saving = $state(false);
   let saveErr = $state('');
 
