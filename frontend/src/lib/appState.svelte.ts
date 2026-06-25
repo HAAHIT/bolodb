@@ -83,7 +83,8 @@ class AppState {
       this.verifiedCount++;
     }
     const newLevel = this.prevLevel;
-    if (newLevel !== oldLevel) {
+    const upgraded = trustFor(this.verifiedCount).idx > trustFor(oldLevel === newLevel ? this.verifiedCount : this.verifiedCount).idx;
+    if (newLevel !== oldLevel && (newLevel === 'assisted' || newLevel === 'trusted')) {
       const msg = newLevel === 'assisted'
         ? { title: 'Accuracy milestone reached', body: 'Confident answers now show immediately — new questions still get a second look.' }
         : { title: 'Fully calibrated', body: 'All answers appear directly now. Reasoning is always one tap away.' };
