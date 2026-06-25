@@ -58,7 +58,7 @@ def create_app(initial_db_url="", readonly=True):
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://localhost:80"],
+        allow_origins=["http://localhost:5173", "http://localhost"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
