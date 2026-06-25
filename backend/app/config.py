@@ -25,8 +25,15 @@ def load_config():
             d = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
         except Exception: pass
         
+    if not isinstance(d, dict):
+        d = {}
+    
     cfg = {**DEFAULTS, **d}
-    cfg["api_keys"] = {**DEFAULTS["api_keys"], **d.get("api_keys", {})}
+    # cfg["api_keys"] = {**DEFAULTS["api_keys"], **d.get("api_keys", {})}
+    raw_keys = d.get("api_keys", {})
+    if not isinstance(raw_keys, dict):
+        raw_keys = {}
+    cfg["api_keys"] = {**DEFAULTS["api_keys"], **raw_keys}
     
     # Auto-route localhost to host.docker.internal if running in Docker
     if os.environ.get("RUNNING_IN_DOCKER") and "localhost" in cfg.get("ollama_url", ""):
