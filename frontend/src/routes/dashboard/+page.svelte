@@ -63,9 +63,9 @@
         <div style="display: flex; flex-direction: column; gap: 12px;">
           {#each appState.realSchema as table}
             <div style="border: 1px solid var(--border); border-radius: 6px; padding: 12px;">
-              <h3 style="font-size: 1rem; margin: 0 0 8px 0;">{table.name} <span style="color: var(--muted); font-size: 0.85rem; font-weight: normal;">({table.columns.length} columns)</span></h3>
+              <h3 style="font-size: 1rem; margin: 0 0 8px 0;">{table.name} <span style="color: var(--muted); font-size: 0.85rem; font-weight: normal;">({table.cols.length} columns)</span></h3>
               <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                {#each table.columns as col}
+                {#each table.cols as col}
                   <span style="background: var(--bg-2); padding: 2px 8px; border-radius: 4px; font-size: 0.85rem; font-family: monospace;">{col.name}</span>
                 {/each}
               </div>
