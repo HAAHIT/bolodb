@@ -31,7 +31,7 @@
       <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 12px;">Connection</h2>
       <div style="display: grid; grid-template-columns: 120px 1fr; gap: 8px;">
         <strong style="color: var(--muted);">Database:</strong> 
-        <span>{appState.dbInfo.engine}</span>
+        <span>{appState.dbInfo.dialect}</span>
         
         <strong style="color: var(--muted);">Status:</strong> 
         <span style="color: #10b981; font-weight: 500;">Connected</span>
