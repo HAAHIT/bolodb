@@ -41,27 +41,13 @@ services:
       - bolodb-net
 
   # ── Frontend: Svelte (Vite) build ──
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: DOCKERFILE
-  #   container_name: bolodb-frontend
-  #   volumes:
-  #     - frontend-build:/app/dist          # Share build output with Nginx
-
-  # ── Frontend: Svelte (Vite) dev server ──
   frontend:
     build:
       context: ./frontend
-      dockerfile: DOCKERFILE.dev
+      dockerfile: DOCKERFILE
     container_name: bolodb-frontend
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    ports:
-      - "5173:5173"
-    environment:
-      - BACKEND_URL=http://backend:4321
+      - frontend-build:/app/dist          # Share build output with Nginx
     depends_on:
       backend:
         condition: service_healthy
@@ -81,7 +67,7 @@ services:
       - frontend-build:/usr/share/nginx/html:ro   # Mount Svelte build
     depends_on:
       frontend:
-        condition: service_started
+        condition: service_completed_successfully
       backend:
         condition: service_healthy
     networks:
