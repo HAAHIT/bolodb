@@ -19,6 +19,10 @@ load_dotenv()
 
 jwt_secret = os.getenv("JWT_SECRET")
 
+def get_me(user_id):
+    data = serialize_doc(get_user_by_id(user_id))
+    data.pop("hashed_pass", None)
+    return data
 
 def login(email: EmailStr, password: str):
     user_details = get_user_by_email(email)
