@@ -12,7 +12,7 @@
 </script>
 
 <nav class="navbar">
-  <div class="navbar-left" onclick={() => goto('/chat')} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && goto('/chat')}>
+  <div class="navbar-left" onclick={() => goto('/chat')} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goto('/chat'); } }}>
     <Logo size={24} sub={false} />
   </div>
 

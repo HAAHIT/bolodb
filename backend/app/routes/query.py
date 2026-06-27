@@ -30,13 +30,17 @@ async def query(
     if out.get("answered") and out.get("sql"):
         conf = out.get("confidence", "low")
         conf_str = "High" if conf == "high" else "Medium" if conf == "medium" else "Low"
-        mdb.save_query(
-            user_id=user_token["user_id"],
-            question=req.question,
-            sql=out["sql"],
-            result=out.get("rows", []),
-            confidence=conf_str,
-        )
+        try:
+            await run_in_threadpool(
+                mdb.save_query,
+                user_id=user_token["user_id"],
+                question=req.question,
+                sql=out["sql"],
+                result=out.get("rows", []),
+                confidence=conf_str,
+            )
+        except Exception:
+            log.warning("Failed to persist query history", exc_info=True)
     return out
 
 
