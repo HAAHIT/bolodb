@@ -5,6 +5,7 @@
     max = 8,
   }: { columns: string[]; rows: string[][]; max?: number } = $props();
   let copied = $state(false);
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
   function isNumeric(v: string): boolean {
     return typeof v === "string" && /^[$]?[\d.,%]+$/.test(v);
@@ -13,7 +14,7 @@
   function copyCSV() {
     const cell = (v: string) => {
       let s = String(v ?? "");
-      if (/^[=+\-@]/.test(s)) s = "'" + s;
+      if (/[\s\x00-\x1f]*[=+\-@]/.test(s)) s = "'" + s;
       return s.includes(",") || s.includes('"') || s.includes("\n")
         ? `"${s.replace(/"/g, '""')}"`
         : s;
@@ -21,30 +22,38 @@
     const header = columns.map(cell).join(",");
     const body = rows.map((r) => r.map(cell).join(",")).join("\n");
     const csv = header + "\n" + body;
+    const fallback = () => {
+      const ta = document.createElement("textarea");
+      ta.value = csv;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        const success = document.execCommand("copy");
+        if (success) {
+          copied = true;
+          clearTimeout(copiedTimer);
+          copiedTimer = setTimeout(() => (copied = false), 2000);
+        }
+      } finally {
+        document.body.removeChild(ta);
+      }
+    };
     if (navigator.clipboard?.writeText) {
       navigator.clipboard
         .writeText(csv)
         .then(() => {
           copied = true;
-          setTimeout(() => (copied = false), 2000);
+          clearTimeout(copiedTimer);
+          copiedTimer = setTimeout(() => (copied = false), 2000);
         })
-        .catch(() => {});
+        .catch(() => {
+          fallback();
+        });
       return;
     }
-    // Fallback for environments without Clipboard API
-    const ta = document.createElement("textarea");
-    ta.value = csv;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    try {
-      document.execCommand("copy");
-      copied = true;
-      setTimeout(() => (copied = false), 2000);
-    } finally {
-      document.body.removeChild(ta);
-    }
+    fallback();
   }
 </script>
 
