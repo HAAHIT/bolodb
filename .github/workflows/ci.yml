@@ -33,7 +33,7 @@ jobs:
 
     - name: Run tests with coverage
       run: |
-        PYTHONPATH=./backend pytest --cov=backend/app --cov-report=xml --cov-report=term tests/
+        PYTHONPATH=. pytest --cov=backend/app --cov-report=xml --cov-report=term tests/
 
     - name: Upload coverage report as artifact
       uses: actions/upload-artifact@v4
