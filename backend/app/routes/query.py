@@ -23,7 +23,21 @@ async def query(
     providers=Depends(get_providers),
     session_log=Depends(get_session_log),
 ):
-    return await ctrl.run_query(db, kb, cfg, providers, session_log, req)
+    out = await ctrl.run_query(db, kb, cfg, providers, session_log, req)
+
+    import backend.app.mongodatabase as mdb
+
+    if out.get("answered") and out.get("sql"):
+        conf = out.get("confidence", "low")
+        conf_str = "High" if conf == "high" else "Medium" if conf == "medium" else "Low"
+        mdb.save_query(
+            user_id=user_token["user_id"],
+            question=req.question,
+            sql=out["sql"],
+            result=out.get("rows", []),
+            confidence=conf_str,
+        )
+    return out
 
 
 @router.post("/api/feedback")

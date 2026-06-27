@@ -105,7 +105,7 @@
                 <div class="flex flex-wrap gap-2">
                   {#each table.cols as col}
                     <span class="chip text-xs">
-                      {col.name}
+                      {col}
                     </span>
                   {/each}
                 </div>
