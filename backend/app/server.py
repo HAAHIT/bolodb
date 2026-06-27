@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -12,6 +12,7 @@ from backend.app.routes.auth import router as auth_router
 from backend.app.database import DatabaseManager, sanitize_url
 from backend.app.knowledge import KnowledgeBase
 from backend.app.logbook import SessionLog
+from backend.app.dependencies import get_current_user
 from backend.app.llm import (
     ProviderManager,
     generate_sql,
@@ -97,7 +98,7 @@ def create_app(initial_db_url="", readonly=True):
     app.include_router(auth_router)
 
     @app.get("/api/state")
-    async def state():
+    async def state(user_token=Depends(get_current_user)):
         s = {"connected": db.connected, "config": cfgmod.public_config(cfg)}
         if db.connected:
             s["database"] = {
@@ -133,7 +134,7 @@ def create_app(initial_db_url="", readonly=True):
         return {"provider": {"name": cfg["provider"], **ph}, "connected": db.connected}
 
     @app.post("/api/config")
-    async def update_config(req: ConfigUpdate):
+    async def update_config(req: ConfigUpdate, user_token=Depends(get_current_user)):
         if req.provider:
             cfg["provider"] = req.provider
         if req.model is not None:
@@ -148,7 +149,7 @@ def create_app(initial_db_url="", readonly=True):
         return {"config": cfgmod.public_config(cfg), "health": h}
 
     @app.post("/api/connect")
-    async def connect(req: ConnectReq):
+    async def connect(req: ConnectReq, user_token=Depends(get_current_user)):
         result = db.connect(req.db_url)
         if not result["ok"]:
             raise HTTPException(400, result["error"])
@@ -161,7 +162,7 @@ def create_app(initial_db_url="", readonly=True):
         return result
 
     @app.post("/api/connect-sample")
-    async def connect_sample():
+    async def connect_sample(user_token=Depends(get_current_user)):
         url = ensure_sample_db()
         result = db.connect(url)
         if not result["ok"]:
@@ -218,7 +219,7 @@ def create_app(initial_db_url="", readonly=True):
         return result
 
     @app.post("/api/disconnect")
-    async def disconnect():
+    async def disconnect(user_token=Depends(get_current_user)):
         db.disconnect()
         cfg.pop("last_db_url", None)
         try:
@@ -230,12 +231,12 @@ def create_app(initial_db_url="", readonly=True):
         return {"ok": True}
 
     @app.get("/api/schema")
-    async def schema(refresh: bool = False):
+    async def schema(refresh: bool = False, user_token=Depends(get_current_user)):
         _need_db(db)
         return db.get_schema(refresh=refresh)
 
     @app.post("/api/onboard/glossary")
-    async def onboard_glossary():
+    async def onboard_glossary(user_token=Depends(get_current_user)):
         _need_db(db)
         try:
             terms = await generate_glossary(providers.get(), db.schema_as_text())
@@ -244,7 +245,7 @@ def create_app(initial_db_url="", readonly=True):
             raise HTTPException(502, f"LLM error: {e}")
 
     @app.post("/api/onboard/starters")
-    async def onboard_starters():
+    async def onboard_starters(user_token=Depends(get_current_user)):
         _need_db(db)
         try:
             starters = await generate_starters(
@@ -264,7 +265,7 @@ def create_app(initial_db_url="", readonly=True):
             raise HTTPException(502, f"LLM error: {e}")
 
     @app.post("/api/onboard/save")
-    async def onboard_save(req: SaveOnboardReq):
+    async def onboard_save(req: SaveOnboardReq, user_token=Depends(get_current_user)):
         _need_db(db)
         kb.set_glossary(db.db_id, [g.dict() for g in req.glossary])
         for s in req.starters:
@@ -277,7 +278,7 @@ def create_app(initial_db_url="", readonly=True):
         return {"ok": True, "trust": kb.trust_level(db.db_id)}
 
     @app.post("/api/query")
-    async def query(req: QueryReq):
+    async def query(req: QueryReq, user_token=Depends(get_current_user)):
         _need_db(db)
         q = req.question.strip()
         if not q:
@@ -336,7 +337,7 @@ def create_app(initial_db_url="", readonly=True):
         return out
 
     @app.post("/api/feedback")
-    async def feedback(req: FeedbackReq):
+    async def feedback(req: FeedbackReq, user_token=Depends(get_current_user)):
         _need_db(db)
         session_log.log_feedback(req.query_id, req.verdict, req.reason)
         if req.verdict == "correct":
@@ -347,13 +348,13 @@ def create_app(initial_db_url="", readonly=True):
         return out
 
     @app.post("/api/verify")
-    async def verify(req: VerifyReq):
+    async def verify(req: VerifyReq, user_token=Depends(get_current_user)):
         _need_db(db)
         kb.add_verified(db.db_id, req.question, req.sql, req.restatement)
         return {"ok": True, "trust": kb.trust_level(db.db_id)}
 
     @app.post("/api/execute")
-    async def execute(req: RawSQLReq):
+    async def execute(req: RawSQLReq, user_token=Depends(get_current_user)):
         _need_db(db)
         res = await run_in_threadpool(db.execute, req.sql)
         if "error" in res:
