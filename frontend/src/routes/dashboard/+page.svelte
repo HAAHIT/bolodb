@@ -79,7 +79,7 @@
             <div>
               <div class="text-xs uppercase" style="color: var(--muted);">Current Level</div>
               <div class="mt-2">
-                <span class="conf {appState.prevLevel === 'high' ? 'conf-high' : appState.prevLevel === 'med' ? 'conf-med' : 'conf-low'}">
+                <span class="conf {appState.prevLevel === 'trusted' ? 'conf-high' : appState.prevLevel === 'assisted' ? 'conf-med' : 'conf-low'}">
                   <span class="dot"></span>
                   <span class="capitalize">{appState.prevLevel}</span>
                 </span>
