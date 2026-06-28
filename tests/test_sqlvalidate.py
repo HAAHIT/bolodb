@@ -120,9 +120,7 @@ def test_group_by_and_order_by_columns_validated():
     )
     assert res["ok"] is True, res["errors"]
 
-    bad = validate_sql(
-        "SELECT segment FROM customers GROUP BY bogus_col", SCHEMA
-    )
+    bad = validate_sql("SELECT segment FROM customers GROUP BY bogus_col", SCHEMA)
     assert bad["ok"] is False
     assert any("bogus_col" in e for e in bad["errors"])
 
