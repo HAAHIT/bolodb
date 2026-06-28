@@ -1,5 +1,7 @@
 # BoloDB
 
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/HAAHIT/bolodb/master.svg)](https://results.pre-commit.ci/latest/github/HAAHIT/bolodb/master)
+
 **Ask your data. Trust the answer.**
 
 A text-to-SQL product for non-technical users. Connect any SQL database, ask questions in plain English, get answers with a plain-English explanation and a confidence level. Every answer you confirm teaches it your database - accuracy improves with use.
