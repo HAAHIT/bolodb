@@ -1,3 +1,7 @@
 ## 2026-06-10 - Auto-focus primary chat inputs
 **Learning:** Auto-focusing the primary chat input saves users a click on every session, and an aria-label ensures screen readers announce the input's purpose since there's no visible label.
 **Action:** Ensure all primary text inputs in chat interfaces have `autoFocus` and proper `aria-label` attributes.
+
+## 2026-06-25 - Playwright character encoding with standalone React
+**Learning:** When mocking an HTML document to test specific React components (like `ResultTable` in `index.html`) using Playwright, if the mock lacks a proper `<meta charset="UTF-8"/>` tag, unicode characters like the "✓" checkmark may render as garbled mojibake (e.g. "âœ"") in the resulting screenshots, obscuring the UX validation.
+**Action:** Always include `<meta charset="UTF-8"/>` within the `<head>` of mocked HTML documents constructed for Playwright verification to ensure correct visual rendering of unicode text and icons.
