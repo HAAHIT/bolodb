@@ -22,7 +22,7 @@ async def run_query(user_id, db, kb, cfg, providers, session_log, req_data):
     glossary = kb.get_glossary(db.get_db_id(user_id))
     retrieved = kb.retrieve_similar(db.get_db_id(user_id), q, k=3)
     budget = model_budget(cfg.get("provider", "ollama"), cfg.get("model", ""))
-    full_schema = db.get_schema(user_id)
+    full_schema = await run_in_threadpool(db.get_schema, user_id)
     tables = link_relevant_tables(
         q, full_schema, glossary, retrieved, budget["max_tables"]
     )

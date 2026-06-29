@@ -1,4 +1,5 @@
 from fastapi import HTTPException
+from fastapi.concurrency import run_in_threadpool
 from backend.sample_data import ensure_sample_db
 import logging
 
@@ -6,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 async def connect(user_id, db, kb, cfg, req_data):
-    result = db.connect(user_id, req_data.db_url)
+    result = await run_in_threadpool(db.connect, user_id, req_data.db_url)
     if not result["ok"]:
         raise HTTPException(400, result["error"])
     # cfg["last_db_url"] = req_data.db_url
@@ -22,7 +23,7 @@ async def connect(user_id, db, kb, cfg, req_data):
 
 async def connect_sample(user_id, db, kb, cfg):
     url = ensure_sample_db()
-    result = db.connect(user_id, url)
+    result = await run_in_threadpool(db.connect, user_id, url)
     if not result["ok"]:
         raise HTTPException(500, result["error"])
     # cfg["last_db_url"] = url
@@ -79,7 +80,7 @@ async def connect_sample(user_id, db, kb, cfg):
 
 
 async def disconnect(user_id, db, cfg):
-    db.disconnect(user_id)
+    await run_in_threadpool(db.disconnect, user_id)
     # cfg.pop("last_db_url", None)
     # try:
     # cfgmod.save_config(cfg)
@@ -91,4 +92,4 @@ async def disconnect(user_id, db, cfg):
 async def get_schema(user_id, db, refresh):
     if not db.connected(user_id):
         raise HTTPException(409, "No database connected")
-    return db.get_schema(user_id, refresh=refresh)
+    return await run_in_threadpool(db.get_schema, user_id, refresh=refresh)

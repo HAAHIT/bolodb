@@ -8,7 +8,8 @@ async def get_glossary(user_id, db, providers):
     if not db.connected(user_id):
         raise HTTPException(409, "No database connected")
     try:
-        terms = await generate_glossary(providers.get(), db.schema_as_text(user_id))
+        schema_text = await run_in_threadpool(db.schema_as_text, user_id)
+        terms = await generate_glossary(providers.get(), schema_text)
         return {"glossary": terms}
     except Exception as e:
         raise HTTPException(502, f"LLM error: {e}")
@@ -18,8 +19,9 @@ async def get_starters(user_id, db, providers):
     if not db.connected(user_id):
         raise HTTPException(409, "No database connected")
     try:
+        schema_text = await run_in_threadpool(db.schema_as_text, user_id)
         starters = await generate_starters(
-            providers.get(), db.schema_as_text(user_id), db.get_dialect(user_id)
+            providers.get(), schema_text, db.get_dialect(user_id)
         )
 
         async def _run_starter(s):
