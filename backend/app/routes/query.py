@@ -1,6 +1,5 @@
 import logging
 from fastapi import APIRouter, Depends, BackgroundTasks
-from fastapi.concurrency import run_in_threadpool
 from backend.app.dependencies import (
     get_current_user,
     get_db,
@@ -35,6 +34,7 @@ async def query(
     if out.get("answered") and out.get("sql"):
         conf = out.get("confidence", "low")
         conf_str = "High" if conf == "high" else "Medium" if conf == "medium" else "Low"
+
         def _save_history_safe():
             try:
                 mdb.save_query(
