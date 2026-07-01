@@ -200,8 +200,8 @@
             {#if formMode}
               {#if isFileBased}
                 <div style="margin-bottom:14px">
-                  <div style="font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase">File path</div>
-                  <input class="field mono" bind:value={filePath}
+                  <label for="filePath" style="display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase">File path</label>
+                  <input id="filePath" class="field mono" bind:value={filePath}
                     placeholder={dbType === 'sqlite' ? '/Users/you/data/mydb.db' : '/Users/you/data/mydb.duckdb'}
                     style="font-size:13.5px;margin-bottom:6px" />
                   <div style="font-size:12px;color:var(--faint);font-weight:550">
@@ -213,34 +213,34 @@
                 <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px">
                   <div style="display:grid;grid-template-columns:1fr 90px;gap:10px">
                     <div>
-                      <div style="font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase">Host</div>
-                      <input class="field" bind:value={host} placeholder="localhost or db.company.com" style="font-size:14px" />
+                      <label for="host" style="display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase">Host</label>
+                      <input id="host" class="field" bind:value={host} placeholder="localhost or db.company.com" style="font-size:14px" />
                     </div>
                     <div>
-                      <div style="font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase">Port</div>
-                      <input class="field" bind:value={port} placeholder={port} style="font-size:14px" />
+                      <label for="port" style="display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase">Port</label>
+                      <input id="port" class="field" bind:value={port} placeholder={port} style="font-size:14px" />
                     </div>
                   </div>
                   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
                     <div>
-                      <div style="font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase">Username</div>
-                      <input class="field" bind:value={user} placeholder="your_username" style="font-size:14px" autocomplete="username" />
+                      <label for="user" style="display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase">Username</label>
+                      <input id="user" class="field" bind:value={user} placeholder="your_username" style="font-size:14px" autocomplete="username" />
                     </div>
                     <div>
-                      <div style="font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase">Password</div>
-                      <input class="field" type="password" bind:value={password} placeholder="••••••••" style="font-size:14px" autocomplete="current-password" />
+                      <label for="password" style="display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase">Password</label>
+                      <input id="password" class="field" type="password" bind:value={password} placeholder="••••••••" style="font-size:14px" autocomplete="current-password" />
                     </div>
                   </div>
                   <div>
-                    <div style="font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase">Database name</div>
-                    <input class="field" bind:value={dbName} placeholder="my_database" style="font-size:14px" />
+                    <label for="dbName" style="display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase">Database name</label>
+                    <input id="dbName" class="field" bind:value={dbName} placeholder="my_database" style="font-size:14px" />
                   </div>
                 </div>
               {/if}
             {:else}
               <div style="margin-bottom:14px">
-                <div style="font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase">Connection URL</div>
-                <input class="field mono" bind:value={dbUrl}
+                <label for="dbUrl" style="display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase">Connection URL</label>
+                <input id="dbUrl" class="field mono" bind:value={dbUrl}
                   placeholder={dbType==='sqlite'?'sqlite:///path/to/file.db':dbType==='mysql'?'mysql://user:pass@localhost:3306/db':'postgresql://user:pass@localhost:5432/db'}
                   style="font-size:13px;margin-bottom:8px" />
                 <button onclick={() => formMode = true} style="font-size:12.5px;color:var(--brand-ink);background:none;border:none;cursor:pointer;font-weight:650;padding:0">← Back to the simple form</button>
