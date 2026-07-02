@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
 from backend.app.dependencies import (
     get_current_user,
@@ -19,6 +19,7 @@ router = APIRouter()
 @router.post("/api/query")
 async def query(
     req: QueryReq,
+    background_tasks: BackgroundTasks,
     user_token=Depends(get_current_user),
     db=Depends(get_db),
     kb=Depends(get_kb),
@@ -34,17 +35,24 @@ async def query(
     if out.get("answered") and out.get("sql"):
         conf = out.get("confidence", "low")
         conf_str = "High" if conf == "high" else "Medium" if conf == "medium" else "Low"
-        try:
-            await run_in_threadpool(
-                mdb.save_query,
-                user_id=user_token["user_id"],
-                question=req.question,
-                sql=out["sql"],
-                result=out.get("rows", []),
-                confidence=conf_str,
-            )
-        except Exception:
-            log.warning("Failed to persist query history", exc_info=True)
+
+        def save_query_safe(**kwargs):
+            try:
+                mdb.save_query(**kwargs)
+            except Exception:
+                log.warning("Failed to persist query history", exc_info=True)
+
+        # ⚡ Optimization: Use background_tasks.add_task instead of run_in_threadpool
+        # This moves a fire-and-forget DB I/O out of the request/response lifecycle
+        # and reduces endpoint latency because we are no longer blocking on the response.
+        background_tasks.add_task(
+            save_query_safe,
+            user_id=user_token["user_id"],
+            question=req.question,
+            sql=out["sql"],
+            result=out.get("rows", []),
+            confidence=conf_str,
+        )
     return out
 
 
