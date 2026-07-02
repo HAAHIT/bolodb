@@ -118,7 +118,7 @@
                 <span style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">{h.question}</span>
               </button>
               {#if hoveredHistoryId === h._id}
-                <button onclick={(e) => { e.stopPropagation(); handleDelete(h._id); }} style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:var(--surface);border:none;color:var(--faint);cursor:pointer;padding:4px;font-size:10px;border-radius:4px;display:flex;align-items:center;justify-content:center" title="Delete">✕</button>
+                <button onclick={(e) => { e.stopPropagation(); handleDelete(h._id); }} style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:var(--surface);border:none;color:var(--faint);cursor:pointer;padding:4px;font-size:10px;border-radius:4px;display:flex;align-items:center;justify-content:center" title="Delete" aria-label="Delete history entry">✕</button>
               {/if}
             </div>
           {/each}
