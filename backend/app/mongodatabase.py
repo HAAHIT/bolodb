@@ -1,10 +1,13 @@
 import os
+import logging
 from bson import ObjectId
 from bson.errors import InvalidId
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from datetime import datetime
 from backend.app.models.user import UserInDB
+
+log = logging.getLogger(__name__)
 
 load_dotenv()
 mongouri = os.getenv("MONGO_URI")
@@ -60,7 +63,10 @@ def save_query(user_id, question, sql, result, confidence):
         "confidence": confidence,
         "timestamp": datetime.utcnow(),
     }
-    history.insert_one(doc)
+    try:
+        history.insert_one(doc)
+    except Exception:
+        log.warning("Failed to persist query history", exc_info=True)
 
 
 def get_query_history(user_id, limit=20):
