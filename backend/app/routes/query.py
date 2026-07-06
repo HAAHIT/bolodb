@@ -1,6 +1,5 @@
 import logging
 from fastapi import APIRouter, Depends, BackgroundTasks
-from fastapi.concurrency import run_in_threadpool
 from backend.app.dependencies import (
     get_current_user,
     get_db,
@@ -18,6 +17,7 @@ router = APIRouter()
 
 def _safe_save_query(user_id, question, sql, result, confidence):
     import backend.app.mongodatabase as mdb
+
     try:
         # Optimization: saving query history to the database is fire-and-forget I/O,
         # so catching exceptions in the background task prevents them from bubbling up
