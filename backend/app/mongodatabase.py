@@ -1,15 +1,40 @@
+import base64
+import hashlib
 import os
+from datetime import datetime
+
+from cryptography.fernet import Fernet, InvalidToken
 from bson import ObjectId
 from bson.errors import InvalidId
 from dotenv import load_dotenv
 from pymongo import MongoClient
-from datetime import datetime
+
 from backend.app.models.user import UserInDB
 
 load_dotenv()
 mongouri = os.getenv("MONGO_URI")
 client = MongoClient(mongouri)
 db = client["bolodb"]
+
+
+def _recent_connection_cipher():
+    secret = os.getenv("RECENT_CONNECTIONS_KEY") or os.getenv(
+        "JWT_SECRET", "RANDOM-SECRET"
+    )
+    key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
+    return Fernet(key)
+
+
+def _encrypt_connection_url(db_url):
+    return _recent_connection_cipher().encrypt(db_url.encode()).decode()
+
+
+def _decrypt_connection_url(value):
+    try:
+        return _recent_connection_cipher().decrypt(value.encode()).decode()
+    except (InvalidToken, ValueError, TypeError):
+        # Backward compatibility: allow reconnect from older plaintext records.
+        return value
 
 
 def get_user_by_email(email):
@@ -92,7 +117,7 @@ def save_recent_connection(user_id, db_url, display_url, dialect, db_id, table_c
         {
             "$set": {
                 "user_id": str(user_id),
-                "db_url": db_url,
+                "db_url": _encrypt_connection_url(db_url),
                 "display_url": display_url,
                 "dialect": dialect,
                 "db_id": db_id,
@@ -128,4 +153,6 @@ def get_recent_connection_by_db_id(user_id, db_id):
     """Retrieve a specific recent connection by db_id for this user."""
     connections = db["recent_connections"]
     doc = connections.find_one({"user_id": str(user_id), "db_id": db_id})
+    if doc and "db_url" in doc:
+        doc["db_url"] = _decrypt_connection_url(doc["db_url"])
     return serialize_doc(doc) if doc else None

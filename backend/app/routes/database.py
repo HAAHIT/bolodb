@@ -41,7 +41,7 @@ async def disconnect(
 async def schema(
     refresh: bool = False, user_token=Depends(get_current_user), db=Depends(get_db)
 ):
-    return await ctrl.get_schema(db, refresh)
+    return await ctrl.get_schema(user_token["user_id"], db, refresh)
 
 
 @router.post("/api/reconnect")
