@@ -59,8 +59,8 @@ def parse_sql_output(raw):
     if not isinstance(obj, dict):
         obj = {}
 
-    sql = obj.get("sql") or ""
-    restatement = obj.get("restatement") or ""
+    sql = obj.get("sql")
+    restatement = obj.get("restatement")
 
     assumptions = obj.get("assumptions")
     if isinstance(assumptions, str):
@@ -70,13 +70,14 @@ def parse_sql_output(raw):
     else:
         assumptions = []
 
-    return {
-        "sql": sql if isinstance(sql, str) else str(sql),
-        "restatement": (
-            restatement if isinstance(restatement, str) else str(restatement)
-        ),
-        "assumptions": assumptions,
-    }
+    sql = (sql if isinstance(sql, str) else ("" if sql is None else str(sql))).strip()
+    restatement = (
+        restatement
+        if isinstance(restatement, str)
+        else ("" if restatement is None else str(restatement))
+    ).strip()
+
+    return {"sql": sql, "restatement": restatement, "assumptions": assumptions}
 
 
 class LLMProvider(ABC):
