@@ -33,7 +33,8 @@ async def connect_sample(
 async def disconnect(
     user_token=Depends(get_current_user), db=Depends(get_db), cfg=Depends(get_cfg)
 ):
-    return await ctrl.disconnect(db, cfg)
+    user_id = user_token["user_id"]
+    return await ctrl.disconnect(user_id, db, cfg)
 
 
 @router.get("/api/schema")

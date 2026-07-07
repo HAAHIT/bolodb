@@ -84,6 +84,10 @@ def validate_sql(sql, schema, dialect=""):
         else:
             errors.append(f"Unknown table: '{t.name}' is not in the database schema.")
 
+            # Unknown tables make unqualified column resolution ambiguous; treat them as opaque.
+            opaque_sources.add(tname)
+            if t.alias:
+                opaque_sources.add(t.alias.lower())
     for col in tree.find_all(exp.Column):
         cname = (col.name or "").lower()
         if not cname:
