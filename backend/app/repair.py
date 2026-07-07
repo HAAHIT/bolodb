@@ -88,8 +88,7 @@ def run_repair_loop(
             break
 
         last = generate(feedback) or {}
-        sql = (last.get("sql") or "").strip()
-
+        sql = (last.get("sql") or "").strip().rstrip(";").strip()
         verdict = validate(sql) or {}
         if not verdict.get("ok"):
             errs = verdict.get("errors", [])
@@ -99,8 +98,9 @@ def run_repair_loop(
 
         if execute is not None:
             result = execute(sql) or {}
-            if result.get("error"):
-                errs = [result["error"]]
+            if "error" in result:
+                err = result.get("error") or "Execution failed."
+                errs = [err]
                 attempts.append({"sql": sql, "stage": "execute", "errors": errs})
                 feedback = _feedback(sql, errs)
                 continue
@@ -124,7 +124,7 @@ def run_repair_loop(
 
     return {
         "ok": False,
-        "sql": (last.get("sql") or "").strip(),
+        "sql": (last.get("sql") or "").strip().rstrip(";").strip(),
         "restatement": last.get("restatement", ""),
         "result": None,
         "attempts": attempts,
