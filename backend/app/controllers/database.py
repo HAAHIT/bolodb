@@ -1,12 +1,14 @@
 from fastapi import HTTPException
 from backend.app import config as cfgmod
+from backend.app.database import sanitize_url
 from backend.sample_data import ensure_sample_db
+import backend.app.mongodatabase as mdb
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-async def connect(db, kb, cfg, req_data):
+async def connect(db, kb, cfg, req_data, user_id=None):
     result = db.connect(req_data.db_url)
     if not result["ok"]:
         raise HTTPException(400, result["error"])
@@ -16,10 +18,25 @@ async def connect(db, kb, cfg, req_data):
     result["glossary"] = kb.get_glossary(db.db_id)
     result["has_knowledge"] = kb.count_verified(db.db_id) > 0
     result["starters"] = [v["question"] for v in kb.get_verified(db.db_id)[:6]]
+
+    # Save to user's recent connections
+    if user_id:
+        try:
+            mdb.save_recent_connection(
+                user_id=user_id,
+                db_url=req_data.db_url,
+                display_url=sanitize_url(req_data.db_url),
+                dialect=db.dialect,
+                db_id=db.db_id,
+                table_count=db._table_count,
+            )
+        except Exception as e:
+            logger.warning("Failed to save recent connection: %s", e)
+
     return result
 
 
-async def connect_sample(db, kb, cfg):
+async def connect_sample(db, kb, cfg, user_id=None):
     url = ensure_sample_db()
     result = db.connect(url)
     if not result["ok"]:
@@ -72,6 +89,21 @@ async def connect_sample(db, kb, cfg):
     result["has_knowledge"] = kb.count_verified(db.db_id) > 0
     result["starters"] = [v["question"] for v in kb.get_verified(db.db_id)[:6]]
     result["is_sample"] = True
+
+    # Save to user's recent connections
+    if user_id:
+        try:
+            mdb.save_recent_connection(
+                user_id=user_id,
+                db_url=url,
+                display_url=sanitize_url(url),
+                dialect=db.dialect,
+                db_id=db.db_id,
+                table_count=db._table_count,
+            )
+        except Exception as e:
+            logger.warning("Failed to save recent connection: %s", e)
+
     return result
 
 
