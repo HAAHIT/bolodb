@@ -204,9 +204,10 @@
                   <input class="field mono" bind:value={filePath}
                     placeholder={dbType === 'sqlite' ? '/Users/you/data/mydb.db' : '/Users/you/data/mydb.duckdb'}
                     style="font-size:13.5px;margin-bottom:6px" />
-                  <div style="font-size:12px;color:var(--faint);font-weight:550">
-                    The full path to your {dbType === 'sqlite' ? '.db or .sqlite' : 'DuckDB'} file on disk.
-                    {#if dbType === 'duckdb'} Leave empty to use an in-memory database.{/if}
+                  <div style="font-size:12px;color:var(--faint);font-weight:550;line-height:1.45">
+                    The absolute path to your {dbType === 'sqlite' ? '.db or .sqlite' : 'DuckDB'} file.
+                    If using Docker, drop the file in the project's <code style="background:var(--surface);padding:2px 4px;border-radius:3px">data</code> folder and use <code style="background:var(--surface);padding:2px 4px;border-radius:3px">/app/data/filename.db</code>.
+                    {#if dbType === 'duckdb'} <br/>Leave empty to use an in-memory database.{/if}
                   </div>
                 </div>
               {:else}
