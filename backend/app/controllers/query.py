@@ -318,7 +318,6 @@ async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_dat
     hints = _generate_hints(q, tables, glossary, retrieved)
     max_iterations = 3
     feedback = ""
-    last_sql = ""
     last_restatement = ""
     success = False
 

@@ -77,7 +77,6 @@ export async function getHistory(limit?: number): Promise<any> {
 export async function getHistoryStats(): Promise<any> {
   return apiCall("/api/history/stats");
 }
-}
 
 export async function deleteHistoryEntry(id: string): Promise<any> {
   return apiCall(`/api/history/${id}`, undefined, "DELETE");
