@@ -19,15 +19,16 @@
 </script>
 
 <div style="display:flex;flex-direction:column;align-items:center;padding:8px 0;">
-  <div style="width:200px;height:110px;overflow:hidden;">
+  <div style="width:200px;height:120px;">
     <ArcChart
       data={[{ key: 'progress', label: 'Progress', value: progress * 100 }]}
       key="key"
       label="label"
       value="value"
+      maxValue={100}
       range={[225, -45]}
-      innerRadius={0.75}
-      outerRadius={1}
+      innerRadius={0.6}
+      outerRadius={0.9}
       cornerRadius={8}
       padAngle={0}
       series={[{ key: 'progress', color: barColor }]}
