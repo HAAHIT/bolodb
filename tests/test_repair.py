@@ -1,6 +1,14 @@
-"""Tests for the generate→validate→(execute)→repair loop (issue #95)."""
+"""Tests for the generate→validate→(execute)→repair loop."""
 
-from backend.app.repair import run_repair_loop, schema_validator
+import asyncio
+
+from backend.app.repair import run_repair_loop as _run_repair_loop
+from backend.app.repair import schema_validator
+
+
+def run_repair_loop(*args, **kwargs):
+    """The loop is async (it awaits the LLM); tests drive it synchronously."""
+    return asyncio.run(_run_repair_loop(*args, **kwargs))
 
 
 class FakeGenerator:

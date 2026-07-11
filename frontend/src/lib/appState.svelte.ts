@@ -4,7 +4,7 @@ import type { DbInfo, SchemaTable, Toast } from "$lib/types";
 import { goto } from "$app/navigation";
 
 class AppState {
-  engine = $state("ollama");
+  engine = $state("gemini");
   modelName = $state("");
   verifiedCount = $state(0);
   toast = $state<Toast | null>(null);
@@ -40,7 +40,7 @@ class AppState {
     try {
       const s = await apiCall("/api/state");
       if (s.connected) {
-        this.engine = s.config?.provider || "ollama";
+        this.engine = s.config?.provider || "gemini";
         this.modelName = s.config?.model || "";
         this.verifiedCount = s.trust?.verified || 0;
         this.dbInfo = s.database || null;

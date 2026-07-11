@@ -22,6 +22,7 @@ services:
       - ./data:/app/data                  # Drop local SQLite/DuckDB files here
     environment:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
       - PYTHONUNBUFFERED=1
       - RUNNING_IN_DOCKER=true
       - MONGO_URI=mongodb://mongodb:27017

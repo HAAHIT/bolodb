@@ -1,11 +1,81 @@
-"""LLM providers (Ollama, Claude, OpenAI, Groq) + lean SQL generation."""
+"""All AI operations for BoloDB, powered by the Google Gemini API.
+
+This module is the ONLY place in the backend that talks to an AI model.
+Everything AI-related funnels through here:
+
+- :func:`generate_sql`      — turn a plain-English question into one SELECT query
+- :func:`explain_sql`       — turn a SQL query back into plain English (trust feature)
+- :func:`generate_glossary` — suggest business-term meanings during onboarding
+- :func:`generate_starters` — suggest example questions during onboarding
+
+All four functions take a *provider* (today always :class:`GeminiProvider`) as
+their first argument. The provider abstraction is deliberately kept thin so a
+second AI vendor can be added later by writing one new class and registering it
+in :func:`create_provider` — nothing else in the codebase would change.
+
+Cost design (see docs/09-cost-optimisation.md):
+- Prompts contain only the *linked* tables (see schema_link.py), rendered in a
+  compact one-line-per-table format — not the whole database.
+- Structured output (``responseSchema``) means the model can't ramble; we pay
+  for exactly the JSON fields we asked for.
+- Gemini "thinking" is disabled for cheap tasks (glossary, starters, explain)
+  and left dynamic for SQL generation, where accuracy matters most.
+- ``maxOutputTokens`` caps every call, and transient failures retry with
+  exponential backoff instead of hammering the API.
+"""
+
+import asyncio
+import json
+import logging
+import re
+from abc import ABC, abstractmethod
 
 import httpx
-import json
-from abc import ABC, abstractmethod
+
+from backend.app.config import decrypt_api_key
+
+log = logging.getLogger(__name__)
+
+
+def _redact_error_text(text, max_len=200):
+    """Strip potentially sensitive data (API keys, tokens) from error text
+    before it is written to logs or included in LLMError.detail."""
+    s = text[:max_len]
+    # Gemini API keys start with "AIza"
+    s = re.sub(r"AIza[A-Za-z0-9_-]{10,}", "[REDACTED_KEY]", s)
+    # Bearer tokens
+    s = re.sub(r"Bearer\s+[A-Za-z0-9._-]{20,}", "Bearer [REDACTED]", s)
+    return s
+
+
+# The model used when the config doesn't name one. Flash is the sweet spot:
+# near-Pro accuracy on text-to-SQL at a fraction of the cost, with a free tier.
+DEFAULT_GEMINI_MODEL = "gemini-flash-latest"
+
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+
+# Transient HTTP statuses worth retrying (rate limit / server hiccups).
+# 500 is excluded — Gemini may return it for permanent errors (bad model,
+# malformed prompt), not just transient ones.
+_RETRYABLE_STATUS = {429, 502, 503, 504}
+_MAX_ATTEMPTS = 3  # 1 try + 2 retries, backoff 1s then 2s
+
+
+class LLMError(Exception):
+    """Raised when the AI call fails in a way the caller should surface.
+
+    ``user_message`` is safe to show to a non-technical user; ``detail`` keeps
+    the raw technical cause for logs and debugging.
+    """
+
+    def __init__(self, user_message, detail=""):
+        super().__init__(detail or user_message)
+        self.user_message = user_message
+        self.detail = detail or user_message
 
 
 def parse_json(text):
+    """Tolerantly extract a JSON object from model text (strips ``` fences)."""
     s = text.replace("```json", "").replace("```", "").strip()
     a, b = s.find("{"), s.rfind("}")
     if a != -1 and b != -1:
@@ -13,9 +83,8 @@ def parse_json(text):
     return json.loads(s)
 
 
-# JSON schema for the SQL-generation response. Passed to providers that support
-# structured outputs so the model is constrained to this exact shape, and used
-# to document the contract in one place.
+# JSON schema for the SQL-generation response. Passed to the provider so the
+# model is constrained to this exact shape, and used to document the contract.
 SQL_SCHEMA = {
     "type": "object",
     "properties": {
@@ -38,6 +107,55 @@ SQL_SCHEMA = {
     },
     "required": ["sql", "restatement", "assumptions"],
     "additionalProperties": False,
+}
+
+GLOSSARY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "glossary": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "term": {"type": "string"},
+                    "maps_to": {"type": "string"},
+                    "sql_hint": {"type": "string"},
+                },
+                "required": ["term", "maps_to", "sql_hint"],
+            },
+        }
+    },
+    "required": ["glossary"],
+}
+
+STARTERS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "starters": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string"},
+                    "sql": {"type": "string"},
+                    "restatement": {"type": "string"},
+                },
+                "required": ["question", "sql", "restatement"],
+            },
+        }
+    },
+    "required": ["starters"],
+}
+
+EXPLAIN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "explanation": {
+            "type": "string",
+            "description": "2-4 plain sentences a non-technical person understands.",
+        }
+    },
+    "required": ["explanation"],
 }
 
 
@@ -80,173 +198,243 @@ def parse_sql_output(raw):
     return {"sql": sql, "restatement": restatement, "assumptions": assumptions}
 
 
+def to_gemini_schema(schema):
+    """Convert a standard JSON schema into Gemini's ``responseSchema`` subset.
+
+    Gemini's v1beta API accepts an OpenAPI-style schema that supports
+    type/properties/required/items/description/enum but rejects keys like
+    ``additionalProperties``. Strip anything it doesn't understand so the same
+    schema constants can be shared with other providers later.
+    """
+    if isinstance(schema, dict):
+        allowed = {
+            "type",
+            "format",
+            "description",
+            "enum",
+            "items",
+            "properties",
+            "required",
+            "nullable",
+        }
+        out = {}
+        for k, v in schema.items():
+            if k not in allowed:
+                continue
+            if k == "properties":
+                # keys here are property NAMES, values are sub-schemas
+                out[k] = {name: to_gemini_schema(sub) for name, sub in v.items()}
+            elif k == "items":
+                out[k] = to_gemini_schema(v)
+            else:
+                out[k] = v
+        return out
+    if isinstance(schema, list):
+        return [to_gemini_schema(v) for v in schema]
+    return schema
+
+
 class LLMProvider(ABC):
+    """Interface every AI vendor integration must implement.
+
+    To add a new vendor later: subclass this, implement both methods, and add a
+    branch to :func:`create_provider`. Nothing else needs to change.
+    """
+
     @abstractmethod
     async def complete(self, system, user, json_mode=False, schema=None): ...
+
     @abstractmethod
     async def health_check(self): ...
 
 
-class OllamaProvider(LLMProvider):
-    def __init__(self, model="bolodb-sql", base_url="http://localhost:11434"):
-        self.model = model or "bolodb-sql"
-        self.base_url = base_url.rstrip("/")
+class GeminiProvider(LLMProvider):
+    """Google Gemini via the REST ``generateContent`` endpoint.
 
-    async def complete(self, system, user, json_mode=False, schema=None):
-        body = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            "stream": False,
-            "options": {"temperature": 0.05, "num_predict": 1200},
-        }
-        if schema is not None:
-            # Ollama accepts a JSON schema as `format` for structured outputs;
-            # models that don't honor it still return JSON text, which the
-            # caller parses tolerantly (graceful fallback).
-            body["format"] = schema
-        elif json_mode:
-            body["format"] = "json"
-        async with httpx.AsyncClient(timeout=120) as c:
-            r = await c.post(f"{self.base_url}/api/chat", json=body)
-            r.raise_for_status()
-            return r.json()["message"]["content"]
-
-    async def health_check(self):
-        try:
-            async with httpx.AsyncClient(timeout=5) as c:
-                r = await c.get(f"{self.base_url}/api/tags")
-                return {
-                    "ok": True,
-                    "models": [m["name"] for m in r.json().get("models", [])],
-                }
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
-
-
-class APIKeyProvider(LLMProvider):
-    DEFAULT = ""
+    Uses plain httpx (no SDK dependency). One call = one POST to
+    ``{GEMINI_BASE_URL}/models/{model}:generateContent`` with the API key in the
+    ``x-goog-api-key`` header.
+    """
 
     def __init__(self, api_key, model=""):
         self.api_key = api_key
-        self.model = model or self.DEFAULT
+        self.model = model or DEFAULT_GEMINI_MODEL
+
+    def _build_body(self, system, user, json_mode, schema, thinking_budget):
+        generation_config = {
+            # Low temperature: SQL generation should be deterministic, not creative.
+            "temperature": 0.1,
+            "maxOutputTokens": 4096,
+        }
+        if schema is not None:
+            generation_config["responseMimeType"] = "application/json"
+            generation_config["responseSchema"] = to_gemini_schema(schema)
+        elif json_mode:
+            generation_config["responseMimeType"] = "application/json"
+        # thinkingConfig is supported on Gemini 2.5+, 3.x, and Gemma 4+.
+        # Sending it to older models (1.x, pre-2.5) is a hard 400, so we
+        # gate on known unsupported prefixes.
+        _NO_THINKING = ("1.0", "1.5", "gemini-1")
+        if thinking_budget is not None and not any(
+            p in self.model for p in _NO_THINKING
+        ):
+            generation_config["thinkingConfig"] = {"thinkingBudget": thinking_budget}
+        return {
+            "system_instruction": {"parts": [{"text": system}]},
+            "contents": [{"role": "user", "parts": [{"text": user}]}],
+            "generationConfig": generation_config,
+        }
+
+    async def complete(
+        self, system, user, json_mode=False, schema=None, thinking_budget=None
+    ):
+        """Send one prompt, return the model's text. Retries transient failures.
+
+        Raises :class:`LLMError` with a user-readable message on anything that
+        can't be retried away (bad key, quota exhausted, blocked content...).
+        """
+        if not self.api_key:
+            raise LLMError(
+                "No Gemini API key is configured. Add one in Settings "
+                "(get a free key at https://aistudio.google.com/app/api-keys).",
+                detail="empty api_key",
+            )
+        body = self._build_body(system, user, json_mode, schema, thinking_budget)
+        url = f"{GEMINI_BASE_URL}/models/{self.model}:generateContent"
+        last_error = None
+        for attempt in range(_MAX_ATTEMPTS):
+            if attempt:
+                await asyncio.sleep(2 ** (attempt - 1))  # 1s, 2s
+            try:
+                async with httpx.AsyncClient(timeout=60) as client:
+                    r = await client.post(
+                        url,
+                        headers={
+                            "X-goog-api-key": self.api_key,
+                            "Content-Type": "application/json",
+                        },
+                        json=body,
+                    )
+            except httpx.HTTPError as e:
+                last_error = LLMError(
+                    "Could not reach the Gemini API — check your internet "
+                    "connection and try again.",
+                    detail=f"network error: {e}",
+                )
+                log.warning("Gemini network error (attempt %d): %s", attempt + 1, e)
+                continue
+
+            if r.status_code in _RETRYABLE_STATUS:
+                last_error = LLMError(
+                    "The AI service is busy right now — please try again in a moment.",
+                    detail=f"HTTP {r.status_code}: {_redact_error_text(r.text)}",
+                )
+                log.warning(
+                    "Gemini transient HTTP %d (attempt %d)", r.status_code, attempt + 1
+                )
+                continue
+
+            # Distinct messages per status. Note: Gemini returns 400 (not 401)
+            # for "API key not valid", so 400 mentions the key too.
+            if r.status_code == 400:
+                raise LLMError(
+                    "The Gemini API rejected the request as invalid — most "
+                    "often the API key is malformed or not valid. Check the "
+                    "key in Settings.",
+                    detail=f"HTTP 400: {_redact_error_text(r.text)}",
+                )
+            if r.status_code == 401:
+                raise LLMError(
+                    "The Gemini API key was not accepted — it may be invalid "
+                    "or expired. Check it in Settings.",
+                    detail=f"HTTP 401: {_redact_error_text(r.text)}",
+                )
+            if r.status_code == 403:
+                raise LLMError(
+                    "The Gemini API denied access — the API key may lack "
+                    "permission for this model, or the project/region may be "
+                    "restricted. Check the key in Google AI Studio.",
+                    detail=f"HTTP 403: {_redact_error_text(r.text)}",
+                )
+            if r.status_code == 404:
+                raise LLMError(
+                    f"The model '{self.model}' was not found — it may have been "
+                    "renamed or retired. Update the model in Settings.",
+                    detail=f"HTTP 404: {_redact_error_text(r.text)}",
+                )
+            if r.status_code >= 300:
+                raise LLMError(
+                    "The AI service returned an unexpected error.",
+                    detail=f"HTTP {r.status_code}: {_redact_error_text(r.text)}",
+                )
+            return self._extract_text(r.json())
+
+        raise last_error or LLMError("The AI service could not be reached.")
+
+    @staticmethod
+    def _extract_text(data):
+        """Pull the response text out of a generateContent payload."""
+        feedback = data.get("promptFeedback") or {}
+        if feedback.get("blockReason"):
+            raise LLMError(
+                "The AI declined to answer this question. Try rephrasing it.",
+                detail=f"prompt blocked: {feedback.get('blockReason')}",
+            )
+        candidates = data.get("candidates") or []
+        if not candidates:
+            raise LLMError(
+                "The AI returned an empty answer — please try again.",
+                detail=f"no candidates in response: {_redact_error_text(json.dumps(data))}",
+            )
+        parts = (candidates[0].get("content") or {}).get("parts") or []
+        text = "".join(p.get("text", "") for p in parts)
+        if not text.strip():
+            raise LLMError(
+                "The AI returned an empty answer — please try again.",
+                detail=f"finishReason: {candidates[0].get('finishReason')}",
+            )
+        return text
 
     async def health_check(self):
-        return {
-            "ok": bool(self.api_key),
-            "models": [self.model] if self.api_key else [],
-        }
-
-
-class ClaudeProvider(APIKeyProvider):
-    DEFAULT = "claude-haiku-4-5-20251001"
-
-    async def complete(self, system, user, json_mode=False, schema=None):
-        body = {
-            "model": self.model,
-            "max_tokens": 1500,
-            "system": system,
-            "messages": [{"role": "user", "content": user}],
-        }
-        if schema is not None:
-            # Structured outputs (GA on Haiku 4.5 / Sonnet 4.6 / Opus 4.x):
-            # constrain the response to the schema instead of prompt-nudging.
-            body["output_config"] = {
-                "format": {"type": "json_schema", "schema": schema}
-            }
-        elif json_mode:
-            body["system"] = (
-                system + "\n\nRespond with ONLY a valid JSON object, no other text."
-            )
-        async with httpx.AsyncClient(timeout=60) as c:
-            r = await c.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": self.api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json=body,
-            )
-            r.raise_for_status()
-            return r.json()["content"][0]["text"]
-
-
-class OpenAIProvider(APIKeyProvider):
-    DEFAULT = "gpt-4o-mini"
-
-    async def complete(self, system, user, json_mode=False, schema=None):
-        body = {
-            "model": self.model,
-            "temperature": 0.05,
-            "max_tokens": 1500,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-        }
-        if schema is not None:
-            body["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {"name": "sql_output", "strict": True, "schema": schema},
-            }
-        elif json_mode:
-            body["response_format"] = {"type": "json_object"}
-        async with httpx.AsyncClient(timeout=60) as c:
-            r = await c.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {self.api_key}"},
-                json=body,
-            )
-            r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"]
-
-
-class GroqProvider(APIKeyProvider):
-    DEFAULT = "llama-3.3-70b-versatile"
-
-    async def complete(self, system, user, json_mode=False, schema=None):
-        body = {
-            "model": self.model,
-            "temperature": 0.05,
-            "max_tokens": 1500,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-        }
-        if schema is not None or json_mode:
-            body["response_format"] = {"type": "json_object"}
-        async with httpx.AsyncClient(timeout=30) as c:
-            r = await c.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {self.api_key}"},
-                json=body,
-            )
-            r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"]
+        """Cheap liveness probe: list one model. Never raises."""
+        if not self.api_key:
+            return {"ok": False, "error": "No Gemini API key configured", "models": []}
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(
+                    f"{GEMINI_BASE_URL}/models",
+                    params={"pageSize": 1},
+                    headers={"x-goog-api-key": self.api_key},
+                )
+                r.raise_for_status()
+            return {"ok": True, "models": [self.model]}
+        except Exception as e:
+            return {"ok": False, "error": str(e), "models": []}
 
 
 def create_provider(cfg):
-    p = cfg.get("provider", "ollama")
-    model = cfg.get("model", "")
-    keys = cfg.get("api_keys", {})
-    if p == "ollama":
-        return OllamaProvider(
-            model=model, base_url=cfg.get("ollama_url", "http://localhost:11434")
+    """Build the configured AI provider from a config dict.
+
+    Gemini is currently the only supported provider. To add another vendor
+    later: implement an :class:`LLMProvider` subclass above and add a branch
+    here keyed on ``cfg["provider"]``.
+    """
+    p = cfg.get("provider", "gemini")
+    if p == "gemini":
+        # The config carries the key encrypted at rest; it is decrypted only
+        # here, at the point of use.
+        return GeminiProvider(
+            api_key=decrypt_api_key(cfg.get("api_keys", {}).get("gemini", "")),
+            model=cfg.get("model", ""),
         )
-    if p == "claude":
-        return ClaudeProvider(api_key=keys.get("claude", ""), model=model)
-    if p == "openai":
-        return OpenAIProvider(api_key=keys.get("openai", ""), model=model)
-    if p == "groq":
-        return GroqProvider(api_key=keys.get("groq", ""), model=model)
-    raise ValueError(f"Unknown provider: {p}")
+    raise ValueError(
+        f"Unknown provider: {p!r}. BoloDB currently supports only 'gemini'."
+    )
 
 
 class ProviderManager:
+    """Lazily builds and caches the provider; rebuilt when config changes."""
+
     def __init__(self, cfg):
         self.cfg = cfg
         self._p = None
@@ -261,6 +449,116 @@ class ProviderManager:
         self._p = None
 
 
+# --------------------------------------------------------------------------
+# Prompt building. Each block is a small pure function so tests can check the
+# exact text the model sees and docs can point at one place per concept.
+# --------------------------------------------------------------------------
+
+# Dialect-specific reminders that fix the most common cross-dialect mistakes.
+_DIALECT_HINTS = {
+    "sqlite": "Dates: use date()/strftime(); string concat is ||; no ILIKE (use LIKE, it is case-insensitive for ASCII).",
+    "postgresql": "Dates: use date_trunc()/interval arithmetic; ILIKE is available; quote mixed-case identifiers.",
+    "mysql": "Dates: use DATE_FORMAT()/DATE_SUB(); identifiers quote with backticks; LIMIT syntax applies.",
+    "mssql": "Use TOP (N) instead of LIMIT; dates via DATEADD()/DATEDIFF(); string concat is +.",
+    "duckdb": "PostgreSQL-like syntax; date_trunc()/interval work; ILIKE is available.",
+}
+
+
+def _context_block(context):
+    """Render the last two conversation turns so follow-up questions
+    ("now only 2023") can be resolved against the previous query."""
+    if not context:
+        return ""
+    items = ""
+    for prev in context[-2:]:
+        items += (
+            "BEGIN_CONTEXT_ITEM\n"
+            + json.dumps(
+                {
+                    "question": prev.question,
+                    "sql": prev.sql,
+                    "restatement": prev.restatement,
+                },
+                ensure_ascii=False,
+            )
+            + "\nEND_CONTEXT_ITEM\n"
+        )
+    return (
+        "Recent conversation (use it to resolve follow-ups and references like "
+        '"those", "that year", "filter this"). If the question modifies the '
+        "previous one, adapt the previous SQL instead of starting over:\n"
+        f"{items}\n"
+    )
+
+
+def _glossary_block(glossary):
+    """Render user-confirmed business-term meanings. These are ground truth —
+    the user explicitly told us what these words mean in THEIR database."""
+    if not glossary:
+        return ""
+    lines = []
+    for g in glossary:
+        line = f"- {g.get('term', '')} = {g.get('maps_to', '')}"
+        if g.get("sql_hint"):
+            line += f" (SQL hint: {g['sql_hint']})"
+        lines.append(line)
+    return (
+        "Term meanings the user has confirmed (treat as ground truth):\n"
+        + "\n".join(lines)
+        + "\n\n"
+    )
+
+
+def _examples_block(retrieved, max_examples):
+    """Render previously-verified Q→SQL pairs similar to this question.
+    Few-shot examples of the user's own verified answers are the single
+    strongest accuracy signal we have."""
+    if not retrieved:
+        return ""
+    ex_lines = [
+        f"Q: {e['question']}\nSQL: {e['sql']}" for e in retrieved[:max_examples]
+    ]
+    return (
+        "Previously verified correct examples for this database (reuse their "
+        "patterns, joins and filters where applicable):\n"
+        + "\n".join(ex_lines)
+        + "\n\n"
+    )
+
+
+def build_sql_system_prompt(
+    schema_text, dialect, glossary, retrieved, max_examples, context
+):
+    """Assemble the full system prompt for SQL generation."""
+    hint = _DIALECT_HINTS.get(dialect, "")
+    return (
+        f"You are an expert {dialect} analyst. Convert the user's question into "
+        "exactly one read-only SELECT query.\n\n"
+        "Rules:\n"
+        "1. SELECT (or WITH ... SELECT) only — never modify data.\n"
+        "2. Use ONLY the tables and columns listed in the schema below. Never "
+        "invent names.\n"
+        "3. Join tables via the foreign keys shown as col->table.column.\n"
+        "4. Add LIMIT 100 unless the question asks for a single total/count "
+        "or the dialect uses TOP.\n"
+        "5. When filtering on a column whose example values are shown in "
+        "[brackets], match those values exactly.\n"
+        "6. Qualify column names with table aliases whenever more than one "
+        "table is involved.\n"
+        f"7. {hint}\n\n"
+        f"Schema (col PK = primary key, col->t.c = foreign key, [v1,v2] = "
+        f"example values):\n{schema_text}\n\n"
+        f"{_glossary_block(glossary)}"
+        f"{_examples_block(retrieved, max_examples)}"
+        f"{_context_block(context)}"
+        "Reply ONLY with this JSON, nothing else:\n"
+        '{"sql":"<one SELECT query>",'
+        '"restatement":"<one plain sentence of what the query returns, no jargon>",'
+        '"assumptions":["<any assumption you made, e.g. how you read a vague term '
+        'or date range; empty list if none>"]}'
+    )
+
+
 async def generate_sql(
     provider,
     question,
@@ -272,67 +570,32 @@ async def generate_sql(
     context=None,
     feedback="",
 ):
+    """Question (+ optional repair feedback) → ``{sql, restatement, assumptions}``.
+
+    ``feedback`` is filled by the repair loop (backend/app/repair.py) when a
+    previous attempt failed validation or execution; it describes exactly what
+    was wrong so the model can correct itself.
+    """
     if context is None:
         context = []
-    if context:
-        short_context = context[-2::]
-        built_short_context = ""
-        for prev_context in short_context:
-            built_short_context += (
-                "BEGIN_CONTEXT_ITEM\n"
-                + json.dumps(
-                    {
-                        "question": prev_context.question,
-                        "sql": prev_context.sql,
-                        "restatement": prev_context.restatement,
-                    },
-                    ensure_ascii=False,
-                )
-                + "\nEND_CONTEXT_ITEM\n\n"
-            )
-        built_context = (
-            f"Recent conversation context (use this to resolve coreferences or missing details in the current question):\n"
-            f"{built_short_context}"
-        )
-    else:
-        built_context = ""
-    gloss = (
-        (
-            "Term meanings:\n"
-            + "\n".join(f"- {g['term']} = {g['maps_to']}" for g in glossary)
-            + "\n"
-        )
-        if glossary
-        else ""
+    system = build_sql_system_prompt(
+        schema_text, dialect, glossary, retrieved, max_examples, context
     )
-    examples = ""
-    if retrieved:
-        ex_lines = [
-            f"Q: {e['question']}\nSQL: {e['sql']}" for e in retrieved[:max_examples]
-        ]
-        examples = "Confirmed examples (reuse patterns):\n" + "\n".join(ex_lines) + "\n"
-    system = (
-        f"You write {dialect} SQL from questions. SELECT only.\n\n"
-        f"Schema:\n{schema_text}\n\n"
-        f"{gloss}{examples}"
-        f"{built_context}"
-        "Reply ONLY with this JSON, nothing else:\n"
-        '{"sql":"<one SELECT query, LIMIT 100 unless asking for a total/count>",'
-        '"restatement":"<one plain sentence of what the query returns, no jargon>",'
-        '"assumptions":["<any assumption you made, e.g. how you read a vague term '
-        'or date range; empty list if none>"]}'
+    if context is None:
+        context = []
+    system = build_sql_system_prompt(
+        schema_text, dialect, glossary, retrieved, max_examples, context
     )
-    if feedback:
-        system += f"\n\nPrevious attempt had errors — correct them:\n{feedback}\nReturn ONLY the corrected JSON."
+    user = question if not feedback else f"{question}\n\n{feedback}"
     result = parse_sql_output(
-        await provider.complete(system, question, json_mode=True, schema=SQL_SCHEMA)
+        await provider.complete(system, user, json_mode=True, schema=SQL_SCHEMA)
     )
     if not result["sql"]:
         # Retry once if the model returned nothing usable.
         result = parse_sql_output(
             await provider.complete(
                 system + "\nReturn ONLY valid JSON.",
-                question,
+                user,
                 json_mode=True,
                 schema=SQL_SCHEMA,
             )
@@ -340,23 +603,56 @@ async def generate_sql(
     return result
 
 
+async def explain_sql(provider, sql, dialect):
+    """SQL → plain English. The 'reverse text-to-SQL' trust feature: lets a
+    non-technical user sanity-check a query without reading SQL."""
+    system = (
+        f"You explain {dialect} SQL to non-technical business users.\n"
+        "Describe what the query returns in 2-4 short plain sentences: which "
+        "data it looks at, how it filters/groups, and how results are ordered "
+        "or limited. No SQL keywords, no jargon.\n"
+        'Reply ONLY with JSON: {"explanation":"..."}'
+    )
+    raw = await provider.complete(
+        system, sql, json_mode=True, schema=EXPLAIN_SCHEMA, thinking_budget=0
+    )
+    obj = raw if isinstance(raw, dict) else parse_json(raw)
+    return {"explanation": str(obj.get("explanation", "")).strip()}
+
+
 async def generate_glossary(provider, schema_text):
+    """Suggest the 3 most important business terms for this database (onboarding)."""
     system = (
         f"You are a database analyst.\n{schema_text}\n\n"
         "Identify the 3 most important BUSINESS TERMS a non-technical user of this database would say "
         "(e.g. revenue, active customer, best seller) and map each to plain language + a short SQL hint.\n"
         'Return ONLY JSON: {"glossary":[{"term":"...","maps_to":"<plain>","sql_hint":"<sql>"}]}'
     )
-    raw = await provider.complete(system, "Produce the glossary.", json_mode=True)
-    return parse_json(raw).get("glossary", [])
+    raw = await provider.complete(
+        system,
+        "Produce the glossary.",
+        json_mode=True,
+        schema=GLOSSARY_SCHEMA,
+        thinking_budget=0,
+    )
+    obj = raw if isinstance(raw, dict) else parse_json(raw)
+    return obj.get("glossary", [])
 
 
 async def generate_starters(provider, schema_text, dialect):
+    """Suggest 3 example questions with SQL for the user to verify (onboarding)."""
     system = (
         f"You are a database analyst. {dialect} database.\n{schema_text}\n\n"
         "Generate 3 common useful questions a non-technical user would ask, each with the SQL and "
         "a one-sentence plain-English description.\n"
         'Return ONLY JSON: {"starters":[{"question":"...","sql":"...","restatement":"..."}]}'
     )
-    raw = await provider.complete(system, "Produce starter questions.", json_mode=True)
-    return parse_json(raw).get("starters", [])
+    raw = await provider.complete(
+        system,
+        "Produce starter questions.",
+        json_mode=True,
+        schema=STARTERS_SCHEMA,
+        thinking_budget=0,
+    )
+    obj = raw if isinstance(raw, dict) else parse_json(raw)
+    return obj.get("starters", [])

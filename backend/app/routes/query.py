@@ -2,6 +2,7 @@ import json
 import logging
 from fastapi import APIRouter, Depends, BackgroundTasks
 from fastapi.responses import StreamingResponse
+from fastapi.concurrency import run_in_threadpool
 from backend.app.dependencies import (
     get_current_user,
     get_db,
@@ -12,6 +13,7 @@ from backend.app.dependencies import (
 )
 from backend.app.models.api import QueryReq, FeedbackReq, VerifyReq, RawSQLReq
 import backend.app.controllers.query as ctrl
+import backend.app.mongodatabase as mdb
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -36,12 +38,9 @@ def _safe_save_query(user_id, question, sql, result, confidence):
         )
     except Exception:
         log.warning("Failed to persist query history in background", exc_info=True)
-
-
 @router.post("/api/query")
 async def query(
     req: QueryReq,
-    background_tasks: BackgroundTasks,
     user_token=Depends(get_current_user),
     db=Depends(get_db),
     kb=Depends(get_kb),
@@ -55,14 +54,17 @@ async def query(
     if out.get("answered") and out.get("sql"):
         conf = out.get("confidence", "low")
         conf_str = "High" if conf == "high" else "Medium" if conf == "medium" else "Low"
-        background_tasks.add_task(
-            _safe_save_query,
-            user_id=user_token["user_id"],
-            question=req.question,
-            sql=out["sql"],
-            result=out.get("rows", []),
-            confidence=conf_str,
-        )
+        try:
+            await run_in_threadpool(
+                mdb.save_query,
+                user_id=user_token["user_id"],
+                question=req.question,
+                sql=out["sql"],
+                result=out.get("rows", []),
+                confidence=conf_str,
+            )
+        except Exception:
+            log.warning("Failed to persist query history", exc_info=True)
     return out
 
 
@@ -110,3 +112,15 @@ async def execute(
 ):
     user_id = user_token["user_id"]
     return await ctrl.execute(user_id, db, req)
+
+
+@router.post("/api/explain")
+async def explain(
+    req: RawSQLReq,
+    user_token=Depends(get_current_user),
+    db=Depends(get_db),
+    providers=Depends(get_providers),
+):
+    """Plain-English explanation of a SQL query (reverse text-to-SQL)."""
+    user_id = user_token["user_id"]
+    return await ctrl.explain(user_id, db, providers, req)

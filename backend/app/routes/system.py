@@ -23,11 +23,6 @@ async def state(
     return await ctrl.get_state(user_id, db, cfg, kb)
 
 
-@router.get("/api/ollama-check")
-async def ollama_check(cfg=Depends(get_cfg)):
-    return await ctrl.check_ollama(cfg)
-
-
 @router.get("/api/health")
 async def health(
     cfg=Depends(get_cfg),

@@ -166,8 +166,8 @@ LIMIT 3;</code></pre>
         <div class="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center mb-6 text-amber-600">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         </div>
-        <h3 class="text-xl font-bold mb-3" style="color: var(--ink);">100% Private</h3>
-        <p style="color: var(--muted); line-height: 1.6;">Run completely offline using local LLMs via Ollama. Your data and your schema never leave your secure environment.</p>
+        <h3 class="text-xl font-bold mb-3" style="color: var(--ink);">Data Stays Yours</h3>
+        <p style="color: var(--muted); line-height: 1.6;">Only your database structure and your question are sent to the AI — never the rows inside your tables. Queries run read-only.</p>
       </div>
 
       <div class="card p-8 hover:-translate-y-1 transition-transform">

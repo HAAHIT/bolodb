@@ -1,60 +1,11 @@
 """BoloDB entry point."""
 
-import sys
-import os
-import time
-import shutil
-import subprocess
 import argparse
+import time
+
 import uvicorn
+
 from backend.app.server import create_app
-
-
-def is_ollama_up(url="http://localhost:11434"):
-    try:
-        import httpx
-
-        httpx.get(f"{url}/api/tags", timeout=3)
-        return True
-    except Exception:
-        return False
-
-
-def start_ollama(url="http://localhost:11434"):
-    exe = shutil.which("ollama")
-    if not exe and sys.platform == "win32":
-        for c in [
-            os.path.join(
-                os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe"
-            ),
-            r"C:\Program Files\Ollama\ollama.exe",
-        ]:
-            if os.path.exists(c):
-                exe = c
-                break
-    if not exe:
-        return False
-    print("  Starting Ollama...", end="", flush=True)
-    try:
-        kw = dict(stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if sys.platform == "win32":
-            subprocess.Popen(
-                [exe, "serve"],
-                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
-                **kw,
-            )
-        else:
-            subprocess.Popen([exe, "serve"], **kw)
-        for _ in range(20):
-            time.sleep(1)
-            print(".", end="", flush=True)
-            if is_ollama_up(url):
-                print(" ready.")
-                return True
-        print(" timed out.")
-        return False
-    except Exception:
-        return False
 
 
 def main():
@@ -71,12 +22,12 @@ def main():
     from backend.app import config as cfgmod
 
     cfg = cfgmod.load_config()
-    if cfg.get("provider", "ollama") == "ollama":
-        if not is_ollama_up(cfg.get("ollama_url", "http://localhost:11434")):
-            if not start_ollama(cfg.get("ollama_url", "http://localhost:11434")):
-                print(
-                    "  Note: Ollama not running. Pick a cloud provider in Settings.\n"
-                )
+    if not cfg.get("api_keys", {}).get("gemini"):
+        print(
+            "  Note: no Gemini API key configured yet. Add one in Settings\n"
+            "  (free key: https://aistudio.google.com/app/api-keys) or set the\n"
+            "  GEMINI_API_KEY environment variable.\n"
+        )
 
     app = create_app(initial_db_url=args.db, readonly=not args.allow_writes)
     url = f"http://{args.host}:{args.port}"

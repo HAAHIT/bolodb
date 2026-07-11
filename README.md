@@ -4,7 +4,13 @@
 
 **Ask your data. Trust the answer.**
 
-A text-to-SQL product for non-technical users. Connect any SQL database, ask questions in plain English, get answers with a plain-English explanation and a confidence level. Every answer you confirm teaches it your database - accuracy improves with use.
+A text-to-SQL product for non-technical users. Connect any SQL database, ask
+questions in plain English, get answers with a plain-English explanation and a
+confidence level. Every answer you confirm teaches it your database — accuracy
+improves with use.
+
+**📚 Full documentation lives in [`docs/`](docs/README.md)** — written for
+non-technical readers, with code pointers for developers at every step.
 
 ## Quick Start (Docker)
 
@@ -17,37 +23,34 @@ The easiest and recommended way to run BoloDB is using Docker. This ensures all 
    docker compose up -d
    ```
 4. Open [http://localhost:5173](http://localhost:5173) in your browser.
-5. Pick your AI engine, connect a database (or click "Try with sample data"), and start asking!
+5. Add your Gemini API key, connect a database (or click "Try with sample data"), and start asking!
 
-## Choose your AI engine
+## The AI engine
 
-| Engine | Privacy | Cost | Setup |
-|---|---|---|---|
-| Local (Ollama) | Fully private, nothing leaves your machine | Free | Install Ollama + `ollama pull llama3.2` |
-| Claude API | Schema + question sent to Anthropic | Pay per use | Paste API key in Settings |
-| OpenAI API | Schema + question sent to OpenAI | Pay per use | Paste API key in Settings |
-| Groq API | Schema + question sent to Groq | Pay per use | Paste API key in Settings |
+BoloDB uses **Google Gemini** for all AI operations. You only need one thing:
+a Gemini API key — there's a free tier, and it takes about a minute:
 
-With any API engine, only the schema and your question are sent - never your actual row data.
+1. Go to https://aistudio.google.com/app/api-keys (sign in with any Google account).
+2. Click **Create API key** and copy it.
+3. Paste it into BoloDB on the connect screen (or later in Settings).
 
-### Local AI setup
+Deployments can instead set the `GEMINI_API_KEY` environment variable.
 
-1. Install Ollama: https://ollama.ai
-2. Pull a model: `ollama pull llama3.2` (4GB RAM) or `ollama pull phi4-mini` (low RAM)
-3. **Important for Linux users:** Docker containers need permission to reach your host's Ollama instance.
-   - Configure Ollama to listen on all interfaces:
-     ```bash
-     sudo systemctl edit ollama.service
-     # Add this under [Service]:
-     # Environment="OLLAMA_HOST=0.0.0.0"
+| Model (pick in Settings) | Best for |
+|---|---|
+| `gemini-2.5-flash-lite` | Cheapest & fastest — small, simple databases |
+| `gemini-2.5-flash` (default) | Best cost/accuracy balance for most uses |
+| `gemini-2.5-pro` | Most accurate — large schemas, hard questions |
 
-     sudo systemctl daemon-reload
-     sudo systemctl restart ollama
-     ```
-   - If you have a firewall (UFW), allow Docker networks to reach port 11434:
-     ```bash
-     sudo ufw allow from 172.16.0.0/12 to any port 11434 proto tcp
-     ```
+**Privacy:** what's sent to Google to generate SQL is your question plus the
+context BoloDB builds around it: the database *structure* (table/column names,
+keys), a few sample values and sample rows per table, your confirmed
+business-term glossary, previously verified question→SQL examples, and the
+last couple of conversation turns. **The prompt never includes** bulk table
+contents, query results, or credentials — the Gemini API key travels only in
+the request's authentication header. See
+[docs/03-the-ai-layer-gemini.md](docs/03-the-ai-layer-gemini.md) for exactly
+what's in every prompt.
 
 ## Database connection strings
 
@@ -58,17 +61,23 @@ With any API engine, only the schema and your question are sent - never your act
 | MySQL | `mysql+pymysql://user:pass@host:3306/dbname` |
 | SQL Server | `mssql+pyodbc://user:pass@server/db?driver=ODBC+Driver+17+for+SQL+Server` |
 
-Tip: connect with a **read-only database account** for safety.
+Tip: connect with a **read-only database account** for safety (BoloDB also
+enforces read-only itself — see
+[docs/05-safety-validation-and-self-repair.md](docs/05-safety-validation-and-self-repair.md)).
 
 ## How it works
 
-1. **Connect** a database and pick an AI engine
-2. **Onboard** (first time) - BoloDB profiles the tables, confirms business-term meanings with you, and runs a few starter questions for you to verify
+1. **Connect** a database and add your Gemini API key
+2. **Onboard** (first time) — BoloDB profiles the tables, confirms business-term meanings with you, and runs a few starter questions for you to verify
 3. **Ask** questions in plain English. Every answer includes:
    - A plain-English restatement ("I summed completed orders for this month")
    - A confidence level (High/Medium/Low) based on real signals
    - The results table and SQL on a toggle
-4. **Verify** - click "Yes, correct" to save the answer. Similar future questions reuse it and show higher confidence. The trust level climbs from Supervised to Assisted to Trusted
+   - Automatic self-repair: generated SQL is validated against your schema and fixed before you ever see an error
+4. **Verify** — click "Yes, correct" to save the answer. Similar future questions reuse it and show higher confidence. The trust level climbs from Supervised to Assisted to Trusted
+
+The full pipeline, step by step with code pointers:
+[docs/02-how-a-question-becomes-an-answer.md](docs/02-how-a-question-becomes-an-answer.md).
 
 ## Useful Docker Commands
 
@@ -82,16 +91,17 @@ docker compose build --no-cache # Rebuild all images from scratch
 ## Running tests
 
 ```bash
-cd backend
-pip install -r requirements.txt
-pytest ../tests
+pip install -r backend/requirements.txt
+pytest tests
 ```
+
+The test suite needs no network and no API key — all AI calls are faked.
 
 ## Privacy
 
-- All learned knowledge and user settings are stored in the local MongoDB container volume.
-- With a local model (Ollama), nothing leaves your machine.
-- With an API model, only the schema and your question are sent to generate SQL.
+- All learned knowledge and user settings are stored locally (`~/.bolodb/`) and in the local MongoDB container volume. The Gemini API key is encrypted at rest.
+- To generate SQL, the AI is sent your question plus context: the schema, a few sample values/rows per table, your confirmed glossary terms, verified question→SQL examples, and recent conversation turns. The prompt never includes bulk table data, query results, or credentials (the API key is used only as the request's authentication header).
+- Queries run strictly read-only.
 - No telemetry, no cloud sync.
 
 ## License

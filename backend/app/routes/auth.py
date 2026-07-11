@@ -3,11 +3,10 @@ from fastapi.responses import JSONResponse
 from backend.app.models.user import UserSignup
 import backend.app.controllers.auth
 from backend.app.dependencies import get_current_user
+from backend.app.secrets import get_jwt_secret, get_cookie_secure
 import jwt
-import os
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-JWT_SECRET = os.getenv("JWT_SECRET", "RANDOM-SECRET")
 
 
 @router.post("/refresh")
@@ -15,12 +14,19 @@ async def refresh_jwt(refresh_token: str = Cookie(None)):
     if refresh_token is None:
         raise HTTPException(status_code=401, detail="Access Denied")
     try:
-        token = jwt.decode(refresh_token, JWT_SECRET, algorithms=["HS256"])
+        token = jwt.decode(refresh_token, get_jwt_secret(), algorithms=["HS256"])
         response = JSONResponse({"message": "Token Set successfully"})
         new_token = backend.app.controllers.auth.create_access_jwt(
             user_id=token["user_id"], role=token["role"]
         )
-        response.set_cookie(key="access_token", value=new_token, httponly=True)
+        secure = get_cookie_secure()
+        response.set_cookie(
+            key="access_token",
+            value=new_token,
+            httponly=True,
+            secure=secure,
+            samesite="lax",
+        )
         return response
     except jwt.ExpiredSignatureError:
         raise HTTPException(
@@ -42,15 +48,20 @@ async def login(request: Request):
     body = await request.json()
     token = backend.app.controllers.auth.login(body["email"], body["password"])
     response = JSONResponse({"message": "Login Success"})
+    secure = get_cookie_secure()
     response.set_cookie(
         key="access_token",
         value=token["access_token"],
         httponly=True,
-        secure=True,
+        secure=secure,
         samesite="lax",
     )
     response.set_cookie(
-        key="refresh_token", value=token["refresh_token"], httponly=True
+        key="refresh_token",
+        value=token["refresh_token"],
+        httponly=True,
+        secure=secure,
+        samesite="lax",
     )
     return response
 

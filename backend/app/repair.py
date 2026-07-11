@@ -1,34 +1,44 @@
-"""Generate → validate → (execute) → repair loop for NL→SQL (issue #95).
+"""Generate → validate → (execute) → repair loop for NL→SQL.
 
 Most SQL the model gets wrong is wrong *mechanically* — a hallucinated column, a
 dialect quirk, a bad join — and is self-correctable once the model is told what
 broke. This module runs a bounded loop that generates a candidate, checks it with
-the static validator (issue #93), optionally executes it, and on any failure
-feeds the specific error back into the next generation attempt.
+the static validator (backend/app/sqlvalidate.py), optionally executes it, and on
+any failure feeds the specific error back into the next generation attempt.
 
-The loop is deliberately decoupled from the async LLM provider and the database:
-callers inject plain callables. That keeps the control flow pure and unit-testable
-here; the actual wiring into ``run_query`` (provider + ``db.execute``) lands in
-issue #96.
+This loop is what answers real questions: ``run_query`` in
+backend/app/controllers/query.py wires it up with the Gemini provider as the
+generator and the live database as the executor. It stays decoupled — callers
+inject plain callables (sync or async), which keeps the control flow pure and
+unit-testable here.
 
 Callables
 ---------
-``generate(feedback: str) -> dict``
+``generate(feedback: str) -> dict``  (sync or async)
     Produce a candidate. ``feedback`` is ``""`` on the first attempt and, on
     later attempts, a description of what was wrong with the previous SQL. The
     returned dict is expected to carry at least ``"sql"`` (and usually
     ``"restatement"``).
-``validate(sql: str) -> dict``
+``validate(sql: str) -> dict``  (sync or async)
     Return ``{"ok": bool, "errors": [str]}``. Use :func:`schema_validator` to
     build one bound to a schema + dialect.
-``execute(sql: str) -> dict``  (optional)
+``execute(sql: str) -> dict``  (optional; sync or async)
     Run the SQL. A truthy ``"error"`` key means failure; anything else is treated
     as a successful result. Omit to run validation-only (no execution backstop).
 """
 
+import inspect
 import time
 
 from backend.app.sqlvalidate import validate_sql
+
+
+async def _call(fn, *args):
+    """Invoke a callable that may be sync or async and return its result."""
+    out = fn(*args)
+    if inspect.isawaitable(out):
+        out = await out
+    return out
 
 
 def schema_validator(schema, dialect=""):
@@ -53,7 +63,7 @@ def _feedback(sql, errors):
     return "\n".join(lines)
 
 
-def run_repair_loop(
+async def run_repair_loop(
     generate,
     validate,
     execute=None,
@@ -87,10 +97,10 @@ def run_repair_loop(
         if max_seconds is not None and i > 0 and (clock() - start) > max_seconds:
             break
 
-        last = generate(feedback) or {}
+        last = await _call(generate, feedback) or {}
         sql = (last.get("sql") or "").strip()
 
-        verdict = validate(sql) or {}
+        verdict = await _call(validate, sql) or {}
         if not verdict.get("ok"):
             errs = verdict.get("errors", [])
             attempts.append({"sql": sql, "stage": "validate", "errors": errs})
@@ -98,7 +108,7 @@ def run_repair_loop(
             continue
 
         if execute is not None:
-            result = execute(sql) or {}
+            result = await _call(execute, sql) or {}
             if result.get("error"):
                 errs = [result["error"]]
                 attempts.append({"sql": sql, "stage": "execute", "errors": errs})
@@ -109,6 +119,7 @@ def run_repair_loop(
                 "ok": True,
                 "sql": sql,
                 "restatement": last.get("restatement", ""),
+                "assumptions": last.get("assumptions", []),
                 "result": result,
                 "attempts": attempts,
             }
@@ -118,6 +129,7 @@ def run_repair_loop(
             "ok": True,
             "sql": sql,
             "restatement": last.get("restatement", ""),
+            "assumptions": last.get("assumptions", []),
             "result": None,
             "attempts": attempts,
         }
@@ -126,6 +138,7 @@ def run_repair_loop(
         "ok": False,
         "sql": (last.get("sql") or "").strip(),
         "restatement": last.get("restatement", ""),
+        "assumptions": last.get("assumptions", []),
         "result": None,
         "attempts": attempts,
     }

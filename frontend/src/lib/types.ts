@@ -125,3 +125,10 @@ export interface HistoryEntry {
   confidence: "High" | "Medium" | "Low";
   timestamp: string;
 }
+
+export interface HistoryStats {
+  total_queries: number;
+  confidence: { High: number; Medium: number; Low: number };
+  daily_activity: { date: string; count: number }[];
+  top_tables: { table: string; count: number }[];
+}

@@ -9,7 +9,8 @@
     { engine: string; modelName: string; verifiedCount: number; onSettings: () => void; schema: SchemaTable[] | null; dbInfo: DbInfo | null; onHistorySelect?: (entry: HistoryEntry) => void; historyTrigger?: number } = $props();
 
   const trust = $derived(trustFor(verifiedCount));
-  const prov = $derived(providers.find(p => p.id === engine)!);
+  // Gemini is the only AI engine; fall back to it if the id ever mismatches.
+  const prov = $derived(providers.find(p => p.id === engine) ?? providers[0]);
   let openTable: string | null = $state(null);
   let history: HistoryEntry[] = $state([]);
   let openHistory: boolean = $state(true);
@@ -128,17 +129,11 @@
   <div style="padding:12px 16px 16px;border-top:1px solid var(--border)">
     <button onclick={onSettings} class="focusable"
       style="width:100%;display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface-2);cursor:pointer;transition:all .15s;text-align:left">
-      <span style="width:30px;height:30px;border-radius:8px;flex-shrink:0;display:grid;place-items:center;background:{engine==='ollama'?'var(--brand-tint)':'var(--surface-3)'};color:{engine==='ollama'?'var(--brand)':'var(--muted)'}">
-        {#if engine === 'ollama'}
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.4-3 8-7 10-4-2-7-5.6-7-10V6l7-3z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        {:else}
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" fill="currentColor"/></svg>
-        {/if}
+      <span style="width:30px;height:30px;border-radius:8px;flex-shrink:0;display:grid;place-items:center;background:var(--surface-3);color:var(--brand)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" fill="currentColor"/></svg>
       </span>
       <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px">{prov.name}
-          {#if engine === 'ollama'}<span style="font-size:10px;font-weight:700;color:var(--brand)">private</span>{/if}
-        </div>
+        <div style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px">{prov.name}</div>
         <div class="mono" style="font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{modelName || prov.model}</div>
       </div>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="color:var(--faint);flex-shrink:0"><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.9"/><path d="M12 2.5v2.3M12 19.2v2.3M21.5 12h-2.3M4.8 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9L5.3 5.3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>

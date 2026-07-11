@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { providers } from "$lib/data";
+  import { GEMINI_KEY_URL } from "$lib/data";
   import { apiCall } from "$lib/api";
   import { humanError } from "$lib/data";
   import type { DbInfo } from "$lib/types";
@@ -7,20 +7,14 @@
   import Button from "$lib/components/ui/Button.svelte";
   import Spinner from "$lib/components/ui/Spinner.svelte";
   import Section from "$lib/components/ui/Section.svelte";
-  import EngineCard from "$lib/components/EngineCard.svelte";
   import { onMount } from "svelte";
 
   let {
-    engine,
-    setEngine,
     onConnect,
   }: {
-    engine: string;
-    setEngine: (e: string) => void;
     onConnect: (isSample: boolean, res: DbInfo) => void;
   } = $props();
 
-  const P = providers;
   const DB_TYPES = [
     { id: "postgresql", label: "PostgreSQL", port: "5432" },
     { id: "mysql", label: "MySQL", port: "3306" },
@@ -28,11 +22,6 @@
     { id: "mssql", label: "SQL Server", port: "1433" },
     { id: "duckdb", label: "DuckDB", port: null },
   ];
-  const API_KEY_LINKS: Record<string, string> = {
-    claude: "https://console.anthropic.com/settings/keys",
-    openai: "https://platform.openai.com/api-keys",
-    groq: "https://console.groq.com/keys",
-  };
   const DIALECT_LABELS: Record<string, string> = {
     postgresql: "PostgreSQL",
     mysql: "MySQL",
@@ -52,9 +41,15 @@
   let dbUrl = $state("");
   let connecting: string | null = $state(null);
   let error = $state("");
-  let ollamaStatus: string | null = $state(null);
   let recentConnections: any[] = $state([]);
   let reconnecting: string | null = $state(null);
+
+  // Gemini API key state (step 1)
+  let geminiKey = $state("");
+  let keyIsSet = $state(false);
+  let keySaving = $state(false);
+  let keyError = $state("");
+  let editingKey = $state(false);
 
   const isFileBased = $derived(dbType === "sqlite" || dbType === "duckdb");
 
@@ -63,23 +58,28 @@
       const data = await apiCall("/api/connections");
       recentConnections = data.connections || [];
     } catch {}
+    try {
+      const s = await apiCall("/api/state");
+      keyIsSet = !!s.config?.api_keys_set?.gemini;
+    } catch {}
   });
 
-  $effect(() => {
-    if (engine !== "ollama") return;
-    ollamaStatus = "loading";
-    fetch("/api/ollama-check")
-      .then((r) => r.json())
-      .then((d) => (ollamaStatus = d.ok ? "ok" : "fail"))
-      .catch(() => (ollamaStatus = "fail"));
-  });
-
-  function recheckOllama() {
-    ollamaStatus = "loading";
-    fetch("/api/ollama-check")
-      .then((r) => r.json())
-      .then((d) => (ollamaStatus = d.ok ? "ok" : "fail"))
-      .catch(() => (ollamaStatus = "fail"));
+  async function saveGeminiKey() {
+    if (!geminiKey.trim()) return;
+    keySaving = true;
+    keyError = "";
+    try {
+      await apiCall("/api/config", {
+        provider: "gemini",
+        api_key: geminiKey.trim(),
+      });
+      keyIsSet = true;
+      editingKey = false;
+      geminiKey = "";
+    } catch (e: any) {
+      keyError = e.message || "Could not save the API key.";
+    }
+    keySaving = false;
   }
 
   function buildUrl(): string {
@@ -106,7 +106,6 @@
     connecting = kind;
     error = "";
     try {
-      await apiCall("/api/config", { provider: engine });
       let res: DbInfo;
       if (kind === "sample") {
         res = await apiCall("/api/connect-sample", {});
@@ -132,7 +131,6 @@
     reconnecting = conn.db_id;
     error = "";
     try {
-      await apiCall("/api/config", { provider: engine });
       const res: DbInfo = await apiCall("/api/reconnect", {
         db_id: conn.db_id,
       });
@@ -334,39 +332,23 @@
       </div>
     {/if}
 
-    <!-- step 1 — engine -->
+    <!-- step 1 — Gemini API key -->
     <Section
       num="1"
-      title="Choose your AI engine"
-      hint="You can switch anytime in Settings. Not sure? Start with Local — it's free and private."
+      title="Set up the AI"
+      hint="BoloDB uses Google Gemini to turn your questions into database queries. You just need a free API key."
     >
       {#snippet children()}
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
-          {#each P as p, i}
-            <EngineCard
-              provider={p}
-              active={engine === p.id}
-              onclick={() => {
-                setEngine(p.id);
-                error = "";
-              }}
-              delay={i * 55}
-            />
-          {/each}
-        </div>
-
-        {#if engine === "ollama" && ollamaStatus === "loading"}
+        {#if keyIsSet && !editingKey}
           <div
-            style="display:flex;align-items:center;gap:9px;margin-top:12px;padding:12px 15px;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border);color:var(--muted);font-size:13.5px"
+            style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--brand-tint);border:1px solid var(--brand-tint-2);border-radius:var(--radius-sm)"
           >
-            <Spinner /> Checking if Ollama is running on this machine…
-          </div>
-        {/if}
-        {#if engine === "ollama" && ollamaStatus === "ok"}
-          <div
-            style="display:flex;align-items:center;gap:9px;margin-top:12px;padding:12px 15px;background:var(--brand-tint);border-radius:var(--radius-sm);border:1px solid var(--brand-tint-2);color:var(--brand-ink);font-size:13.5px;font-weight:600"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              style="flex-shrink:0;color:var(--brand)"
               ><path
                 d="M5 12.5l4.2 4.2L19 7"
                 stroke="currentColor"
@@ -375,109 +357,83 @@
                 stroke-linejoin="round"
               /></svg
             >
-            Ollama is running and ready. Your questions will never leave this machine.
+            <span
+              style="flex:1;font-size:13.5px;font-weight:650;color:var(--brand-ink)"
+              >Gemini API key configured — the AI is ready.</span
+            >
+            <button
+              onclick={() => {
+                editingKey = true;
+                geminiKey = "";
+              }}
+              style="font-size:12.5px;font-weight:700;color:var(--brand-ink);background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:var(--radius-sm)"
+            >
+              Change key
+            </button>
           </div>
-        {/if}
-        {#if engine === "ollama" && ollamaStatus === "fail"}
-          <div
-            style="margin-top:12px;padding:16px 18px;background:#FFF8ED;border:1px solid #F5D78A;border-radius:var(--radius);color:#7A5C0A;font-size:13.5px"
-          >
+        {:else}
+          <div class="card" style="padding:18px 20px">
             <div
-              style="display:flex;align-items:center;gap:9px;font-weight:700;margin-bottom:8px"
+              style="font-size:13.5px;color:var(--ink-2);font-weight:550;line-height:1.6;margin-bottom:12px"
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                style="flex-shrink:0;color:#C2891B"
-                ><path
-                  d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"
-                  fill="currentColor"
-                /></svg
-              >
-              Ollama isn't running yet
-            </div>
-            <p style="margin:0 0 10px;font-weight:500;line-height:1.6">
-              Ollama is a free tool that lets AI run entirely on your computer —
-              nothing leaves your machine. You need to install it before you can
-              use the Local option.
-            </p>
-            <div
-              style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"
-            >
+              Get a free API key from
               <a
-                href="https://ollama.com/download"
-                target="_blank"
-                rel="noopener"
-                style="display:inline-flex;align-items:center;gap:7px;padding:9px 15px;background:var(--ink);color:#fff;border-radius:var(--radius-sm);font-weight:700;font-size:13px;text-decoration:none"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  ><path
-                    d="M5 12h14M13 6l6 6-6 6"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  /></svg
-                >
-                Download Ollama (free)
-              </a>
-              <button
-                onclick={recheckOllama}
-                style="display:inline-flex;align-items:center;gap:7px;padding:9px 15px;background:transparent;border:1.5px solid #C2891B;color:#7A5C0A;border-radius:var(--radius-sm);font-weight:700;font-size:13px;cursor:pointer"
-                >Check again</button
-              >
-            </div>
-            <div
-              style="font-size:12.5px;font-weight:550;opacity:.85;line-height:1.6"
-            >
-              After installing Ollama: open a Terminal and run <code
-                style="background:rgba(0,0,0,.09);padding:2px 6px;border-radius:4px;font-family:var(--font-mono)"
-                >ollama pull llama3.2</code
-              > to download the model (~2 GB). Then click "Check again."
-            </div>
-          </div>
-        {/if}
-
-        {#if engine !== "ollama"}
-          <div
-            style="display:flex;align-items:center;gap:9px;margin-top:12px;padding:12px 15px;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border);color:var(--ink-2);font-size:13.5px"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              style="flex-shrink:0;color:var(--muted)"
-              ><rect
-                x="5"
-                y="10.5"
-                width="14"
-                height="9.5"
-                rx="2.4"
-                stroke="currentColor"
-                stroke-width="1.8"
-              /><path
-                d="M8 10.5V8a4 4 0 018 0v2.5"
-                stroke="currentColor"
-                stroke-width="1.8"
-              /></svg
-            >
-            <span style="flex:1"
-              >You'll need an API key to use {P.find((p) => p.id === engine)
-                ?.name}.
-              <a
-                href={API_KEY_LINKS[engine]}
+                href={GEMINI_KEY_URL}
                 target="_blank"
                 rel="noopener"
                 style="color:var(--brand-ink);font-weight:700;text-decoration:none"
-                >Get your key here →</a
+                >Google AI Studio →</a
               >
-              <span style="color:var(--faint);font-size:12.5px"
-                >(You'll enter it in Settings after connecting.)</span
+              (sign in with any Google account, click "Create API key", copy it) and
+              paste it below.
+            </div>
+            <div style="display:flex;gap:10px">
+              <input
+                class="field mono"
+                type="password"
+                bind:value={geminiKey}
+                placeholder="AIza•••"
+                style="font-size:13.5px;flex:1"
+              />
+              <Button
+                kind="primary"
+                disabled={!geminiKey.trim() || keySaving}
+                onclick={saveGeminiKey}
               >
-            </span>
+                {#snippet icon()}{#if keySaving}<Spinner />{:else}<svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    ><path
+                      d="M5 12.5l4.2 4.2L19 7"
+                      stroke="currentColor"
+                      stroke-width="2.3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    /></svg
+                  >{/if}{/snippet}
+                {keySaving ? "Saving…" : "Save key"}
+              </Button>
+            </div>
+            {#if editingKey}
+              <button
+                onclick={() => {
+                  editingKey = false;
+                  geminiKey = "";
+                }}
+                style="font-size:12.5px;color:var(--faint);background:none;border:none;cursor:pointer;font-weight:600;padding:6px 0 0"
+              >
+                ← Cancel, keep existing key
+              </button>
+            {/if}
+            {#if keyError}
+              <div
+                style="margin-top:10px;padding:10px 13px;background:var(--c-low-tint);border:1px solid #EBC6BD;border-radius:var(--radius-sm);color:var(--c-low-ink);font-size:13px;font-weight:550"
+              >
+                {keyError}
+              </div>
+            {/if}
           </div>
         {/if}
 

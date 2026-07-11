@@ -10,30 +10,61 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 
 from backend.app.models.user import UserInDB
+from backend.app.config import CONFIG_DIR
 
 load_dotenv()
-mongouri = os.getenv("MONGO_URI")
+mongouri = os.getenv("MONGO_URI") or "mongodb://localhost:27017"
 client = MongoClient(mongouri)
 db = client["bolodb"]
 
+_CONNECTIONS_KEY_FILE = CONFIG_DIR / "connections.key"
+
 
 def _recent_connection_cipher():
-    secret = os.getenv("RECENT_CONNECTIONS_KEY") or os.getenv(
-        "JWT_SECRET", "RANDOM-SECRET"
-    )
-    key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
-    return Fernet(key)
+    """Derive a Fernet cipher for encrypting stored database URLs.
+
+    Uses RECENT_CONNECTIONS_KEY env var if set; otherwise generates and
+    persists a key file at ~/.bolodb/connections.key.  Falls back to a
+    fresh key only for backward-compat decryption of legacy records.
+    """
+    secret = os.getenv("RECENT_CONNECTIONS_KEY")
+    if secret:
+        key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
+        return Fernet(key), None
+
+    # Try to load or create a persisted key file.
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    if _CONNECTIONS_KEY_FILE.exists():
+        persisted = _CONNECTIONS_KEY_FILE.read_text().strip()
+        key = base64.urlsafe_b64encode(hashlib.sha256(persisted.encode()).digest())
+        return Fernet(key), None
+
+    # Generate a new key and persist it for next time.
+    new_secret = base64.urlsafe_b64encode(os.urandom(32)).decode()
+    _CONNECTIONS_KEY_FILE.write_text(new_secret)
+    key = base64.urlsafe_b64encode(hashlib.sha256(new_secret.encode()).digest())
+    return Fernet(key), None
 
 
 def _encrypt_connection_url(db_url):
-    return _recent_connection_cipher().encrypt(db_url.encode()).decode()
+    return _recent_connection_cipher()[0].encrypt(db_url.encode()).decode()
 
 
 def _decrypt_connection_url(value):
     try:
-        return _recent_connection_cipher().decrypt(value.encode()).decode()
+        return _recent_connection_cipher()[0].decrypt(value.encode()).decode()
     except (InvalidToken, ValueError, TypeError):
-        # Backward compatibility: allow reconnect from older plaintext records.
+        # Backward compatibility: try the legacy JWT_SECRET-based key.
+        jwt_secret = os.getenv("JWT_SECRET")
+        if jwt_secret:
+            try:
+                legacy_key = base64.urlsafe_b64encode(
+                    hashlib.sha256(jwt_secret.encode()).digest()
+                )
+                return Fernet(legacy_key).decrypt(value.encode()).decode()
+            except (InvalidToken, ValueError, TypeError):
+                pass
+        # Last resort: treat as plaintext (older records stored unencrypted).
         return value
 
 
@@ -88,10 +119,105 @@ def save_query(user_id, question, sql, result, confidence):
     history.insert_one(doc)
 
 
-def get_query_history(user_id, limit=20):
+def get_query_history(user_id, limit=100):
     history = db["query_history"]
     cursor = history.find({"user_id": str(user_id)}).sort("timestamp", -1).limit(limit)
     return [serialize_doc(doc) for doc in cursor]
+
+
+def get_query_stats(user_id):
+    """Aggregate stats from query history for dashboard charts."""
+    history = db["query_history"]
+    user_filter = {"user_id": str(user_id)}
+    total = history.count_documents(user_filter)
+
+    confidence_pipeline = [
+        {"$match": user_filter},
+        {
+            "$group": {
+                "_id": {"$toLower": {"$ifNull": ["$confidence", "low"]}},
+                "count": {"$sum": 1},
+            }
+        },
+    ]
+    confidence_counts = {}
+    for doc in history.aggregate(confidence_pipeline):
+        key = (doc["_id"] or "low").capitalize()
+        confidence_counts[key] = doc["count"]
+
+    day_pipeline = [
+        {"$match": user_filter},
+        {
+            "$group": {
+                "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$timestamp"}},
+                "count": {"$sum": 1},
+            }
+        },
+        {"$sort": {"_id": -1}},
+        {"$limit": 90},
+        {"$sort": {"_id": 1}},
+    ]
+    daily = [
+        {"date": doc["_id"], "count": doc["count"]}
+        for doc in history.aggregate(day_pipeline)
+    ]
+
+    sql_pipeline = [
+        {"$match": user_filter},
+        {"$sort": {"timestamp": -1}},
+        {"$project": {"sql": 1}},
+        {"$limit": 200},
+    ]
+    table_usage: dict[str, int] = {}
+    for doc in history.aggregate(sql_pipeline):
+        sql = (doc.get("sql") or "").lower()
+        for keyword in ("from ", "join "):
+            idx = 0
+            while True:
+                pos = sql.find(keyword, idx)
+                if pos == -1:
+                    break
+                start = pos + len(keyword)
+                end = start
+                while end < len(sql) and sql[end] not in (
+                    " ",
+                    "\n",
+                    "\t",
+                    ";",
+                    "(",
+                    ",",
+                ):
+                    end += 1
+                tbl = sql[start:end].strip().strip('"').strip("'").strip("`")
+                if (
+                    tbl
+                    and not tbl.startswith("(")
+                    and tbl
+                    not in (
+                        "select",
+                        "where",
+                        "on",
+                        "and",
+                        "or",
+                        "set",
+                        "into",
+                        "values",
+                    )
+                ):
+                    table_usage[tbl] = table_usage.get(tbl, 0) + 1
+                idx = end
+    top_tables = sorted(table_usage.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    return {
+        "total_queries": total,
+        "confidence": {
+            "High": confidence_counts.get("High", 0),
+            "Medium": confidence_counts.get("Medium", 0),
+            "Low": confidence_counts.get("Low", 0),
+        },
+        "daily_activity": daily,
+        "top_tables": [{"table": t, "count": c} for t, c in top_tables],
+    }
 
 
 def delete_history_entry(user_id, entry_id):

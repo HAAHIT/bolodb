@@ -76,29 +76,97 @@ def test_link_uses_verified_sql_as_boost(small_schema):
 
 
 @pytest.mark.parametrize(
-    "provider,model,expected_tier",
+    "model,expected_tier",
     [
-        ("claude", "claude-sonnet", "large"),
-        ("openai", "gpt-4o", "large"),
-        ("groq", "llama-3.3-70b-versatile", "large"),
-        ("ollama", "qwen2.5:0.5b", "tiny"),
-        ("ollama", "llama3.2:1b", "tiny"),
-        ("ollama", "phi3-mini", "tiny"),
-        ("ollama", "llama3.2", "small"),
-        ("ollama", "mistral", "small"),
-        ("ollama", "", "small"),
+        ("gemini-2.5-flash-lite", "lite"),
+        ("gemini-2.5-flash", "flash"),
+        ("gemini-2.5-pro", "pro"),
+        ("gemma-4-26b-a4b-it", "gemma"),
+        ("", "flash"),  # unset model gets the default (flash) budget
     ],
 )
-def test_model_budget_tiering(provider, model, expected_tier):
-    budget = model_budget(provider, model)
+def test_model_budget_tiering(model, expected_tier):
+    budget = model_budget(model)
     assert budget["tier"] == expected_tier
 
 
-def test_api_providers_get_a_larger_budget_than_small_local_models():
-    api_budget = model_budget("claude", "claude-sonnet")
-    local_budget = model_budget("ollama", "llama3.2")
-    assert api_budget["max_tables"] > local_budget["max_tables"]
-    assert api_budget["max_examples"] > local_budget["max_examples"]
+def test_bigger_models_get_bigger_budgets():
+    lite = model_budget("gemini-2.5-flash-lite")
+    flash = model_budget("gemini-2.5-flash")
+    pro = model_budget("gemini-2.5-pro")
+    assert lite["max_tables"] < flash["max_tables"] < pro["max_tables"]
+    assert lite["max_examples"] <= flash["max_examples"] <= pro["max_examples"]
+
+
+def test_link_matches_singular_question_to_plural_table(small_schema):
+    # "order" (singular) should still find the "orders" table
+    result = link_relevant_tables(
+        "average order value", small_schema, [], [], max_tables=1, context_tables=set()
+    )
+    assert "orders" in result
+
+
+def test_link_glossary_only_expands_mentioned_terms(small_schema):
+    glossary = [
+        {"term": "revenue", "maps_to": "orders total", "sql_hint": ""},
+        {"term": "catalog", "maps_to": "products price", "sql_hint": ""},
+    ]
+    # question mentions "revenue" but not "catalog" -> orders should win
+    result = link_relevant_tables(
+        "total revenue", small_schema, glossary, [], max_tables=1, context_tables=set()
+    )
+    assert result[0] == "orders"
+
+
+def test_link_context_tables_beat_token_matches(small_schema):
+    # follow-up question mentions products, but previous query used orders
+    result = link_relevant_tables(
+        "now show products too",
+        small_schema,
+        [],
+        [],
+        max_tables=1,
+        context_tables={"orders"},
+    )
+    assert "orders" in result
+
+
+def test_link_includes_junction_table_between_selected_tables():
+    schema = {
+        "orders": {
+            "columns": [{"name": "id", "primary_key": True}],
+            "foreign_keys": [],
+            "row_count": 100,
+            "distinct_values": {},
+        },
+        "products": {
+            "columns": [{"name": "id", "primary_key": True}],
+            "foreign_keys": [],
+            "row_count": 50,
+            "distinct_values": {},
+        },
+        "order_items": {
+            "columns": [{"name": "order_id"}, {"name": "product_id"}],
+            "foreign_keys": [
+                {"column": "order_id", "references": "orders.id"},
+                {"column": "product_id", "references": "products.id"},
+            ],
+            "row_count": 500,
+            "distinct_values": {},
+        },
+        "reviews": {
+            "columns": [{"name": "id"}],
+            "foreign_keys": [],
+            "row_count": 10,
+            "distinct_values": {},
+        },
+    }
+    # orders + products both match; order_items (the bridge) must come along
+    result = link_relevant_tables(
+        "products per order", schema, [], [], max_tables=2, context_tables=set()
+    )
+    assert "orders" in result and "products" in result
+    assert "order_items" in result
 
 
 def test_confidence_low_when_query_failed():

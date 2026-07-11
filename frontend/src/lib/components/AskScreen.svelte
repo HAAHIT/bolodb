@@ -10,10 +10,12 @@
   import TrustPill from '$lib/components/ui/TrustPill.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Spinner from '$lib/components/ui/Spinner.svelte';
+  import SlashCommandMenu from '$lib/components/ui/SlashCommandMenu.svelte';
+  import type { SlashCommand } from '$lib/components/ui/SlashCommandMenu.svelte';
 
-  let { engine, setEngine, modelName, setModelName, verifiedCount, onVerify, onUpdateStarters, toast, realSchema, dbInfo, starters, onDisconnect }:
+  let { engine, modelName, setModelName, verifiedCount, onVerify, onUpdateStarters, toast, realSchema, dbInfo, starters, onDisconnect }:
     {
-      engine: string; setEngine: (e: string) => void;
+      engine: string;
       modelName: string; setModelName: (m: string) => void;
       verifiedCount: number; onVerify: (count?: number) => void;
       onUpdateStarters: (s: string[]) => void; toast: Toast | null;
@@ -32,6 +34,16 @@
   let currentArtifacts: ThinkingArtifact[] = $state([]);
 
   const trust = $derived(trustFor(verifiedCount));
+
+  // Slash command menu state
+  let showSlashMenu = $state(false);
+  let slashFilter = $state('');
+  let inputRef: HTMLInputElement | undefined = $state(undefined);
+
+  // Configurable slash commands - add new commands here
+  const slashCommands: SlashCommand[] = [
+    { name: '/sql', description: 'Execute SQL query directly' }
+  ];
 
   $effect(() => {
     turns; // track
@@ -59,6 +71,35 @@
     }
   }
 
+  // Handle input changes to detect slash commands
+  function handleInput(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const value = target.value;
+
+    if (value === '/') {
+      showSlashMenu = true;
+      slashFilter = '';
+    } else if (value === '' && showSlashMenu) {
+      showSlashMenu = false;
+    } else if (showSlashMenu && value.includes(' ')) {
+      showSlashMenu = false;
+    } else if (showSlashMenu && value.startsWith('/')) {
+      slashFilter = value.slice(1);
+    } else if (showSlashMenu && !value.startsWith('/')) {
+      showSlashMenu = false;
+    }
+  }
+
+  function handleSlashCommandSelect(command: SlashCommand) {
+    input = command.name + ' ';
+    showSlashMenu = false;
+    slashFilter = '';
+  }
+
+  function handleSlashMenuClose() {
+    showSlashMenu = false;
+    slashFilter = '';
+  }
   async function ask(text?: string) {
     const q = (text || input).trim();
     if (!q) return;
@@ -219,10 +260,19 @@
 
     <!-- input -->
     <div style="padding:14px 28px 20px;border-top:1px solid var(--border);background:var(--surface)">
-      <div style="max-width:720px;margin:0 auto">
+      <div style="max-width:720px;margin:0 auto;position:relative">
+        {#if showSlashMenu}
+          <SlashCommandMenu
+            commands={slashCommands}
+            onSelect={handleSlashCommandSelect}
+            onClose={handleSlashMenuClose}
+            filter={slashFilter}
+            {inputRef}
+          />
+        {/if}
         <form onsubmit={handleSubmit}
           style="display:flex;align-items:center;gap:10px;padding:7px 7px 7px 18px;border:1.5px solid var(--border-2);border-radius:var(--radius-lg);background:var(--surface);box-shadow:var(--shadow-sm);transition:border-color .15s, box-shadow .15s">
-          <input bind:value={input} placeholder="Ask anything about your data…"
+          <input bind:value={input} oninput={handleInput} bind:this={inputRef} placeholder="Ask anything about your data…"
             aria-label="Ask a question about your data" autofocus
             style="flex:1;border:none;outline:none;background:transparent;font-size:15.5px;color:var(--ink)" />
           <Button kind="primary" type="submit" disabled={!input.trim() || loading}>
@@ -232,7 +282,7 @@
         </form>
         <div style="display:flex;align-items:center;justify-content:center;gap:7px;margin-top:10px;font-size:12px;color:var(--faint)">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="5" y="10.5" width="14" height="9.5" rx="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M8 10.5V8a4 4 0 018 0v2.5" stroke="currentColor" stroke-width="1.8"/></svg>
-          {engine === 'ollama' ? 'Running on your machine — nothing leaves this device.' : 'Only the schema and your question are sent to generate SQL.'}
+          Only the schema and your question are sent to Google Gemini to generate SQL — never your row data.
         </div>
       </div>
     </div>
@@ -241,6 +291,6 @@
   </div>
 
   {#if settingsOpen}
-    <Settings {engine} {setEngine} {modelName} {setModelName} onClose={() => settingsOpen = false} {onDisconnect} />
+    <Settings {modelName} {setModelName} onClose={() => settingsOpen = false} {onDisconnect} />
   {/if}
 </div>

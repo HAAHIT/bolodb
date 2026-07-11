@@ -27,8 +27,6 @@
 
 <div class="app-shell">
   <ConnectScreen
-    engine={appState.engine}
-    setEngine={(e) => appState.engine = e}
     onConnect={(isSample, res) => appState.setConnect(isSample, res)}
   />
 </div>

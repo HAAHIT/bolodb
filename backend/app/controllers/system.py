@@ -1,9 +1,7 @@
 from backend.app import config as cfgmod
-import httpx as _httpx
 
 
 async def get_state(user_id, db, cfg, kb):
-    # s = {"connected": db.connected(user_id), "config": cfgmod.public_config(cfg)}
     config = cfgmod.public_config(cfg)
     config.pop("last_db_url", None)
     s = {"connected": db.connected(user_id), "config": config}
@@ -23,18 +21,6 @@ async def get_state(user_id, db, cfg, kb):
     return s
 
 
-async def check_ollama(cfg):
-    url = cfg.get("ollama_url", "http://localhost:11434")
-    try:
-        async with _httpx.AsyncClient(timeout=3) as c:
-            r = await c.get(f"{url}/api/tags")
-            r.raise_for_status()
-            models = [m["name"] for m in r.json().get("models", [])]
-            return {"ok": True, "models": models}
-    except Exception:
-        return {"ok": False, "error": "Failed to contact Ollama service", "url": url}
-
-
 async def get_health(cfg, providers):
     ph = await providers.get().health_check()
     return {
@@ -44,16 +30,18 @@ async def get_health(cfg, providers):
 
 
 async def update_config(cfg, providers, req_data):
-    if req_data.provider:
-        cfg["provider"] = req_data.provider
-    if req_data.model is not None:
+    """Update AI settings. Gemini is the only provider, so the accepted fields
+    are the model choice and the Gemini API key (set or clear)."""
+    cfg["provider"] = "gemini"
+    if req_data.model is not None and req_data.model in cfgmod.ALLOWED_MODELS:
         cfg["model"] = req_data.model
-    if req_data.ollama_url:
-        cfg["ollama_url"] = req_data.ollama_url
-    if req_data.api_key and req_data.provider in ("claude", "openai", "groq"):
-        cfg["api_keys"][req_data.provider] = req_data.api_key
-    elif req_data.clear_api_key and req_data.provider in ("claude", "openai", "groq"):
-        cfg["api_keys"][req_data.provider] = ""
+    if req_data.api_key:
+        # Encrypted at the boundary: the config dict (and therefore the config
+        # file) never holds the key in clear text. Decryption happens only when
+        # the provider is built (create_provider in backend/app/llm.py).
+        cfg["api_keys"]["gemini"] = cfgmod.encrypt_api_key(req_data.api_key)
+    elif req_data.clear_api_key:
+        cfg["api_keys"]["gemini"] = ""
 
     cfgmod.save_config(cfg)
     providers.reconfigure(cfg)

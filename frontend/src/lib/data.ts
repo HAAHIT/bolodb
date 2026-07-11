@@ -115,54 +115,22 @@ export const starters: StarterItem[] = [
   },
 ];
 
+/** BoloDB runs all AI operations on Google Gemini (see docs/03-the-ai-layer-gemini.md). */
 export const providers: Provider[] = [
   {
-    id: "ollama",
-    name: "Local",
-    sub: "Ollama",
-    privacy: "Data never leaves your machine",
-    cost: "Free",
-    accuracy: "Good — improves as it learns",
-    badge: "Private",
-    model: "llama3.2",
-    tier: "small",
-    tone: "brand",
-    note: "Recommended for private data",
-  },
-  {
-    id: "claude",
-    name: "Claude",
-    sub: "Anthropic API",
-    privacy: "Schema + question sent to Anthropic",
-    cost: "Pay per use",
+    id: "gemini",
+    name: "Google Gemini",
+    sub: "Gemini API",
+    privacy: "Schema + question sent to Google — never your row data",
+    cost: "Free tier available, then pay per use",
     accuracy: "Highest",
-    badge: "Most accurate",
-    model: "claude-sonnet",
-    tier: "large",
-  },
-  {
-    id: "openai",
-    name: "OpenAI",
-    sub: "OpenAI API",
-    privacy: "Schema + question sent to OpenAI",
-    cost: "Pay per use",
-    accuracy: "High",
-    badge: "",
-    model: "gpt-4o",
-    tier: "large",
-  },
-  {
-    id: "groq",
-    name: "Groq",
-    sub: "Groq API",
-    privacy: "Schema + question sent to Groq",
-    cost: "Pay per use",
-    accuracy: "High, very fast",
-    badge: "Fastest",
-    model: "llama-70b",
+    badge: "Default",
+    model: "gemini-flash-latest",
     tier: "large",
   },
 ];
+
+export const GEMINI_KEY_URL = "https://aistudio.google.com/app/api-keys";
 
 export const wrongReasons: WrongReason[] = [
   { id: "numbers", label: "Wrong numbers" },

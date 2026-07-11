@@ -25,7 +25,6 @@
   {#if appState.isLoaded && appState.dbInfo}
     <AskScreen
       engine={appState.engine}
-      setEngine={(e) => appState.engine = e}
       modelName={appState.modelName}
       setModelName={(m) => appState.modelName = m}
       verifiedCount={appState.verifiedCount}
