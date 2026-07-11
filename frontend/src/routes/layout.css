@@ -491,3 +491,65 @@ select {
   border: 1px solid var(--border-2);
   color: var(--muted);
 }
+
+/* ============================ LayerChart overrides ============================ */
+
+/* SVG text in charts — kill the built-in white stroke halo that LayerChart adds */
+svg text {
+  font-family: var(--font-ui) !important;
+  font-weight: 500 !important;
+  stroke: none !important;
+  stroke-width: 0 !important;
+  paint-order: stroke fill;
+}
+
+/* Axis labels (the axis title) */
+.lc-axis-label {
+  font-size: 11px !important;
+  fill: var(--muted) !important;
+}
+
+/* Axis tick labels (the numbers / category names along axes) */
+.lc-axis-tick-label {
+  font-size: 11.5px !important;
+  fill: var(--ink-2) !important;
+}
+
+/* Tooltip popover */
+.lc-tooltip-root {
+  font-family: var(--font-ui) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: var(--shadow) !important;
+  color: var(--ink) !important;
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  pointer-events: none;
+  z-index: 9999;
+}
+.lc-tooltip-header {
+  font-weight: 700 !important;
+  color: var(--ink) !important;
+}
+.lc-tooltip-item-label {
+  color: var(--muted) !important;
+}
+.lc-tooltip-item-value {
+  font-weight: 600 !important;
+  color: var(--ink) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* Pie / Arc label text inside charts */
+svg .lc-arc-label {
+  font-size: 12px !important;
+  fill: var(--ink) !important;
+  font-weight: 600 !important;
+}
+
+/* Bar chart: clip y-axis tick labels so they don't overflow cards */
+svg text.lc-axis-tick-label {
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
