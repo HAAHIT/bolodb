@@ -27,6 +27,7 @@ Cost design (see docs/09-cost-optimisation.md):
 import asyncio
 import json
 import logging
+import re
 from abc import ABC, abstractmethod
 
 import httpx
@@ -35,6 +36,18 @@ from backend.app.config import decrypt_api_key
 
 log = logging.getLogger(__name__)
 
+
+def _redact_error_text(text, max_len=200):
+    """Strip potentially sensitive data (API keys, tokens) from error text
+    before it is written to logs or included in LLMError.detail."""
+    s = text[:max_len]
+    # Gemini API keys start with "AIza"
+    s = re.sub(r"AIza[A-Za-z0-9_-]{10,}", "[REDACTED_KEY]", s)
+    # Bearer tokens
+    s = re.sub(r"Bearer\s+[A-Za-z0-9._-]{20,}", "Bearer [REDACTED]", s)
+    return s
+
+
 # The model used when the config doesn't name one. Flash is the sweet spot:
 # near-Pro accuracy on text-to-SQL at a fraction of the cost, with a free tier.
 DEFAULT_GEMINI_MODEL = "gemini-flash-latest"
@@ -42,7 +55,9 @@ DEFAULT_GEMINI_MODEL = "gemini-flash-latest"
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
 # Transient HTTP statuses worth retrying (rate limit / server hiccups).
-_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+# 500 is excluded — Gemini may return it for permanent errors (bad model,
+# malformed prompt), not just transient ones.
+_RETRYABLE_STATUS = {429, 502, 503, 504}
 _MAX_ATTEMPTS = 3  # 1 try + 2 retries, backoff 1s then 2s
 
 
@@ -308,7 +323,7 @@ class GeminiProvider(LLMProvider):
             if r.status_code in _RETRYABLE_STATUS:
                 last_error = LLMError(
                     "The AI service is busy right now — please try again in a moment.",
-                    detail=f"HTTP {r.status_code}: {r.text[:300]}",
+                    detail=f"HTTP {r.status_code}: {_redact_error_text(r.text)}",
                 )
                 log.warning(
                     "Gemini transient HTTP %d (attempt %d)", r.status_code, attempt + 1
@@ -322,31 +337,31 @@ class GeminiProvider(LLMProvider):
                     "The Gemini API rejected the request as invalid — most "
                     "often the API key is malformed or not valid. Check the "
                     "key in Settings.",
-                    detail=f"HTTP 400: {r.text[:300]}",
+                    detail=f"HTTP 400: {_redact_error_text(r.text)}",
                 )
             if r.status_code == 401:
                 raise LLMError(
                     "The Gemini API key was not accepted — it may be invalid "
                     "or expired. Check it in Settings.",
-                    detail=f"HTTP 401: {r.text[:300]}",
+                    detail=f"HTTP 401: {_redact_error_text(r.text)}",
                 )
             if r.status_code == 403:
                 raise LLMError(
                     "The Gemini API denied access — the API key may lack "
                     "permission for this model, or the project/region may be "
                     "restricted. Check the key in Google AI Studio.",
-                    detail=f"HTTP 403: {r.text[:300]}",
+                    detail=f"HTTP 403: {_redact_error_text(r.text)}",
                 )
             if r.status_code == 404:
                 raise LLMError(
                     f"The model '{self.model}' was not found — it may have been "
                     "renamed or retired. Update the model in Settings.",
-                    detail=f"HTTP 404: {r.text[:300]}",
+                    detail=f"HTTP 404: {_redact_error_text(r.text)}",
                 )
             if r.status_code >= 300:
                 raise LLMError(
                     "The AI service returned an unexpected error.",
-                    detail=f"HTTP {r.status_code}: {r.text[:300]}",
+                    detail=f"HTTP {r.status_code}: {_redact_error_text(r.text)}",
                 )
             return self._extract_text(r.json())
 
@@ -365,7 +380,7 @@ class GeminiProvider(LLMProvider):
         if not candidates:
             raise LLMError(
                 "The AI returned an empty answer — please try again.",
-                detail=f"no candidates in response: {json.dumps(data)[:300]}",
+                detail=f"no candidates in response: {_redact_error_text(json.dumps(data))}",
             )
         parts = (candidates[0].get("content") or {}).get("parts") or []
         text = "".join(p.get("text", "") for p in parts)
