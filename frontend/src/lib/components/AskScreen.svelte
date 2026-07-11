@@ -1,7 +1,7 @@
 <script lang="ts">
   import { trustFor } from '$lib/data';
-  import { apiCall, rowsToArrays } from '$lib/api';
-  import type { Turn, SchemaTable, DbInfo, Toast } from '$lib/types';
+  import { apiCall, rowsToArrays, createConversation, getConversation } from '$lib/api';
+  import type { Turn, SchemaTable, DbInfo, Toast, ConversationTurn } from '$lib/types';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import AnswerCard from '$lib/components/AnswerCard.svelte';
   import Empty from '$lib/components/Empty.svelte';
@@ -13,7 +13,7 @@
   import SlashCommandMenu from '$lib/components/ui/SlashCommandMenu.svelte';
   import type { SlashCommand } from '$lib/components/ui/SlashCommandMenu.svelte';
 
-  let { engine, modelName, setModelName, verifiedCount, onVerify, onUpdateStarters, toast, realSchema, dbInfo, starters, onDisconnect }:
+  let { engine, modelName, setModelName, verifiedCount, onVerify, onUpdateStarters, toast, realSchema, dbInfo, starters, onDisconnect, activeConversationId, onActiveConversationChange }:
     {
       engine: string;
       modelName: string; setModelName: (m: string) => void;
@@ -21,6 +21,7 @@
       onUpdateStarters: (s: string[]) => void; toast: Toast | null;
       realSchema: SchemaTable[] | null; dbInfo: DbInfo | null;
       starters: string[]; onDisconnect: () => void;
+      activeConversationId: string | null; onActiveConversationChange: (id: string | null) => void;
     } = $props();
 
   const dbLabel = $derived(dbInfo ? (dbInfo.url || '').split('/').pop() || dbInfo.dialect || 'your database' : 'your database');
@@ -30,49 +31,36 @@
   let settingsOpen = $state(false);
   let loading = $state(false);
   let feedRef: HTMLDivElement | undefined = $state(undefined);
-  let historyTrigger = $state(0);
+  let conversationTrigger = $state(0);
 
   const trust = $derived(trustFor(verifiedCount));
 
-  // Slash command menu state
   let showSlashMenu = $state(false);
   let slashFilter = $state('');
   let inputRef: HTMLInputElement | undefined = $state(undefined);
 
-  // Configurable slash commands - add new commands here
   const slashCommands: SlashCommand[] = [
     { name: '/sql', description: 'Execute SQL query directly' }
   ];
 
   $effect(() => {
-    turns; // track
+    turns;
     if (feedRef) feedRef.scrollTop = feedRef.scrollHeight;
   });
 
-  // Handle input changes to detect slash commands
   function handleInput(e: Event) {
     const target = e.target as HTMLInputElement;
     const value = target.value;
-
-    // Show menu when "/" is typed at the beginning
     if (value === '/') {
       showSlashMenu = true;
       slashFilter = '';
-    }
-    // Close menu when "/" is deleted
-    else if (value === '' && showSlashMenu) {
+    } else if (value === '' && showSlashMenu) {
       showSlashMenu = false;
-    }
-    // Close menu when space is typed after command
-    else if (showSlashMenu && value.includes(' ')) {
+    } else if (showSlashMenu && value.includes(' ')) {
       showSlashMenu = false;
-    }
-    // Update filter when menu is shown
-    else if (showSlashMenu && value.startsWith('/')) {
+    } else if (showSlashMenu && value.startsWith('/')) {
       slashFilter = value.slice(1);
-    }
-    // Close menu if input doesn't start with "/"
-    else if (showSlashMenu && !value.startsWith('/')) {
+    } else if (showSlashMenu && !value.startsWith('/')) {
       showSlashMenu = false;
     }
   }
@@ -88,6 +76,20 @@
     slashFilter = '';
   }
 
+  async function ensureConversation(firstQuestion?: string): Promise<string | null> {
+    if (activeConversationId) return activeConversationId;
+    const title = (firstQuestion || '').slice(0, 80);
+    try {
+      const conv = await createConversation(title, dbInfo?.db_id);
+      onActiveConversationChange(conv._id);
+      conversationTrigger++;
+      return conv._id;
+    } catch (e) {
+      console.error('Failed to create conversation', e);
+      return null;
+    }
+  }
+
   async function ask(text?: string) {
     const q = (text || input).trim();
     if (!q) return;
@@ -99,6 +101,8 @@
     if (sqlMatch) {
       const rawSql = sqlMatch[1].trim();
       turns = [...turns, { id, question: rawSql, thinking: true, isDirect: true }];
+      // Ensure we have a conversation for direct SQL too
+      const convId = await ensureConversation(rawSql);
       try {
         const data = await apiCall('/api/execute', { sql: rawSql });
         const rows2d = rowsToArrays(data.columns || [], data.rows || []);
@@ -109,7 +113,7 @@
           basedOn: false, query_id: id,
           executionError: null, verdict: null, isDirect: true
         } : x);
-        historyTrigger++;
+        conversationTrigger++;
       } catch (e: any) {
         turns = turns.map(x => x.id === id ? {
           ...x, thinking: false, sql: rawSql,
@@ -140,7 +144,9 @@
     build_context.reverse();
     turns = [...turns, { id, question: q, thinking: true }];
     try {
-      const data = await apiCall('/api/query', { question: q, context: build_context });
+      // Ensure conversation exists before sending query
+      const convId = await ensureConversation(q);
+      const data = await apiCall('/api/query', { question: q, context: build_context, conversation_id: convId || undefined });
       const rows2d = rowsToArrays(data.columns || [], data.rows || []);
       turns = turns.map(x => x.id === id ? {
         ...x, thinking: false,
@@ -150,7 +156,7 @@
         basedOn: data.based_on_verified || false, query_id: data.query_id || id,
         executionError: data.execution_error || null, verdict: null
       } : x);
-      historyTrigger++;
+      conversationTrigger++;
     } catch (e: any) {
       turns = turns.map(x => x.id === id ? {
         ...x, thinking: false,
@@ -180,11 +186,54 @@
     }
   }
 
+  async function handleNewConversation() {
+    turns = [];
+    onActiveConversationChange(null);
+  }
+
+  async function handleConversationSelect(convId: string) {
+    if (convId === activeConversationId) return;
+    loading = true;
+    try {
+      const conv = await getConversation(convId);
+      onActiveConversationChange(conv._id);
+      // Reconstruct turns from conversation data
+      turns = (conv.turns || []).map((t: ConversationTurn) => ({
+        id: t._id,
+        question: t.question,
+        thinking: false,
+        restatement: t.restatement || '',
+        sql: t.sql || '',
+        columns: t.result && t.result.length > 0 ? Object.keys(t.result[0]) : [],
+        rows: t.result ? (() => {
+          const cols = t.result.length > 0 ? Object.keys(t.result[0]) : [];
+          return t.result.map((row: Record<string, unknown>) => cols.map(c => {
+            const v = row[c];
+            return v === null || v === undefined ? '' : String(v);
+          }));
+        })() : [],
+        confidence: (t.confidence || 'medium').toLowerCase() as "high" | "medium" | "low",
+        reason: '',
+        basedOn: false,
+        query_id: t._id,
+        executionError: null,
+        verdict: null,
+        reasonChosen: null,
+      }));
+      conversationTrigger++;
+    } catch (e) {
+      console.error('Failed to load conversation', e);
+      turns = [];
+    } finally {
+      loading = false;
+    }
+  }
+
   function handleSubmit(e: Event) { e.preventDefault(); ask(); }
 </script>
 
 <div class="page" style="display:flex;height:100%">
-  <Sidebar {engine} {modelName} {verifiedCount} onSettings={() => settingsOpen = true} schema={realSchema} {dbInfo} {historyTrigger} onHistorySelect={(h: any) => input = h.question} />
+  <Sidebar {engine} {modelName} {verifiedCount} onSettings={() => settingsOpen = true} schema={realSchema} {dbInfo} {conversationTrigger} {activeConversationId} onConversationSelect={handleConversationSelect} />
 
   <div style="flex:1;display:flex;flex-direction:column;min-width:0;position:relative">
     <!-- top bar -->
@@ -201,7 +250,7 @@
       <div style="display:flex;align-items:center;gap:10px">
         <TrustPill level={trust} count={verifiedCount} />
         {#if turns.length > 0}
-          <Button kind="quiet" size="sm" onclick={() => turns = []}>
+          <Button kind="quiet" size="sm" onclick={handleNewConversation}>
             {#snippet icon()}<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>{/snippet}
             New conversation
           </Button>
