@@ -30,6 +30,7 @@
 
 /* ---------- THEME: crisp (default) ---------- */
 [data-theme="crisp"] {
+  color-scheme: light;
   --bg: #eef1f0;
   --bg-grad-a: #eff2f1;
   --bg-grad-b: #e7ecea;
@@ -64,6 +65,7 @@
 
 /* ---------- THEME: soft (warm/human) ---------- */
 [data-theme="soft"] {
+  color-scheme: light;
   --bg: #f2ece3;
   --bg-grad-a: #f4eee5;
   --bg-grad-b: #ede4d7;
@@ -98,6 +100,7 @@
 
 /* ---------- THEME: dark (premium/linear-like) ---------- */
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg: #0a0a0a;
   --bg-grad-a: #111214;
   --bg-grad-b: #0a0a0a;
@@ -126,6 +129,12 @@
     0 24px 48px -16px rgba(0, 0, 0, 0.8);
   --shadow-brand: 0 8px 22px -8px rgba(77, 166, 255, 0.3);
   --ring: rgba(77, 166, 255, 0.2);
+
+  /* LayerChart surface variables for dark mode */
+  --color-surface-100: var(--surface);
+  --color-surface-200: var(--surface-2);
+  --color-surface-300: var(--surface-3);
+  --color-surface-content: var(--ink);
 
   /* Update confidence semantics for dark mode to ensure contrast */
   --c-high-ink: #65d6a2;
@@ -518,6 +527,10 @@ svg text {
 /* Tooltip popover */
 .lc-tooltip-root {
   font-family: var(--font-ui) !important;
+  z-index: 9999;
+}
+.lc-tooltip-container {
+  font-family: var(--font-ui) !important;
   background: var(--surface) !important;
   border: 1px solid var(--border) !important;
   border-radius: var(--radius-sm) !important;
@@ -525,8 +538,7 @@ svg text {
   color: var(--ink) !important;
   padding: 8px 12px !important;
   font-size: 13px !important;
-  pointer-events: none;
-  z-index: 9999;
+  backdrop-filter: none !important;
 }
 .lc-tooltip-header {
   font-weight: 700 !important;
@@ -552,4 +564,15 @@ svg .lc-arc-label {
 svg text.lc-axis-tick-label {
   text-overflow: ellipsis;
   overflow: hidden;
+}
+
+/* Bar chart hover effect — gentler dimming for dark mode */
+.lc-bars rect {
+  transition:
+    opacity 0.15s ease,
+    filter 0.15s ease;
+  cursor: pointer;
+}
+.lc-bars rect:hover {
+  filter: brightness(1.15);
 }
