@@ -19,8 +19,13 @@ export async function apiCall(
   return data;
 }
 
-export async function getHistory(): Promise<any> {
-  return apiCall("/api/history");
+export async function getHistory(limit?: number): Promise<any> {
+  const params = limit ? `?limit=${limit}` : "";
+  return apiCall(`/api/history${params}`);
+}
+
+export async function getHistoryStats(): Promise<any> {
+  return apiCall("/api/history/stats");
 }
 
 export async function deleteHistoryEntry(id: string): Promise<any> {

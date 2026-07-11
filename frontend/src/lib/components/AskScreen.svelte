@@ -10,6 +10,8 @@
   import TrustPill from '$lib/components/ui/TrustPill.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Spinner from '$lib/components/ui/Spinner.svelte';
+  import SlashCommandMenu from '$lib/components/ui/SlashCommandMenu.svelte';
+  import type { SlashCommand } from '$lib/components/ui/SlashCommandMenu.svelte';
 
   let { engine, modelName, setModelName, verifiedCount, onVerify, onUpdateStarters, toast, realSchema, dbInfo, starters, onDisconnect }:
     {
@@ -32,10 +34,59 @@
 
   const trust = $derived(trustFor(verifiedCount));
 
+  // Slash command menu state
+  let showSlashMenu = $state(false);
+  let slashFilter = $state('');
+  let inputRef: HTMLInputElement | undefined = $state(undefined);
+
+  // Configurable slash commands - add new commands here
+  const slashCommands: SlashCommand[] = [
+    { name: '/sql', description: 'Execute SQL query directly' }
+  ];
+
   $effect(() => {
     turns; // track
     if (feedRef) feedRef.scrollTop = feedRef.scrollHeight;
   });
+
+  // Handle input changes to detect slash commands
+  function handleInput(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const value = target.value;
+
+    // Show menu when "/" is typed at the beginning
+    if (value === '/') {
+      showSlashMenu = true;
+      slashFilter = '';
+    }
+    // Close menu when "/" is deleted
+    else if (value === '' && showSlashMenu) {
+      showSlashMenu = false;
+    }
+    // Close menu when space is typed after command
+    else if (showSlashMenu && value.includes(' ')) {
+      showSlashMenu = false;
+    }
+    // Update filter when menu is shown
+    else if (showSlashMenu && value.startsWith('/')) {
+      slashFilter = value.slice(1);
+    }
+    // Close menu if input doesn't start with "/"
+    else if (showSlashMenu && !value.startsWith('/')) {
+      showSlashMenu = false;
+    }
+  }
+
+  function handleSlashCommandSelect(command: SlashCommand) {
+    input = command.name + ' ';
+    showSlashMenu = false;
+    slashFilter = '';
+  }
+
+  function handleSlashMenuClose() {
+    showSlashMenu = false;
+    slashFilter = '';
+  }
 
   async function ask(text?: string) {
     const q = (text || input).trim();
@@ -173,10 +224,19 @@
 
     <!-- input -->
     <div style="padding:14px 28px 20px;border-top:1px solid var(--border);background:var(--surface)">
-      <div style="max-width:720px;margin:0 auto">
+      <div style="max-width:720px;margin:0 auto;position:relative">
+        {#if showSlashMenu}
+          <SlashCommandMenu
+            commands={slashCommands}
+            onSelect={handleSlashCommandSelect}
+            onClose={handleSlashMenuClose}
+            filter={slashFilter}
+            {inputRef}
+          />
+        {/if}
         <form onsubmit={handleSubmit}
           style="display:flex;align-items:center;gap:10px;padding:7px 7px 7px 18px;border:1.5px solid var(--border-2);border-radius:var(--radius-lg);background:var(--surface);box-shadow:var(--shadow-sm);transition:border-color .15s, box-shadow .15s">
-          <input bind:value={input} placeholder="Ask anything about your data…"
+          <input bind:value={input} oninput={handleInput} bind:this={inputRef} placeholder="Ask anything about your data…"
             aria-label="Ask a question about your data" autofocus
             style="flex:1;border:none;outline:none;background:transparent;font-size:15.5px;color:var(--ink)" />
           <Button kind="primary" type="submit" disabled={!input.trim() || loading}>
