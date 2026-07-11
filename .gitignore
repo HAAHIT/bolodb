@@ -10,3 +10,5 @@ coverage.xml
 .env
 data/*.db
 data/*.sqlite
+
+backend_log.txt

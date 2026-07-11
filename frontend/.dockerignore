@@ -1,0 +1,8 @@
+node_modules
+.git
+.svelte-kit
+build
+.vite
+.env
+.env.local
+*.md
