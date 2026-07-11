@@ -258,15 +258,23 @@ def _extract_suggestion(error, schema):
 
 def _build_checks(verdict, schema=None):
     if verdict.get("ok"):
-        return [{"target": "query", "status": "ok", "message": "All tables and columns exist"}]
+        return [
+            {
+                "target": "query",
+                "status": "ok",
+                "message": "All tables and columns exist",
+            }
+        ]
     checks = []
     for e in verdict.get("errors", []):
-        checks.append({
-            "target": _extract_target_from_error(e),
-            "status": "error",
-            "message": e,
-            "suggestion": _extract_suggestion(e, schema),
-        })
+        checks.append(
+            {
+                "target": _extract_target_from_error(e),
+                "status": "error",
+                "message": e,
+                "suggestion": _extract_suggestion(e, schema),
+            }
+        )
     return checks
 
 
@@ -290,7 +298,8 @@ async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_dat
     full_schema = db.get_schema(user_id)
     context_tables = (
         extract_table_names_from_prev_query(context[-1].sql, db.get_dialect(user_id))
-        if context else set()
+        if context
+        else set()
     )
     tables = link_relevant_tables(
         q, full_schema, glossary, retrieved, budget["max_tables"], context_tables
@@ -315,8 +324,14 @@ async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_dat
 
     for attempt in range(1, max_iterations + 1):
         llm_coro = generate_sql(
-            provider_obj, q, schema_text, db.get_dialect(user_id),
-            glossary, retrieved, budget["max_examples"], context,
+            provider_obj,
+            q,
+            schema_text,
+            db.get_dialect(user_id),
+            glossary,
+            retrieved,
+            budget["max_examples"],
+            context,
             feedback=feedback,
         )
         llm_task = asyncio.create_task(llm_coro)
@@ -358,7 +373,12 @@ async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_dat
         checks = _build_checks(verdict, full_schema)
         passed = verdict.get("ok", False)
 
-        yield {"kind": "validation", "attempt": attempt, "checks": checks, "passed": passed}
+        yield {
+            "kind": "validation",
+            "attempt": attempt,
+            "checks": checks,
+            "passed": passed,
+        }
 
         if passed:
             success = True
@@ -372,7 +392,8 @@ async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_dat
                 "attempt": attempt,
                 "total": max_iterations,
                 "error": error_msg,
-                "suggestion": _extract_suggestion(error_msg, full_schema) or "Retrying with corrections",
+                "suggestion": _extract_suggestion(error_msg, full_schema)
+                or "Retrying with corrections",
                 "old_sql": sql,
             }
             fb_lines = [
@@ -386,7 +407,10 @@ async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_dat
             feedback = "\n".join(fb_lines)
 
     if not success:
-        yield {"kind": "error", "message": f"Could not generate valid SQL after {max_iterations} attempts"}
+        yield {
+            "kind": "error",
+            "message": f"Could not generate valid SQL after {max_iterations} attempts",
+        }
         return
 
     try:

@@ -1,6 +1,6 @@
 import json
 import logging
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from fastapi.concurrency import run_in_threadpool
 from backend.app.dependencies import (
@@ -38,6 +38,8 @@ def _safe_save_query(user_id, question, sql, result, confidence):
         )
     except Exception:
         log.warning("Failed to persist query history in background", exc_info=True)
+
+
 @router.post("/api/query")
 async def query(
     req: QueryReq,

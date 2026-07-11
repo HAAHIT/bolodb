@@ -62,7 +62,14 @@ export interface DbInfo {
 }
 
 export interface ThinkingArtifact {
-  kind: "schema" | "hint" | "sql" | "validation" | "repair" | "execution" | "confidence";
+  kind:
+    | "schema"
+    | "hint"
+    | "sql"
+    | "validation"
+    | "repair"
+    | "execution"
+    | "confidence";
   data: Record<string, unknown>;
 }
 
@@ -86,13 +93,41 @@ export interface Turn {
 }
 
 export type StreamEvent =
-  | { kind: "schema_linked"; tables: string[]; linked: string[]; glossary: { term: string; maps_to: string }[]; verified_count: number }
+  | {
+      kind: "schema_linked";
+      tables: string[];
+      linked: string[];
+      glossary: { term: string; maps_to: string }[];
+      verified_count: number;
+    }
   | { kind: "hint"; message: string; elapsed: number }
   | { kind: "sql"; attempt: number; sql: string }
-  | { kind: "validation"; attempt: number; checks: { target: string; status: "ok" | "error"; message: string; suggestion?: string | null }[]; passed: boolean }
-  | { kind: "repair"; attempt: number; total: number; error: string; suggestion: string; old_sql: string }
+  | {
+      kind: "validation";
+      attempt: number;
+      checks: {
+        target: string;
+        status: "ok" | "error";
+        message: string;
+        suggestion?: string | null;
+      }[];
+      passed: boolean;
+    }
+  | {
+      kind: "repair";
+      attempt: number;
+      total: number;
+      error: string;
+      suggestion: string;
+      old_sql: string;
+    }
   | { kind: "execution"; rows: number; elapsed: number; truncated: boolean }
-  | { kind: "confidence"; level: string; reason: string; based_on_verified: boolean }
+  | {
+      kind: "confidence";
+      level: string;
+      reason: string;
+      based_on_verified: boolean;
+    }
   | { kind: "result"; data: Record<string, unknown> }
   | { kind: "error"; message: string };
 
