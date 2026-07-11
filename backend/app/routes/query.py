@@ -24,8 +24,9 @@ async def _format_sse(stream):
     try:
         async for event in stream:
             yield f"data: {json.dumps(event, default=str)}\n\n"
-    except Exception as e:
-        yield f"data: {json.dumps({'kind': 'error', 'message': str(e)})}\n\n"
+    except Exception:
+        log.error("Unhandled error while streaming query response", exc_info=True)
+        yield f"data: {json.dumps({'kind': 'error', 'message': 'An internal error has occurred.'})}\n\n"
 
 
 def _safe_save_query(user_id, question, sql, result, confidence):
