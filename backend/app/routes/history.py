@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from backend.app.dependencies import get_current_user
 import backend.app.mongodatabase as db
@@ -8,10 +8,20 @@ router = APIRouter(prefix="/api/history", tags=["history"])
 
 
 @router.get("")
-async def get_history(user_token=Depends(get_current_user)):
+async def get_history(
+    limit: int = Query(default=100, ge=1, le=500),
+    user_token=Depends(get_current_user),
+):
     user_id = user_token["user_id"]
-    history = await run_in_threadpool(db.get_query_history, user_id)
+    history = await run_in_threadpool(db.get_query_history, user_id, limit)
     return JSONResponse({"history": history})
+
+
+@router.get("/stats")
+async def get_stats(user_token=Depends(get_current_user)):
+    user_id = user_token["user_id"]
+    stats = await run_in_threadpool(db.get_query_stats, user_id)
+    return JSONResponse(stats)
 
 
 @router.delete("/{entry_id}")
