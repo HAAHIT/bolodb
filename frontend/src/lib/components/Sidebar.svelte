@@ -251,7 +251,8 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="color:var(--faint);flex-shrink:0"><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.9"/><path d="M12 2.5v2.3M12 19.2v2.3M21.5 12h-2.3M4.8 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9L5.3 5.3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
     </button>
   </div>
-  <button onclick={() => sidebarOpen = !sidebarOpen} style="width:20px;flex-shrink:0;cursor:pointer;background:var(--surface);border:none;border-right:1px solid var(--border);display:flex;align-items:center;justify-content:center;transition:all .15s">
+</div>
+<button onclick={() => sidebarOpen = !sidebarOpen} style="width:20px;flex-shrink:0;cursor:pointer;background:var(--surface);border:none;border-right:1px solid var(--border);display:flex;align-items:center;justify-content:center;transition:all .15s">
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="color:var(--faint)">
       {#if sidebarOpen}
         <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
