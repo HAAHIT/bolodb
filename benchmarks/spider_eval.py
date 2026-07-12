@@ -115,6 +115,7 @@ def main():
 
     n = 0
     linking_hits = 0
+    parse_failed = 0
     exec_matches = 0
     exec_run = 0
     skipped = 0
@@ -140,6 +141,21 @@ def main():
         gold_tables = {
             t.lower() for t in extract_table_names_from_prev_query(gold_sql, "sqlite")
         }
+
+        # If the gold SQL cannot be parsed (non-standard syntax, parser edge
+        # case), skip recall for this question — an empty set would falsely
+        # count as a linking hit since the empty set is a subset of any set.
+        if not gold_tables and gold_sql.strip():
+            parse_failed += 1
+            record = {
+                "db_id": db_id,
+                "question": question,
+                "gold_sql": gold_sql,
+                "note": "gold SQL could not be parsed — linking skipped",
+            }
+            report.write(json.dumps(record, ensure_ascii=False) + "\n")
+            continue
+
         # Cold-start linking: no glossary, no verified history, no conversation.
         tables = link_relevant_tables(
             question, schema, [], [], budget["max_tables"], set()
@@ -187,11 +203,20 @@ def main():
 
     if not n:
         sys.exit("error: no examples evaluated — check --spider-dir layout")
+    recall_denom = n - parse_failed
     print(f"examples evaluated : {n} (skipped {skipped})")
-    print(f"linking recall     : {linking_hits}/{n} = {linking_hits / n:.1%}")
-    print(
-        f"avg tables sent    : {total_tables_sent / n:.1f} (budget {budget['max_tables']}+FK)"
-    )
+    if recall_denom:
+        print(
+            f"linking recall     : {linking_hits}/{recall_denom} = {linking_hits / recall_denom:.1%}"
+        )
+    else:
+        print("linking recall     : N/A (no parseable gold SQL)")
+    if parse_failed:
+        print(f"  ({parse_failed} questions skipped — unparseable gold SQL)")
+    if recall_denom:
+        print(
+            f"avg tables sent    : {total_tables_sent / recall_denom:.1f} (budget {budget['max_tables']}+FK)"
+        )
     if exec_run:
         print(
             f"execution accuracy : {exec_matches}/{exec_run} = {exec_matches / exec_run:.1%}"
