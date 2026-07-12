@@ -74,13 +74,10 @@
         onclick={copyCSV}
         title="Copy all rows as CSV — paste into Excel or Sheets"
         aria-live="polite"
-        style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;background:{copied
-          ? 'var(--brand-tint)'
-          : 'transparent'};border:{copied
-          ? '1px solid var(--brand-tint-2)'
-          : '1px solid var(--border-2)'};color:{copied
-          ? 'var(--brand-ink)'
-          : 'var(--faint)'};font-size:11.5px;font-weight:650;cursor:pointer;transition:all .15s"
+        class="tb-btn"
+        style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;font-size:11.5px;font-weight:650;color:{copied
+          ? 'var(--brand)'
+          : 'var(--faint)'}"
       >
         {copied ? "✓ Copied!" : "↓ Copy as CSV"}
       </button>
@@ -125,3 +122,16 @@
     </table>
   </div>
 {/if}
+
+<style>
+  .tb-btn {
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: color .15s;
+  }
+  .tb-btn:hover {
+    color: var(--muted) !important;
+  }
+</style>
