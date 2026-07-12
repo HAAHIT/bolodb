@@ -25,8 +25,8 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - PYTHONUNBUFFERED=1
       - RUNNING_IN_DOCKER=true
-      - MONGO_URI=mongodb://mongodb:27017
-      - OLLAMA_URL=http://host.docker.internal:11434
+      # - MONGO_URI=mongodb://mongodb:27017
+      - MONGO_URI=${MONGO_URI}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
