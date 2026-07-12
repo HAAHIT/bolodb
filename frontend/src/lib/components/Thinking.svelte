@@ -5,7 +5,8 @@
   let {
     artifacts = [],
     collapsed = false,
-  }: { artifacts?: ThinkingArtifact[]; collapsed?: boolean } = $props();
+    active = false,
+  }: { artifacts?: ThinkingArtifact[]; collapsed?: boolean; active?: boolean } = $props();
 
   let expanded = $state(false);
 
@@ -69,7 +70,11 @@
 
       {:else if artifact.kind === "hint"}
         <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;color:var(--muted);font-size:13px;font-weight:500">
-          <Spinner />
+          {#if active}
+            <Spinner />
+          {:else}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;color:var(--faint)"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          {/if}
           <span style="flex:1">{d.message as string}</span>
           {#if typeof d.elapsed === 'number' && d.elapsed > 0}
             <span style="font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--faint)">{fmt(d.elapsed)}</span>
