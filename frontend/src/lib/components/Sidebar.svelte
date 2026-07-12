@@ -174,7 +174,7 @@
                       autofocus
                     />
                   {:else}
-                    <div style="font-size:12px;color:{activeConversationId === conv._id ? 'var(--ink)' : 'var(--muted)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:{activeConversationId === conv._id ? '600' : '400'}">
+                    <div onclick={(e) => { e.stopPropagation(); startRename(conv, e); }} style="font-size:12px;color:{activeConversationId === conv._id ? 'var(--ink)' : 'var(--muted)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:{activeConversationId === conv._id ? '600' : '400'};cursor:text">
                       {conv.title || conv.last_question || 'New conversation'}
                     </div>
                     <div style="font-size:10px;color:var(--faint);margin-top:1px">
@@ -183,9 +183,7 @@
                   {/if}
                 </div>
               </button>
-              {#if editingId !== conv._id}
-                <button onclick={(e) => startRename(conv, e)} aria-label="Rename conversation" class="opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 transition-opacity" style="position:absolute;right:24px;top:50%;transform:translateY(-50%);background:var(--surface);border:none;color:var(--faint);cursor:pointer;padding:4px;font-size:10px;border-radius:4px;display:flex;align-items:center;justify-content:center" title="Rename">✎</button>
-              {/if}
+
               <button onclick={(e) => handleDelete(conv._id, e)} aria-label="Delete conversation" class="opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 transition-opacity" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:var(--surface);border:none;color:var(--faint);cursor:pointer;padding:4px;font-size:10px;border-radius:4px;display:flex;align-items:center;justify-content:center" title="Delete">✕</button>
             </div>
           {/each}
