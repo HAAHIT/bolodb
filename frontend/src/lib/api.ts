@@ -36,6 +36,19 @@ export async function clearHistory(): Promise<any> {
   return apiCall("/api/history", undefined, "DELETE");
 }
 
+// ── Semantic catalog (issue #90) ──
+export async function getCatalog(): Promise<any> {
+  return apiCall("/api/catalog");
+}
+
+export async function saveCatalog(catalog: unknown): Promise<any> {
+  return apiCall("/api/catalog", catalog, "POST");
+}
+
+export async function suggestCatalog(): Promise<any> {
+  return apiCall("/api/catalog/suggest", undefined, "POST");
+}
+
 /** Convert API rows (array of objects) to 2D string arrays for ResultTable */
 export function rowsToArrays(
   columns: string[],
