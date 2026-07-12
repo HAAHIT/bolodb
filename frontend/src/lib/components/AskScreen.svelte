@@ -72,7 +72,7 @@
   // Slash command menu state
   let showSlashMenu = $state(false);
   let slashFilter = $state("");
-  let inputRef: HTMLInputElement | undefined = $state(undefined);
+  let inputRef: HTMLTextAreaElement | undefined = $state(undefined);
 
   // Configurable slash commands - add new commands here
   const slashCommands: SlashCommand[] = [
@@ -160,7 +160,7 @@
 
   // Handle input changes to detect slash commands
   function handleInput(e: Event) {
-    const target = e.target as HTMLInputElement;
+    const target = e.target as HTMLInputElement | HTMLTextAreaElement;
     const value = target.value;
 
     if (value === "/") {
@@ -175,6 +175,12 @@
     } else if (showSlashMenu && !value.startsWith("/")) {
       showSlashMenu = false;
     }
+  }
+
+  function handleTextareaResize(e: Event) {
+    const ta = e.target as HTMLTextAreaElement;
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 140) + 'px';
   }
 
   function handleSlashCommandSelect(command: SlashCommand) {
@@ -551,15 +557,17 @@
           onsubmit={handleSubmit}
           style="display:flex;align-items:center;gap:10px;padding:7px 7px 7px 18px;border:1.5px solid var(--border-2);border-radius:var(--radius-lg);background:var(--surface);box-shadow:var(--shadow-sm);transition:border-color .15s, box-shadow .15s"
         >
-          <input
+          <textarea
             bind:value={input}
-            oninput={handleInput}
+            oninput={(e) => { handleInput(e); handleTextareaResize(e); }}
             bind:this={inputRef}
             placeholder="Ask anything about your data…"
             aria-label="Ask a question about your data"
             autofocus
-            style="flex:1;border:none;outline:none;background:transparent;font-size:15.5px;color:var(--ink)"
-          />
+            class="chat-input"
+            rows={1}
+            style="flex:1;border:none;outline:none;background:transparent;font-size:15.5px;color:var(--ink);resize:none;overflow-y:auto;max-height:140px;line-height:1.45;padding:6px 0"
+          ></textarea>
           <Button
             kind="primary"
             type="submit"
@@ -617,3 +625,14 @@
     />
   {/if}
 </div>
+
+<style>
+  .chat-input:focus {
+    outline: none;
+    box-shadow: none;
+  }
+  .chat-input:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+</style>
