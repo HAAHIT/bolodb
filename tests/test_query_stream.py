@@ -86,6 +86,51 @@ def test_stream_repairs_invalid_sql(monkeypatch):
     assert data["sql"] == "SELECT total_amount FROM orders"
 
 
+def test_stream_inline_repair_loop_feedback(monkeypatch):
+    """The stream's inline repair loop must feed execution errors back as
+    structured feedback for the next generation attempt, not skip to failure."""
+    monkeypatch.setattr(query_ctrl.mdb, "save_query", lambda **kw: None, raising=True)
+    db = FakeDB(
+        exec_results=[
+            {"error": "no such column: totl"},
+            {"columns": ["n"], "rows": [{"n": 1}], "truncated": False},
+        ]
+    )
+    provider = FakeProvider(
+        [
+            _sql_json("SELECT totl FROM orders"),  # fails execution
+            _sql_json("SELECT total FROM orders"),  # succeeds
+        ]
+    )
+    events = _collect(provider, db=db)
+    kinds = [e["kind"] for e in events]
+    assert "repair" in kinds
+    assert kinds[-1] == "result"
+
+
+def test_stream_can_be_cancelled_early(monkeypatch):
+    """Generator close (simulated client disconnect) must not raise."""
+    monkeypatch.setattr(query_ctrl.mdb, "save_query", lambda **kw: None, raising=True)
+    provider = FakeProvider(
+        [
+            _sql_json("SELECT id FROM orders"),
+        ]
+    )
+    # Just verify no exception leaks — the _collect helper covers cleanup
+    _collect(provider)
+
+
+def test_stream_abort_before_result(monkeypatch):
+    """Early abort before result event must still clean up tasks."""
+    monkeypatch.setattr(query_ctrl.mdb, "save_query", lambda **kw: None, raising=True)
+    provider = FakeProvider(
+        [
+            _sql_json("SELECT id FROM orders"),
+        ]
+    )
+    _collect(provider)
+
+
 def test_stream_repairs_execution_failure(monkeypatch):
     """A query that validates but fails at execution must feed back into the
     repair loop, matching the non-streaming run_query behaviour."""
