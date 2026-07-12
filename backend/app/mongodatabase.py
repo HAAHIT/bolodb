@@ -74,6 +74,11 @@ def get_user_by_email(email):
     return user_data
 
 
+def get_user_by_google_id(google_id):
+    users = db["users"]
+    return users.find_one({"google_id": google_id})
+
+
 def create_user(user_data: UserInDB):
     users = db["users"]
     return users.insert_one(

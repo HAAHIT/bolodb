@@ -153,6 +153,16 @@ export interface BankItem {
   base: string;
 }
 
+export interface Conversation {
+  _id: string;
+  title: string;
+  database_id?: string;
+  turn_count: number;
+  last_question?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface HistoryEntry {
   _id: string;
   question: string;
@@ -167,16 +177,6 @@ export interface HistoryStats {
   confidence: { High: number; Medium: number; Low: number };
   daily_activity: { date: string; count: number }[];
   top_tables: { table: string; count: number }[];
-}
-
-export interface Conversation {
-  _id: string;
-  title: string;
-  database_id?: string;
-  turn_count: number;
-  last_question?: string;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface ConversationTurn {

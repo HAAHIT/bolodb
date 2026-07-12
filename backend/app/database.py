@@ -118,15 +118,13 @@ class DatabaseManager:
         return f'"{n.replace(chr(34), chr(34) * 2)}"'
 
     def get_schema(self, user_id, refresh=False):
-        """Introspect the connected database into the schema dict the rest of
-        the app consumes (see docs/04-schema-linking.md).
+        """Introspect the connected database into the schema dict.
 
         STRUCTURE (columns, primary/foreign keys) is collected for EVERY table
         — schema linking must be able to see the whole database, however big.
         Only the expensive ENRICHMENT (sample rows, per-table row counts,
         distinct values) is capped, at ENRICH_MAX tables, preferring the
-        largest tables when row counts are known (they are usually the fact
-        tables questions need).
+        largest tables when row counts are known.
         """
         c = self._get(user_id)
         if c["_schema_cache"] and not refresh:
@@ -196,9 +194,10 @@ class DatabaseManager:
             except Exception:
                 pass
 
-            # Which tables get the expensive enrichment queries: all of them
-            # when the database is small; the biggest ones (by the free bulk
-            # row counts) when it is not.
+            # Determine which tables get the expensive enrichment queries: all of
+            # them when the database is small; the biggest ones by row count
+            # when it is not. Structure (columns/PKs/FKs) is always collected
+            # for every table regardless.
             if len(table_names) <= ENRICH_MAX:
                 enrich = set(table_names)
             else:

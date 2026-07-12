@@ -1,3 +1,5 @@
+import logging
+
 import bcrypt
 from pydantic import EmailStr
 from fastapi import HTTPException
@@ -10,6 +12,7 @@ from backend.app.models.user import (
 from backend.app.mongodatabase import (
     create_user,
     get_user_by_email,
+    get_user_by_google_id,
     get_user_by_id,
     update_user,
     serialize_doc,
@@ -18,6 +21,8 @@ from bson import ObjectId
 import jwt
 from datetime import datetime, timedelta, UTC
 from backend.app.secrets import get_jwt_secret
+
+log = logging.getLogger(__name__)
 
 
 def get_me(user_id):
@@ -29,6 +34,10 @@ def get_me(user_id):
 def login(email: EmailStr, password: str):
     user_details = get_user_by_email(email)
     if user_details is None:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    # Google-only accounts have no password hash; reject cleanly instead of
+    # letting bcrypt raise on an empty salt (which would surface as a 500).
+    if not user_details.get("hashed_pass"):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     user_bytes = password.encode()
     if bcrypt.checkpw(user_bytes, user_details["hashed_pass"].encode("utf-8")):
@@ -68,6 +77,56 @@ def signup(user: UserSignup):
     user_in_db = UserInDB(email=user.email, hashed_pass=hashed_pw, role=Role.user)
     create_user(user_in_db)
     return True
+
+
+def google_login(id_token_str, client_id):
+    """Verify a Google ID token and return JWT tokens for the user."""
+    try:
+        from jwt import PyJWKClient
+
+        jwks_url = "https://www.googleapis.com/oauth2/v3/certs"
+        jwks_client = PyJWKClient(jwks_url, cache_keys=True)
+        signing_key = jwks_client.get_signing_key_from_jwt(id_token_str)
+        user_info = jwt.decode(
+            id_token_str,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=client_id,
+            issuer=["https://accounts.google.com", "accounts.google.com"],
+        )
+    except Exception as e:
+        # Log the real cause but don't echo raw verification internals to the
+        # client — a generic 401 is all the caller needs.
+        log.warning("Google ID token verification failed: %s", e)
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+
+    google_id = user_info["sub"]
+    email = user_info.get("email", "")
+    if not email:
+        raise HTTPException(status_code=400, detail="Google account has no email")
+
+    # Only trust the email once Google says it is verified. Without this,
+    # a token carrying an unverified email could be used to link into — and
+    # take over — an existing password account that happens to share it.
+    if user_info.get("email_verified", False) not in (True, "true", "True"):
+        raise HTTPException(status_code=401, detail="Google email is not verified")
+
+    existing = get_user_by_google_id(google_id)
+    if existing:
+        return create_jwt(str(existing["_id"]), existing["role"])
+
+    existing_by_email = get_user_by_email(email)
+    if existing_by_email:
+        update_user(
+            {"_id": existing_by_email["_id"]},
+            {"$set": {"google_id": google_id}},
+        )
+        return create_jwt(str(existing_by_email["_id"]), existing_by_email["role"])
+
+    user_in_db = UserInDB(email=email, role=Role.user, google_id=google_id)
+    result = create_user(user_in_db)
+    uid = str(result.inserted_id)
+    return create_jwt(uid, Role.user.value)
 
 
 def change_password(user_id, old_password, new_password):

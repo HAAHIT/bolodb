@@ -25,11 +25,13 @@ async def _format_sse(stream):
         async for event in stream:
             yield f"data: {json.dumps(event, default=str)}\n\n"
     except Exception:
-        log.exception("Unhandled error while streaming query results")
-        yield f"data: {json.dumps({'kind': 'error', 'message': 'An internal error occurred.'})}\n\n"
+        log.error("Unhandled error while streaming query response", exc_info=True)
+        yield f"data: {json.dumps({'kind': 'error', 'message': 'An internal error has occurred.'})}\n\n"
 
 
-def _safe_save_query(user_id, question, sql, result, confidence):
+def _safe_save_query(
+    user_id, question, sql, result, confidence, conversation_id=None, restatement=""
+):
     import backend.app.mongodatabase as mdb
 
     try:
@@ -39,6 +41,8 @@ def _safe_save_query(user_id, question, sql, result, confidence):
             sql=sql,
             result=result,
             confidence=confidence,
+            conversation_id=conversation_id,
+            restatement=restatement,
         )
     except Exception:
         log.warning("Failed to persist query history in background", exc_info=True)
