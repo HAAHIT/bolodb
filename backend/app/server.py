@@ -18,6 +18,7 @@ from backend.app.routes.query import router as query_router
 from backend.app.routes.history import router as history_router
 from backend.app.routes.connections import router as connections_router
 from backend.app.routes.catalog import router as catalog_router
+from backend.app.routes.conversations import router as conversations_router
 
 logger = logging.getLogger(__name__)
 
@@ -56,5 +57,6 @@ def create_app(initial_db_url="", readonly=True):
     app.include_router(history_router)
     app.include_router(connections_router)
     app.include_router(catalog_router)
+    app.include_router(conversations_router)
 
     return app

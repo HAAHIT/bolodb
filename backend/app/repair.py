@@ -25,6 +25,11 @@ Callables
 ``execute(sql: str) -> dict``  (optional; sync or async)
     Run the SQL. A truthy ``"error"`` key means failure; anything else is treated
     as a successful result. Omit to run validation-only (no execution backstop).
+``on_failure(sql: str, errors: [str])``  (optional; sync or async)
+    Called after every failed attempt, before the next generation. This is the
+    schema-retry hook: the caller can inspect what the failed SQL referenced
+    and widen the schema shown to the model (see ``run_query`` in
+    backend/app/controllers/query.py). Its return value is ignored.
 """
 
 import inspect
@@ -67,6 +72,7 @@ async def run_repair_loop(
     generate,
     validate,
     execute=None,
+    on_failure=None,
     max_iterations=3,
     max_seconds=None,
     clock=time.monotonic,
@@ -105,6 +111,8 @@ async def run_repair_loop(
             errs = verdict.get("errors", [])
             attempts.append({"sql": sql, "stage": "validate", "errors": errs})
             feedback = _feedback(sql, errs)
+            if on_failure is not None:
+                await _call(on_failure, sql, errs)
             continue
 
         if execute is not None:
@@ -113,6 +121,8 @@ async def run_repair_loop(
                 errs = [result["error"]]
                 attempts.append({"sql": sql, "stage": "execute", "errors": errs})
                 feedback = _feedback(sql, errs)
+                if on_failure is not None:
+                    await _call(on_failure, sql, errs)
                 continue
             attempts.append({"sql": sql, "stage": "ok"})
             return {

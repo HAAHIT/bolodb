@@ -96,7 +96,13 @@ the first failure:
 
 3. Ask again with that feedback appended (it flows into
    `generate_sql(..., feedback=...)` in `llm.py`).
-4. Repeat — **at most 3 attempts total, and no new attempt starts after 60
+4. **Schema-retry:** before regenerating, the failed SQL is checked for
+   tables that exist in the database but weren't shown to the model — a sign
+   the *table selection* (not the SQL) was the problem. Any such table is
+   added to the prompt for the next attempt. Details in
+   [chapter 4](04-schema-linking.md); code:
+   `expand_linked_tables()` + the `on_failure` hook.
+5. Repeat — **at most 3 attempts total, and no new attempt starts after 60
    seconds** (constants `_MAX_ATTEMPTS` / `_MAX_SECONDS` in
    `controllers/query.py`), so a stubborn failure can't burn tokens or leave
    the user staring at a spinner forever.

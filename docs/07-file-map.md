@@ -89,6 +89,7 @@ Run them all: `pytest tests` from the repository root (install
 
 | Path | What it is |
 |---|---|
+| `benchmarks/` | The Spider-based evaluation of schema-linking recall and end-to-end accuracy (`benchmarks/README.md` explains how to run it). |
 | `docker-compose.yml`, `nginx/`, `*/DOCKERFILE*` | The Docker deployment: backend + frontend + nginx + MongoDB. |
 | `data/` | Drop SQLite/DuckDB files here to use them from Docker (`/app/data/...`). |
 | `.github/workflows/` | CI (tests/lint), CodeQL, Gemini-powered PR review bots. |

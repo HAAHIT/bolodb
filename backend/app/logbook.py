@@ -45,6 +45,11 @@ class SessionLog:
                 "based_on_verified": result.get("based_on_verified"),
                 "row_count": len(result.get("rows", []) or []),
                 "execution_error": result.get("execution_error"),
+                # Audit trail for linking quality: exactly which tables the AI
+                # was shown (including schema-retry additions) and how many
+                # generation attempts the repair loop needed.
+                "tables_used": result.get("tables_used"),
+                "attempts": result.get("attempts"),
             }
         )
         return qid

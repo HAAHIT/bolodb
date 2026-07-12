@@ -16,7 +16,7 @@
     onSelect: (command: SlashCommand) => void;
     onClose: () => void;
     filter: string;
-    inputRef?: HTMLInputElement;
+    inputRef?: HTMLInputElement | HTMLTextAreaElement;
   } = $props();
 
   let menuRef: HTMLDivElement | undefined = $state(undefined);

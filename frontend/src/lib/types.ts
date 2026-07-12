@@ -61,10 +61,23 @@ export interface DbInfo {
   is_sample?: boolean;
 }
 
+export interface ThinkingArtifact {
+  kind:
+    | "schema"
+    | "hint"
+    | "sql"
+    | "validation"
+    | "repair"
+    | "execution"
+    | "confidence";
+  data: Record<string, unknown>;
+}
+
 export interface Turn {
   id: string;
   question: string;
   thinking: boolean;
+  timestamp?: string;
   restatement?: string;
   sql?: string;
   columns?: string[];
@@ -77,7 +90,47 @@ export interface Turn {
   verdict?: "correct" | "wrong" | null;
   reasonChosen?: string | null;
   isDirect?: boolean;
+  thinkingArtifacts?: ThinkingArtifact[];
 }
+
+export type StreamEvent =
+  | {
+      kind: "schema_linked";
+      tables: string[];
+      linked: string[];
+      glossary: { term: string; maps_to: string }[];
+      verified_count: number;
+    }
+  | { kind: "hint"; message: string; elapsed: number }
+  | { kind: "sql"; attempt: number; sql: string }
+  | {
+      kind: "validation";
+      attempt: number;
+      checks: {
+        target: string;
+        status: "ok" | "error";
+        message: string;
+        suggestion?: string | null;
+      }[];
+      passed: boolean;
+    }
+  | {
+      kind: "repair";
+      attempt: number;
+      total: number;
+      error: string;
+      suggestion: string;
+      old_sql: string;
+    }
+  | { kind: "execution"; rows: number; elapsed: number; truncated: boolean }
+  | {
+      kind: "confidence";
+      level: string;
+      reason: string;
+      based_on_verified: boolean;
+    }
+  | { kind: "result"; data: Record<string, unknown> }
+  | { kind: "error"; message: string };
 
 export interface Toast {
   title: string;
@@ -114,4 +167,28 @@ export interface HistoryStats {
   confidence: { High: number; Medium: number; Low: number };
   daily_activity: { date: string; count: number }[];
   top_tables: { table: string; count: number }[];
+}
+
+export interface Conversation {
+  _id: string;
+  title: string;
+  database_id?: string;
+  turn_count: number;
+  last_question?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationTurn {
+  _id: string;
+  question: string;
+  sql: string;
+  result: Record<string, unknown>[];
+  confidence: "High" | "Medium" | "Low";
+  restatement: string;
+  timestamp: string;
+}
+
+export interface ConversationDetail extends Conversation {
+  turns: ConversationTurn[];
 }

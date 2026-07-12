@@ -118,12 +118,22 @@ class DatabaseManager:
         return f'"{n.replace(chr(34), chr(34) * 2)}"'
 
     def get_schema(self, user_id, refresh=False):
+        """Introspect the connected database into the schema dict the rest of
+        the app consumes (see docs/04-schema-linking.md).
+
+        STRUCTURE (columns, primary/foreign keys) is collected for EVERY table
+        — schema linking must be able to see the whole database, however big.
+        Only the expensive ENRICHMENT (sample rows, per-table row counts,
+        distinct values) is capped, at ENRICH_MAX tables, preferring the
+        largest tables when row counts are known (they are usually the fact
+        tables questions need).
+        """
         c = self._get(user_id)
         if c["_schema_cache"] and not refresh:
             return c["_schema_cache"]
         inspector = inspect(c["engine"])
         schema = {}
-        MAX_T = 40
+        ENRICH_MAX = 40
         BIG = 100_000
         SKIP = (
             "date",
@@ -140,7 +150,7 @@ class DatabaseManager:
             "title",
             "code",
         )
-        table_names = inspector.get_table_names()[:MAX_T]
+        table_names = inspector.get_table_names()
 
         # Fetch column/pk/fk metadata in bulk where the dialect supports it
         try:
@@ -185,6 +195,20 @@ class DatabaseManager:
                     }
             except Exception:
                 pass
+
+            # Which tables get the expensive enrichment queries: all of them
+            # when the database is small; the biggest ones (by the free bulk
+            # row counts) when it is not.
+            if len(table_names) <= ENRICH_MAX:
+                enrich = set(table_names)
+            else:
+
+                def _sort_key(t):
+                    count = bulk_counts.get(t)
+                    return (count is None, -(count or 0), t)
+
+                by_size = sorted(table_names, key=_sort_key)
+                enrich = set(by_size[:ENRICH_MAX])
 
             for tbl in table_names:
                 try:
@@ -232,6 +256,18 @@ class DatabaseManager:
                     ]
                 except Exception as e:
                     logger.warning("Error inspecting columns for %s: %s", tbl, e)
+                    continue
+
+                if tbl not in enrich:
+                    # Structure only: still fully visible to schema linking
+                    # and the AI prompt, just without samples/known values.
+                    schema[tbl] = {
+                        "columns": columns,
+                        "foreign_keys": fks,
+                        "sample_rows": [],
+                        "row_count": bulk_counts.get(tbl),
+                        "distinct_values": {},
+                    }
                     continue
 
                 try:

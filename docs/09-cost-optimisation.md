@@ -35,6 +35,8 @@ that implements it.
 | 9 | **Verified-answer reuse** — similar past answers are injected as examples, so the model converges on attempt 1 instead of needing repairs | Fewer repair rounds over time; the system gets *cheaper as it's used* | `backend/app/knowledge.py` → `retrieve_similar()` |
 | 10 | **Per-model budgets** — cheaper models get smaller prompts (fewer tables/samples/examples) | Cost scales with the model tier you chose | `schema_link.py` → `model_budget()` |
 | 11 | **Schema introspection cache** — your database is profiled once per connection, not per question | No repeated DB scans; instant prompts | `backend/app/database.py` → `get_schema()` cache |
+| 12 | **Two-stage linking pays for itself** — the shortlist pre-pass (big schemas only, 30+ tables) is a names-only prompt with thinking off; picking the right tables up-front avoids repair rounds that cost far more | One tiny call replaces 1–2 full retries | `llm.py` → `shortlist_tables()`, threshold in `controllers/query.py` |
+| 13 | **Enrichment cap** — sample rows / known values are collected for at most 40 tables (largest first); structure is still collected for all | Bounded introspection cost on huge databases | `database.py` → `ENRICH_MAX` in `get_schema()` |
 
 ## The one knob you control: the model
 
@@ -68,5 +70,7 @@ cost is simply zero. Current pricing/quotas: https://ai.google.dev/pricing.
 - **Semantic retrieval** (embeddings) instead of word-overlap for verified
   answers — better example reuse at the same token cost. Would replace
   `_similarity()` in `knowledge.py`.
-- **Automatic benchmark suite** on the [Spider](https://github.com/taoyds/spider)
-  dataset to measure accuracy regressions before shipping prompt changes.
+
+A [Spider](https://github.com/taoyds/spider)-based benchmark for measuring
+linking recall and execution accuracy before shipping prompt changes now
+exists — see `benchmarks/README.md`.

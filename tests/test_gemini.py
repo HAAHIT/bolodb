@@ -254,6 +254,31 @@ def test_provider_manager_rebuilds_on_reconfigure():
     assert second.api_key == "b"
 
 
+# --- table shortlist (two-stage linking) ------------------------------------
+
+
+def test_shortlist_tables_filters_to_real_names_case_insensitively():
+    class OneShotProvider:
+        def __init__(self, reply):
+            self.reply = reply
+            self.system = None
+
+        async def complete(self, system, user, json_mode=False, schema=None, **kw):
+            self.system = system
+            return self.reply
+
+    schema = {
+        "Orders": {"columns": [{"name": "id"}]},
+        "products": {"columns": [{"name": "id"}]},
+    }
+    p = OneShotProvider('{"tables": ["orders", "PRODUCTS", "made_up_table"]}')
+    out = asyncio.run(llm.shortlist_tables(p, "question?", schema))
+    # canonical names returned; the invented table is dropped
+    assert out == {"Orders", "products"}
+    # the catalog listed every table with its columns
+    assert "Orders(id)" in p.system and "products(id)" in p.system
+
+
 # --- schema conversion ------------------------------------------------------
 
 

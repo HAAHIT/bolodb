@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { Turn } from '$lib/types';
-  import { wrongReasons, capitalize } from '$lib/data';
+  import type { Turn, ThinkingArtifact } from '$lib/types';
+  import { wrongReasons, capitalize, formatTime } from '$lib/data';
   import ConfidenceBadge from '$lib/components/ui/ConfidenceBadge.svelte';
   import ResultTable from '$lib/components/ui/ResultTable.svelte';
   import SqlBlock from '$lib/components/ui/SqlBlock.svelte';
@@ -11,12 +11,23 @@
   import Flywheel from '$lib/components/Flywheel.svelte';
   import { detectChartData } from '$lib/components/charts/chartUtils';
 
-  let { turn, onVerify, isLatest }:
-    { turn: Turn; onVerify: (id: string, verdict: string, reason: string | null) => void; isLatest: boolean } = $props();
+  let { turn, onVerify, isLatest, liveArtifacts, onRegenerate, onEditPrompt, modelName = '' }:
+    {
+      turn: Turn;
+      onVerify: (id: string, verdict: string, reason: string | null) => void;
+      isLatest: boolean;
+      liveArtifacts?: ThinkingArtifact[];
+      onRegenerate?: (id: string) => void;
+      onEditPrompt?: (id: string, newQuestion: string) => void;
+      modelName?: string;
+    } = $props();
 
   let showReasons = $state(false);
   let justVerified = $state(false);
   let viewMode = $state<'table' | 'chart'>('table');
+  let editing = $state(false);
+  let editValue = $state('');
+  let copyFeedback = $state<'response' | 'prompt' | null>(null);
 
   const hasChartData = $derived(
     detectChartData(turn.columns || [], (turn.rows || []).map(r => r.map(String))) !== null
@@ -24,24 +35,121 @@
 
   function yes() { justVerified = true; onVerify(turn.id, 'correct', null); setTimeout(() => justVerified = false, 1600); }
   function no(reason: string) { showReasons = false; onVerify(turn.id, 'wrong', reason); }
+
+  function startEdit() {
+    editValue = turn.question;
+    editing = true;
+  }
+
+  function cancelEdit() {
+    editing = false;
+    editValue = '';
+  }
+
+  function saveEdit() {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== turn.question) {
+      onEditPrompt?.(turn.id, trimmed);
+    }
+    editing = false;
+    editValue = '';
+  }
+
+  function copyFallback(text: string): boolean {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      return document.execCommand('copy');
+    } finally {
+      document.body.removeChild(ta);
+    }
+  }
+
+  async function copyText(text: string): Promise<boolean> {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        return copyFallback(text);
+      }
+    }
+    return copyFallback(text);
+  }
+
+  async function copyResponse() {
+    const parts: string[] = [];
+    if (turn.restatement) parts.push(`What I understood: ${turn.restatement}`);
+    if (turn.sql) parts.push(`SQL:\n${turn.sql}`);
+    if (turn.columns && turn.rows && turn.rows.length > 0) {
+      const header = turn.columns.join('\t');
+      const rows = turn.rows.map(r => r.join('\t')).join('\n');
+      parts.push(`Results:\n${header}\n${rows}`);
+    }
+    const ok = await copyText(parts.join('\n\n'));
+    if (!ok) return;
+    copyFeedback = 'response';
+    setTimeout(() => copyFeedback = null, 1500);
+  }
+
+  async function copyPrompt() {
+    const ok = await copyText(turn.question);
+    if (!ok) return;
+    copyFeedback = 'prompt';
+    setTimeout(() => copyFeedback = null, 1500);
+  }
 </script>
 
-<div class="rise" style="margin-bottom:26px">
+<div class="rise group" style="margin-bottom:26px">
   <!-- question bubble -->
   <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-    <div style="max-width:72%;padding:11px 17px;border-radius:var(--radius-lg);border-bottom-right-radius:7px;background:var(--surface-3);color:var(--ink);font-size:15px;font-weight:550;line-height:1.4;box-shadow:var(--shadow-sm)">
-      {turn.question}
-    </div>
+    {#if editing}
+      <div style="max-width:72%;width:100%">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <input
+            bind:value={editValue}
+            autofocus
+            onkeydown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
+            style="width:100%;padding:11px 17px;border-radius:var(--radius-lg);border:2px solid var(--brand);background:var(--surface-3);color:var(--ink);font-size:15px;font-weight:550;line-height:1.4;outline:none;box-sizing:border-box"
+          />
+          <div style="display:flex;gap:6px;justify-content:flex-end">
+            <button onclick={cancelEdit}
+              style="padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12.5px;font-weight:600;cursor:pointer">Cancel</button>
+            <button onclick={saveEdit}
+              style="padding:5px 12px;border-radius:6px;border:none;background:var(--brand);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer">Save</button>
+          </div>
+        </div>
+      </div>
+    {:else}
+      <div class="qbubble" style="max-width:72%;padding:11px 17px;padding-bottom:6px;border-radius:var(--radius-lg);border-bottom-right-radius:7px;background:var(--surface-3);color:var(--ink);font-size:15px;font-weight:550;line-height:1.4;box-shadow:var(--shadow-sm)">
+        <div style="margin-bottom:2px">{turn.question}</div>
+        {#if turn.timestamp}
+          <div class="qts" style="text-align:right;font-size:9.5px;font-weight:500;color:var(--faint)">{formatTime(turn.timestamp)}</div>
+        {/if}
+      </div>
+    {/if}
   </div>
 
   <!-- answer card -->
-  <div class="card" style="padding:20px 22px;border-top-left-radius:7px;border-color:{turn.verdict==='correct'?'var(--brand-tint-2)':turn.verdict==='wrong'?'#EBC6BD':'var(--border)'};transition:border-color .4s;position:relative;overflow:hidden">
+  <div class="card" style="padding:20px 22px;border-top-left-radius:7px;border-color:{turn.verdict==='correct'?'var(--brand-tint-2)':turn.verdict==='wrong'?'#EBC6BD':'var(--border)'};transition:border-color .4s;position:relative">
 
     {#if justVerified}<Flywheel />{/if}
 
     {#if turn.thinking}
-      <Thinking />
-    {:else if turn.isDirect}
+      {#if liveArtifacts}
+        <Thinking artifacts={liveArtifacts} active />
+      {:else}
+        <Thinking />
+      {/if}
+    {:else}
+      {#if turn.thinkingArtifacts?.length}
+        <Thinking artifacts={turn.thinkingArtifacts} collapsed />
+      {/if}
+      {#if turn.isDirect}
       <!-- Direct SQL execution mode -->
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:15px">
         <div style="flex:1">
@@ -77,7 +185,10 @@
             </div>
           {/if}
         </div>
-        <div style="flex-shrink:0">
+        <div style="flex-shrink:0;display:flex;align-items:center;gap:8px">
+          {#if modelName}
+            <span style="font-size:10.5px;font-weight:600;color:var(--faint);letter-spacing:.02em;text-transform:uppercase">{modelName}</span>
+          {/if}
           <ConfidenceBadge level={turn.confidence} reason={turn.reason} />
         </div>
       </div>
@@ -166,5 +277,67 @@
         {/if}
       {/if}
     {/if}
+    {/if}
   </div>
+
+  {#if !turn.thinking && !turn.isDirect && turn.restatement && !editing}
+    <div class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
+      style="display:flex;gap:2px;margin-top:6px;padding-left:4px">
+      <button class="tb-btn" onclick={() => onRegenerate?.(turn.id)} title="Regenerate">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M1 4v6h6M23 20v-6h-6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M20.5 6.5A9 9 0 004.9 9M3.5 17.5A9 9 0 0019.1 15" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>
+      </button>
+      <button class="tb-btn" onclick={copyResponse} title="Copy response" style="position:relative">
+        {#if copyFeedback === 'response'}
+          <span class="tb-copied" aria-live="polite">Copied!</span>
+        {/if}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="1.8"/></svg>
+      </button>
+      <button class="tb-btn" onclick={copyPrompt} title="Copy prompt" style="position:relative">
+        {#if copyFeedback === 'prompt'}
+          <span class="tb-copied" aria-live="polite">Copied!</span>
+        {/if}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="currentColor" stroke-width="1.8"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <button class="tb-btn" onclick={startEdit} title="Edit prompt">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  {/if}
 </div>
+
+<style>
+  .tb-btn {
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    border: none;
+    background: transparent;
+    color: var(--faint);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color .12s;
+  }
+  .tb-btn:hover {
+    color: var(--muted);
+  }
+  .tb-copied {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--brand);
+    position: absolute;
+    top: -5px;
+    right: -3px;
+    background: var(--surface);
+    padding: 0 2px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .qbubble .qts {
+    opacity: 0;
+    transition: opacity .15s;
+  }
+  .qbubble:hover .qts {
+    opacity: .55;
+  }
+</style>
