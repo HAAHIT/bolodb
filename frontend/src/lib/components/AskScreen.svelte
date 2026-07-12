@@ -273,6 +273,111 @@
     }
   }
 
+  async function requeryAt(idx: number, question: string) {
+    const q = question.trim();
+    if (!q) return;
+    if (loading) return;
+    loading = true;
+
+    const sqlMatch = q.match(/^\/sql\s+(.+)/is);
+    if (sqlMatch) {
+      const rawSql = sqlMatch[1].trim();
+      const newId = Math.random().toString(36).slice(2, 10);
+      turns[idx] = { id: newId, question: rawSql, thinking: true, isDirect: true };
+      const convId = await ensureConversation(rawSql);
+      try {
+        const data = await apiCall('/api/execute', { sql: rawSql });
+        const rows2d = rowsToArrays(data.columns || [], data.rows || []);
+        turns[idx] = {
+          ...turns[idx], thinking: false, sql: data.sql || rawSql,
+          columns: data.columns || [], rows: rows2d,
+          confidence: 'high' as const, reason: 'Direct SQL execution',
+          basedOn: false, query_id: newId,
+          executionError: null, verdict: null, isDirect: true
+        };
+        conversationTrigger++;
+      } catch (e: any) {
+        turns[idx] = {
+          ...turns[idx], thinking: false, sql: rawSql,
+          columns: [], rows: [],
+          confidence: 'low' as const, reason: 'Execution failed',
+          basedOn: false, query_id: newId,
+          executionError: e.message || 'SQL execution failed',
+          verdict: null, isDirect: true
+        };
+      } finally { loading = false; }
+      return;
+    }
+
+    const artifacts: ThinkingArtifact[] = [];
+    const newId = Math.random().toString(36).slice(2, 10);
+    currentArtifacts = artifacts;
+    turns[idx] = { id: newId, question: q, thinking: true, thinkingArtifacts: artifacts };
+
+    let build_context = [];
+    for (let turn of turns.toReversed()) {
+      if (build_context.length >= 2) break;
+      if (turn.thinking == true || !turn.sql || turn.executionError || turn.verdict === 'wrong') continue;
+      build_context.push({ question: turn.question, sql: turn.sql, restatement: turn.restatement });
+    }
+    build_context.reverse();
+    const convId = await ensureConversation(q);
+    try {
+      await streamApiCall(
+        '/api/query/stream',
+        { question: q, context: build_context, conversation_id: convId || undefined },
+        (event: StreamEvent) => {
+          const artifact = eventToArtifact(event);
+          if (artifact) {
+            if (artifact.kind === 'hint') {
+              const idx2 = artifacts.findIndex(a => a.kind === 'hint');
+              if (idx2 >= 0) artifacts[idx2] = artifact;
+              else artifacts.push(artifact);
+            } else {
+              artifacts.push(artifact);
+            }
+            currentArtifacts = [...artifacts];
+          }
+        },
+        (data: any) => {
+          const rows2d = rowsToArrays(data.columns || [], data.rows || []);
+          turns[idx] = {
+            ...turns[idx], thinking: false,
+            restatement: data.restatement || '', sql: data.sql || '',
+            columns: data.columns || [], rows: rows2d,
+            confidence: data.confidence || 'medium', reason: data.confidence_reason || '',
+            basedOn: data.based_on_verified || false, query_id: data.query_id || newId,
+            executionError: data.execution_error || null, verdict: null,
+            thinkingArtifacts: [...artifacts],
+          };
+          conversationTrigger++;
+        },
+        (err: Error) => {
+          turns[idx] = {
+            ...turns[idx], thinking: false,
+            restatement: 'Something went wrong — please try again.',
+            sql: '', columns: [], rows: [], confidence: 'low' as const,
+            reason: err.message || 'Request failed', basedOn: false,
+            query_id: newId, verdict: null,
+            thinkingArtifacts: [...artifacts],
+          };
+        }
+      );
+    } finally { loading = false; }
+  }
+
+  function regenerate(turnId: string) {
+    const idx = turns.findIndex(t => t.id === turnId);
+    if (idx === -1) return;
+    requeryAt(idx, turns[idx].question);
+  }
+
+  function editAndRequery(turnId: string, newQuestion: string) {
+    const idx = turns.findIndex(t => t.id === turnId);
+    if (idx === -1) return;
+    requeryAt(idx, newQuestion);
+  }
+
   function handleSubmit(e: Event) { e.preventDefault(); ask(); }
 </script>
 
@@ -310,7 +415,8 @@
         {:else}
           {#each turns as t, i (t.id)}
             <AnswerCard turn={t} isLatest={i === turns.length - 1} onVerify={handleVerify}
-              liveArtifacts={t.thinking ? currentArtifacts : undefined} />
+              liveArtifacts={t.thinking ? currentArtifacts : undefined}
+              onRegenerate={regenerate} onEditPrompt={editAndRequery} />
           {/each}
         {/if}
       </div>
