@@ -251,3 +251,60 @@ def test_confidence_uses_the_strongest_retrieved_match():
     )
     assert confidence == "high"
     assert based is True
+
+
+def test_expand_fk_parents_recursive():
+    schema = {
+        "permissions": {
+            "columns": [{"name": "id"}, {"name": "role_id"}],
+            "foreign_keys": [{"column": "role_id", "references": "roles.id"}],
+            "row_count": 100,
+            "distinct_values": {},
+        },
+        "roles": {
+            "columns": [{"name": "id"}, {"name": "created_by"}],
+            "foreign_keys": [{"column": "created_by", "references": "users.id"}],
+            "row_count": 10,
+            "distinct_values": {},
+        },
+        "users": {
+            "columns": [{"name": "id"}, {"name": "name"}],
+            "foreign_keys": [],
+            "row_count": 50,
+            "distinct_values": {},
+        },
+    }
+    added = expand_linked_tables(schema, [], "SELECT * FROM permissions", "sqlite")
+    assert set(added) == {"permissions", "roles", "users"}
+
+
+def test_expand_fk_parents_with_cycle():
+    schema = {
+        "a": {
+            "columns": [{"name": "id"}, {"name": "b_id"}],
+            "foreign_keys": [{"column": "b_id", "references": "b.id"}],
+            "row_count": 100,
+            "distinct_values": {},
+        },
+        "b": {
+            "columns": [{"name": "id"}, {"name": "a_id"}],
+            "foreign_keys": [{"column": "a_id", "references": "a.id"}],
+            "row_count": 100,
+            "distinct_values": {},
+        },
+    }
+    added = expand_linked_tables(schema, [], "SELECT * FROM a", "sqlite")
+    assert set(added) == {"a", "b"}
+
+
+def test_expand_fk_parents_self_reference():
+    schema = {
+        "employees": {
+            "columns": [{"name": "id"}, {"name": "manager_id"}],
+            "foreign_keys": [{"column": "manager_id", "references": "employees.id"}],
+            "row_count": 100,
+            "distinct_values": {},
+        },
+    }
+    added = expand_linked_tables(schema, [], "SELECT * FROM employees", "sqlite")
+    assert added == ["employees"]

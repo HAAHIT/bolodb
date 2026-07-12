@@ -141,13 +141,24 @@ def _tables_in_verified_sql(all_tables, retrieved):
     return used
 
 
-def _fk_parents(schema, table):
-    """Tables that `table` points at via its foreign keys."""
+def _fk_parents(schema, table, seen=None):
+    """Tables that ``table`` points at via its foreign keys (recursive).
+
+    Follows FK chains to arbitrary depth with cycle detection so that
+    schema-retry in :func:`expand_linked_tables` pulls in the entire
+    transitive FK parent graph.
+    """
+    if seen is None:
+        seen = set()
+    if table in seen:
+        return set()
+    seen.add(table)
     parents = set()
     for fk in schema.get(table, {}).get("foreign_keys", []):
         ref = fk.get("references", "").split(".")[0]
-        if ref and ref in schema:
+        if ref and ref in schema and ref not in seen:
             parents.add(ref)
+            parents |= _fk_parents(schema, ref, seen)
     return parents
 
 
