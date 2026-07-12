@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Turn, ThinkingArtifact } from '$lib/types';
-  import { wrongReasons, capitalize } from '$lib/data';
+  import { wrongReasons, capitalize, formatTime } from '$lib/data';
   import ConfidenceBadge from '$lib/components/ui/ConfidenceBadge.svelte';
   import ResultTable from '$lib/components/ui/ResultTable.svelte';
   import SqlBlock from '$lib/components/ui/SqlBlock.svelte';
@@ -11,7 +11,7 @@
   import Flywheel from '$lib/components/Flywheel.svelte';
   import { detectChartData } from '$lib/components/charts/chartUtils';
 
-  let { turn, onVerify, isLatest, liveArtifacts, onRegenerate, onEditPrompt }:
+  let { turn, onVerify, isLatest, liveArtifacts, onRegenerate, onEditPrompt, modelName = '' }:
     {
       turn: Turn;
       onVerify: (id: string, verdict: string, reason: string | null) => void;
@@ -19,6 +19,7 @@
       liveArtifacts?: ThinkingArtifact[];
       onRegenerate?: (id: string) => void;
       onEditPrompt?: (id: string, newQuestion: string) => void;
+      modelName?: string;
     } = $props();
 
   let showReasons = $state(false);
@@ -124,8 +125,11 @@
         </div>
       </div>
     {:else}
-      <div style="max-width:72%;padding:11px 17px;border-radius:var(--radius-lg);border-bottom-right-radius:7px;background:var(--surface-3);color:var(--ink);font-size:15px;font-weight:550;line-height:1.4;box-shadow:var(--shadow-sm)">
-        {turn.question}
+      <div class="qbubble" style="max-width:72%;padding:11px 17px;padding-bottom:6px;border-radius:var(--radius-lg);border-bottom-right-radius:7px;background:var(--surface-3);color:var(--ink);font-size:15px;font-weight:550;line-height:1.4;box-shadow:var(--shadow-sm)">
+        <div style="margin-bottom:2px">{turn.question}</div>
+        {#if turn.timestamp}
+          <div class="qts" style="text-align:right;font-size:9.5px;font-weight:500;color:var(--faint)">{formatTime(turn.timestamp)}</div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -181,7 +185,10 @@
             </div>
           {/if}
         </div>
-        <div style="flex-shrink:0">
+        <div style="flex-shrink:0;display:flex;align-items:center;gap:8px">
+          {#if modelName}
+            <span style="font-size:10.5px;font-weight:600;color:var(--faint);letter-spacing:.02em;text-transform:uppercase">{modelName}</span>
+          {/if}
           <ConfidenceBadge level={turn.confidence} reason={turn.reason} />
         </div>
       </div>
@@ -325,5 +332,12 @@
     padding: 0 2px;
     border-radius: 2px;
     white-space: nowrap;
+  }
+  .qbubble .qts {
+    opacity: 0;
+    transition: opacity .15s;
+  }
+  .qbubble:hover .qts {
+    opacity: .55;
   }
 </style>

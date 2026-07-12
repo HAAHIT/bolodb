@@ -38,7 +38,24 @@
 
   let showSlashMenu = $state(false);
   let slashFilter = $state('');
-  let inputRef: HTMLInputElement | undefined = $state(undefined);
+  let inputRef: HTMLTextAreaElement | undefined = $state(undefined);
+  let abortController = $state<AbortController | null>(null);
+  let showScrollBtn = $state(false);
+
+  function onFeedScroll() {
+    if (!feedRef) return;
+    showScrollBtn = feedRef.scrollHeight - feedRef.scrollTop - feedRef.clientHeight > 100;
+  }
+
+  function scrollToBottom() {
+    feedRef?.scrollTo({ top: feedRef.scrollHeight, behavior: 'smooth' });
+  }
+
+  function handleTextareaResize(e: Event) {
+    const ta = e.target as HTMLTextAreaElement;
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 140) + 'px';
+  }
 
   const slashCommands: SlashCommand[] = [
     { name: '/sql', description: 'Execute SQL query directly' }
@@ -114,15 +131,17 @@
   async function runQuery(
     question: string,
     placeTurn: (turn: Turn) => void,
-    updateTurn: (id: string, update: Partial<Turn>) => void
+    updateTurn: (id: string, update: Partial<Turn>) => void,
+    signal?: AbortSignal,
   ) {
     const id = Math.random().toString(36).slice(2, 10);
+    const ts = new Date().toISOString();
 
     // Direct SQL mode: /sql <query>
     const sqlMatch = question.match(/^\/sql\s+(.+)/is);
     if (sqlMatch) {
       const rawSql = sqlMatch[1].trim();
-      placeTurn({ id, question: rawSql, thinking: true, isDirect: true } as Turn);
+      placeTurn({ id, question: rawSql, thinking: true, isDirect: true, timestamp: ts } as Turn);
       const convId = await ensureConversation(rawSql);
       try {
         const data = await apiCall('/api/execute', { sql: rawSql });
@@ -132,7 +151,7 @@
           columns: data.columns || [], rows: rows2d,
           confidence: 'high' as const, reason: 'Direct SQL execution',
           basedOn: false, query_id: id,
-          executionError: null, verdict: null, isDirect: true
+          executionError: null, verdict: null, isDirect: true, timestamp: ts,
         });
         conversationTrigger++;
       } catch (e: any) {
@@ -142,7 +161,7 @@
           confidence: 'low' as const, reason: 'Execution failed',
           basedOn: false, query_id: id,
           executionError: e.message || 'SQL execution failed',
-          verdict: null, isDirect: true
+          verdict: null, isDirect: true, timestamp: ts,
         });
       }
       return;
@@ -151,7 +170,7 @@
     // Normal LLM query flow
     const artifacts: ThinkingArtifact[] = [];
     currentArtifacts = artifacts;
-    placeTurn({ id, question, thinking: true, thinkingArtifacts: artifacts } as Turn);
+    placeTurn({ id, question, thinking: true, thinkingArtifacts: artifacts, timestamp: ts } as Turn);
 
     let build_context = [];
     for (let t of turns.toReversed()) {
@@ -187,7 +206,7 @@
             confidence: data.confidence || 'medium', reason: data.confidence_reason || '',
             basedOn: data.based_on_verified || false, query_id: data.query_id || id,
             executionError: data.execution_error || null, verdict: null,
-            thinkingArtifacts: [...artifacts],
+            thinkingArtifacts: [...artifacts], timestamp: ts,
           });
           conversationTrigger++;
         },
@@ -198,9 +217,10 @@
             sql: '', columns: [], rows: [], confidence: 'low' as const,
             reason: err.message || 'Request failed', basedOn: false,
             query_id: id, verdict: null,
-            thinkingArtifacts: [...artifacts],
+            thinkingArtifacts: [...artifacts], timestamp: ts,
           });
-        }
+        },
+        signal,
       );
     } finally { /* loading handled by caller */ }
   }
@@ -209,24 +229,36 @@
     const q = (text || input).trim();
     if (!q || loading) return;
     input = ''; loading = true;
-    await runQuery(
-      q,
-      (turn) => { turns = [...turns, turn]; },
-      (id, update) => { turns = turns.map(x => x.id === id ? { ...x, ...update } : x); }
-    );
-    loading = false;
+    abortController = new AbortController();
+    try {
+      await runQuery(
+        q,
+        (turn) => { turns = [...turns, turn]; },
+        (id, update) => { turns = turns.map(x => x.id === id ? { ...x, ...update } : x); },
+        abortController.signal,
+      );
+    } finally {
+      abortController = null;
+      loading = false;
+    }
   }
 
   async function requeryAt(idx: number, question: string) {
     const q = question.trim();
     if (!q || loading) return;
     loading = true;
-    await runQuery(
-      q,
-      (turn) => { turns[idx] = turn; },
-      (id, update) => { turns[idx] = { ...turns[idx], ...update }; }
-    );
-    loading = false;
+    abortController = new AbortController();
+    try {
+      await runQuery(
+        q,
+        (turn) => { turns[idx] = turn; },
+        (id, update) => { turns[idx] = { ...turns[idx], ...update }; },
+        abortController.signal,
+      );
+    } finally {
+      abortController = null;
+      loading = false;
+    }
   }
 
   function regenerate(turnId: string) {
@@ -275,6 +307,7 @@
         id: t._id,
         question: t.question,
         thinking: false,
+        timestamp: t.timestamp,
         restatement: t.restatement || '',
         sql: t.sql || '',
         columns: t.result && t.result.length > 0 ? Object.keys(t.result[0]) : [],
@@ -332,7 +365,7 @@
     </div>
 
     <!-- feed -->
-    <div bind:this={feedRef} style="flex:1;overflow-y:auto;padding:28px 28px 8px">
+    <div bind:this={feedRef} onscroll={onFeedScroll} style="flex:1;overflow-y:auto;padding:28px 28px 8px;position:relative">
       <div style="max-width:720px;margin:0 auto">
         {#if turns.length === 0}
           <Empty {trust} onPick={ask} {starters} />
@@ -340,10 +373,16 @@
           {#each turns as t, i (t.id)}
             <AnswerCard turn={t} isLatest={i === turns.length - 1} onVerify={handleVerify}
               liveArtifacts={t.thinking ? currentArtifacts : undefined}
-              onRegenerate={regenerate} onEditPrompt={editAndRequery} />
+              onRegenerate={regenerate} onEditPrompt={editAndRequery}
+              modelName={t.thinking ? modelName : modelName} />
           {/each}
         {/if}
       </div>
+      {#if showScrollBtn}
+        <button onclick={scrollToBottom} aria-label="Scroll to latest"
+          style="position:sticky;bottom:16px;left:100%;width:38px;height:38px;border-radius:99px;border:1px solid var(--border);background:var(--surface);color:var(--muted);box-shadow:var(--shadow-md);cursor:pointer;display:grid;place-items:center;font-size:18px;font-weight:700;transition:opacity .2s;z-index:10"
+        >↓</button>
+      {/if}
     </div>
 
     <!-- input -->
@@ -360,13 +399,22 @@
         {/if}
         <form onsubmit={handleSubmit}
           style="display:flex;align-items:center;gap:10px;padding:7px 7px 7px 18px;border:1.5px solid var(--border-2);border-radius:var(--radius-lg);background:var(--surface);box-shadow:var(--shadow-sm);transition:border-color .15s, box-shadow .15s">
-          <input bind:value={input} oninput={handleInput} bind:this={inputRef} placeholder="Ask anything about your data…"
+          <textarea bind:value={input} oninput={(e) => { handleInput(e); handleTextareaResize(e); }} bind:this={inputRef} placeholder="Ask anything about your data…"
+            rows={1}
             aria-label="Ask a question about your data" autofocus class="chat-input"
-            style="flex:1;border:none;outline:none;background:transparent;font-size:15.5px;color:var(--ink)" />
-          <Button kind="primary" type="submit" disabled={!input.trim() || loading}>
-            {#snippet icon()}{#if loading}<Spinner />{:else}<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h13M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>{/if}{/snippet}
-            Ask
-          </Button>
+            style="flex:1;border:none;outline:none;background:transparent;font-size:15.5px;color:var(--ink);resize:none;overflow-y:auto;max-height:140px;line-height:1.45;padding:6px 0"></textarea>
+          {#if loading}
+            <Button kind="quiet" type="button" onclick={() => { abortController?.abort(); }}
+              style="border:1px solid var(--c-low);color:var(--c-low-ink);background:var(--c-low-tint)">
+              {#snippet icon()}<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>{/snippet}
+              Stop
+            </Button>
+          {:else}
+            <Button kind="primary" type="submit" disabled={!input.trim() || loading}>
+              {#snippet icon()}<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h13M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>{/snippet}
+              Ask
+            </Button>
+          {/if}
         </form>
         <div style="display:flex;align-items:center;justify-content:center;gap:7px;margin-top:10px;font-size:12px;color:var(--faint)">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="5" y="10.5" width="14" height="9.5" rx="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M8 10.5V8a4 4 0 018 0v2.5" stroke="currentColor" stroke-width="1.8"/></svg>

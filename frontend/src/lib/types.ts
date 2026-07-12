@@ -77,6 +77,7 @@ export interface Turn {
   id: string;
   question: string;
   thinking: boolean;
+  timestamp?: string;
   restatement?: string;
   sql?: string;
   columns?: string[];
