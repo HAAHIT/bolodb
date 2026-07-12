@@ -115,10 +115,20 @@ export async function clearHistory(): Promise<any> {
   return apiCall("/api/history", undefined, "DELETE");
 }
 
-// --- Conversations ---
-
 export async function getConversations(): Promise<any> {
   return apiCall("/api/conversations");
+}
+
+export async function getConversation(id: string): Promise<any> {
+  return apiCall(`/api/conversations/${id}`);
+}
+
+export async function deleteConversation(id: string): Promise<any> {
+  return apiCall(`/api/conversations/${id}`, undefined, "DELETE");
+}
+
+export async function clearConversations(): Promise<any> {
+  return apiCall("/api/conversations", undefined, "DELETE");
 }
 
 export async function createConversation(
@@ -131,10 +141,6 @@ export async function createConversation(
   });
 }
 
-export async function getConversation(id: string): Promise<any> {
-  return apiCall(`/api/conversations/${id}`);
-}
-
 export async function renameConversation(
   id: string,
   title: string,
@@ -142,12 +148,11 @@ export async function renameConversation(
   return apiCall(`/api/conversations/${id}`, { title }, "PATCH");
 }
 
-export async function deleteConversation(id: string): Promise<any> {
-  return apiCall(`/api/conversations/${id}`, undefined, "DELETE");
-}
-
-export async function clearConversations(): Promise<any> {
-  return apiCall("/api/conversations", undefined, "DELETE");
+export async function googleLogin(idToken: string): Promise<any> {
+  return apiCall("/api/auth/google", {
+    id_token: idToken,
+    client_id: window.__GOOGLE_CLIENT_ID__ || "",
+  });
 }
 
 /** Convert API rows (array of objects) to 2D string arrays for ResultTable */
