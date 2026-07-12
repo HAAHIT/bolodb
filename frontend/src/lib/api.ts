@@ -131,6 +131,16 @@ export async function clearConversations(): Promise<any> {
   return apiCall("/api/conversations", undefined, "DELETE");
 }
 
+export async function createConversation(
+  title?: string,
+  databaseId?: string,
+): Promise<any> {
+  return apiCall("/api/conversations", {
+    title: title || "",
+    database_id: databaseId,
+  });
+}
+
 export async function renameConversation(
   id: string,
   title: string,
