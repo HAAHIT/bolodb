@@ -81,7 +81,7 @@
 </script>
 
 <div style="display:flex;flex-shrink:0;height:100%">
-<div style="width:{sidebarOpen ? '286px' : '0'};overflow:hidden;flex-shrink:0;background:var(--surface);display:flex;flex-direction:column;height:100%;transition:width .2s;border-right:1px solid var(--border)">
+<div style="width:{sidebarOpen ? '286px' : '0'};overflow:hidden;flex-shrink:0;background:var(--surface);display:flex;flex-direction:column;height:100%;transition:width .2s">
 
   <!-- trust panel -->
   <div style="margin:16px 16px 14px;padding:16px;border-radius:var(--radius);background:linear-gradient(165deg, var(--brand-tint), var(--surface-2));border:1px solid var(--border)">
@@ -195,11 +195,12 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="color:var(--faint);flex-shrink:0"><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.9"/><path d="M12 2.5v2.3M12 19.2v2.3M21.5 12h-2.3M4.8 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9L5.3 5.3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
     </button>
   </div>
-<div style="display:flex;align-items:center">
+</div>
+<div style="display:flex;align-items:center;height:100%">
   <button onclick={() => sidebarOpen = !sidebarOpen} aria-label="Toggle sidebar"
-    style="width:16px;height:48px;flex-shrink:0;cursor:pointer;background:var(--surface);border:none;display:flex;align-items:center;justify-content:center;transition:opacity .15s, background .15s;opacity:.4;clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%)"
-    onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1'; (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
-    onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '.4'; (e.currentTarget as HTMLElement).style.background = 'var(--surface)' }}>
+    style="width:20px;height:56px;flex-shrink:0;cursor:pointer;background:var(--surface);border:none;border-right:1px solid var(--border);border-left:1px solid var(--border);display:flex;align-items:center;justify-content:center;transition:background .15s, color .15s;color:var(--faint)"
+    onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; (e.currentTarget as HTMLElement).style.color = 'var(--muted)' }}
+    onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; (e.currentTarget as HTMLElement).style.color = 'var(--faint)' }}>
     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="color:var(--muted)">
       {#if sidebarOpen}
         <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
@@ -208,6 +209,5 @@
       {/if}
     </svg>
   </button>
-</div>
 </div>
 </div>
