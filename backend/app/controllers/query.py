@@ -89,7 +89,7 @@ async def run_query(user_id, db, kb, cfg, providers, session_log, req_data):
     # picks into local scoring as a boost. Any failure falls back silently to
     # local-only linking — this stage can only ever add signal.
     shortlist = set()
-    if len(full_schema) > max(_SHORTLIST_MIN_TABLES, budget["max_tables"]):
+    if len(full_schema) > _SHORTLIST_MIN_TABLES:
         try:
             shortlist = await shortlist_tables(provider, q, full_schema)
         except Exception:
@@ -130,9 +130,7 @@ async def run_query(user_id, db, kb, cfg, providers, session_log, req_data):
         return await run_in_threadpool(db.execute, user_id, sql)
 
     def _on_failure(sql, errors):
-        # Schema-retry: if the failed SQL referenced a real table we never
-        # showed the model, our linking missed it — add it (plus FK parents)
-        # so the next attempt can actually use it.
+        nonlocal linked
         added = expand_linked_tables(full_schema, linked, sql, dialect)
         if added:
             linked.extend(added)
