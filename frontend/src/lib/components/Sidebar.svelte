@@ -16,6 +16,7 @@
   let openConversations: boolean = $state(true);
   let editingId: string | null = $state(null);
   let editTitle: string = $state('');
+  let sidebarOpen = $state(true);
   let history: HistoryEntry[] = $state([]);
   let openHistory: boolean = $state(false);
 
@@ -108,7 +109,8 @@
   }
 </script>
 
-<div style="width:286px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;height:100%">
+<div style="display:flex;flex-shrink:0;height:100%">
+<div style="width:{sidebarOpen ? '286px' : '0'};overflow:hidden;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;height:100%;transition:width .2s">
   <!-- trust panel -->
   <div style="margin:16px 16px 14px;padding:16px;border-radius:var(--radius);background:linear-gradient(165deg, var(--brand-tint), var(--surface-2));border:1px solid var(--border)">
     <div style="display:flex;align-items:center;gap:7px;margin-bottom:11px">
@@ -249,4 +251,13 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="color:var(--faint);flex-shrink:0"><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.9"/><path d="M12 2.5v2.3M12 19.2v2.3M21.5 12h-2.3M4.8 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9L5.3 5.3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
     </button>
   </div>
+  <button onclick={() => sidebarOpen = !sidebarOpen} style="width:20px;flex-shrink:0;cursor:pointer;background:var(--surface);border:none;border-right:1px solid var(--border);display:flex;align-items:center;justify-content:center;transition:all .15s">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="color:var(--faint)">
+      {#if sidebarOpen}
+        <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+      {:else}
+        <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+      {/if}
+    </svg>
+  </button>
 </div>

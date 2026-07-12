@@ -65,6 +65,7 @@
   let currentArtifacts: ThinkingArtifact[] = $state([]);
   let conversationTrigger = $state(0);
   let activeConversationId: string | null = $state(null);
+  let abortController: AbortController | null = $state(null);
   let showScrollBtn = $state(false);
 
   const trust = $derived(trustFor(verifiedCount));
@@ -193,12 +194,85 @@
     showSlashMenu = false;
     slashFilter = "";
   }
+  async function runQuery(
+    question: string,
+    onAddTurn: (turn: Turn) => void,
+    onUpdateTurn: (id: string, update: Partial<Turn>) => void,
+    signal?: AbortSignal,
+  ) {
+    const id = Math.random().toString(36).slice(2, 10);
+    const ts = Date.now();
+    const artifacts: ThinkingArtifact[] = [];
+
+    let build_context = [];
+    for (let turn of turns.toReversed()) {
+      if (build_context.length >= 2) break;
+      if (turn.thinking || !turn.sql || turn.executionError || turn.verdict === "wrong") continue;
+      build_context.push({ question: turn.question, sql: turn.sql, restatement: turn.restatement });
+    }
+    build_context.reverse();
+
+    onAddTurn({ id, question, thinking: true, thinkingArtifacts: artifacts });
+    currentArtifacts = artifacts;
+
+    await streamApiCall(
+      "/api/query/stream",
+      { question, context: build_context },
+      (event: StreamEvent) => {
+        const artifact = eventToArtifact(event);
+        if (artifact) {
+          if (artifact.kind === "hint") {
+            const idx = artifacts.findIndex((a) => a.kind === "hint");
+            if (idx >= 0) artifacts[idx] = artifact;
+            else artifacts.push(artifact);
+          } else {
+            artifacts.push(artifact);
+          }
+          currentArtifacts = [...artifacts];
+        }
+      },
+      (data: any) => {
+        onUpdateTurn(id, {
+          thinking: false,
+          restatement: data.restatement || "",
+          sql: data.sql || "",
+          columns: data.columns || [],
+          rows: rowsToArrays(data.columns || [], data.rows || []),
+          confidence: data.confidence || "medium",
+          reason: data.confidence_reason || "",
+          basedOn: data.based_on_verified || false,
+          query_id: data.query_id || id,
+          executionError: data.execution_error || null,
+          verdict: null,
+          thinkingArtifacts: [...artifacts],
+        });
+        historyTrigger++;
+      },
+      (err: Error) => {
+        onUpdateTurn(id, {
+          thinking: false,
+          restatement: "Something went wrong — please try again.",
+          sql: "",
+          columns: [],
+          rows: [],
+          confidence: "low" as const,
+          reason: err.message || "Request failed",
+          basedOn: false,
+          query_id: id,
+          verdict: null,
+          thinkingArtifacts: [...artifacts],
+        });
+      },
+      signal,
+    );
+  }
+
   async function ask(text?: string) {
     const q = (text || input).trim();
-    if (!q) return;
-    if (loading) return;
+    if (!q || loading) return;
     input = "";
     loading = true;
+    abortController = new AbortController();
     const id = Math.random().toString(36).slice(2, 10);
 
     posthog.capture("query_submitted", {
@@ -210,50 +284,17 @@
     const sqlMatch = q.match(/^\/sql\s+(.+)/is);
     if (sqlMatch) {
       const rawSql = sqlMatch[1].trim();
-      turns = [
-        ...turns,
-        { id, question: rawSql, thinking: true, isDirect: true },
-      ];
+      turns = [...turns, { id, question: rawSql, thinking: true, isDirect: true }];
       try {
         const data = await apiCall("/api/execute", { sql: rawSql });
         const rows2d = rowsToArrays(data.columns || [], data.rows || []);
         turns = turns.map((x) =>
-          x.id === id
-            ? {
-                ...x,
-                thinking: false,
-                sql: data.sql || rawSql,
-                columns: data.columns || [],
-                rows: rows2d,
-                confidence: "high" as const,
-                reason: "Direct SQL execution",
-                basedOn: false,
-                query_id: id,
-                executionError: null,
-                verdict: null,
-                isDirect: true,
-              }
-            : x,
+          x.id === id ? { ...x, thinking: false, sql: data.sql || rawSql, columns: data.columns || [], rows: rows2d, confidence: "high" as const, reason: "Direct SQL execution", basedOn: false, query_id: id, executionError: null, verdict: null, isDirect: true } : x,
         );
         historyTrigger++;
       } catch (e: any) {
         turns = turns.map((x) =>
-          x.id === id
-            ? {
-                ...x,
-                thinking: false,
-                sql: rawSql,
-                columns: [],
-                rows: [],
-                confidence: "low" as const,
-                reason: "Execution failed",
-                basedOn: false,
-                query_id: id,
-                executionError: e.message || "SQL execution failed",
-                verdict: null,
-                isDirect: true,
-              }
-            : x,
+          x.id === id ? { ...x, thinking: false, sql: rawSql, columns: [], rows: [], confidence: "low" as const, reason: "Execution failed", basedOn: false, query_id: id, executionError: e.message || "SQL execution failed", verdict: null, isDirect: true } : x,
         );
       } finally {
         loading = false;
@@ -261,97 +302,47 @@
       return;
     }
 
-    // Normal LLM query flow
-    let build_context = [];
-    for (let turn of turns.toReversed()) {
-      if (build_context.length >= 2) {
-        break;
-      }
-      if (
-        turn.thinking == true ||
-        !turn.sql ||
-        turn.executionError ||
-        turn.verdict === "wrong"
-      ) {
-        continue;
-      }
-      build_context.push({
-        question: turn.question,
-        sql: turn.sql,
-        restatement: turn.restatement,
-      });
-    }
-    build_context.reverse();
-    const artifacts: ThinkingArtifact[] = [];
-    turns = [
-      ...turns,
-      { id, question: q, thinking: true, thinkingArtifacts: artifacts },
-    ];
-    currentArtifacts = artifacts;
     try {
-      await streamApiCall(
-        "/api/query/stream",
-        { question: q, context: build_context },
-        (event: StreamEvent) => {
-          const artifact = eventToArtifact(event);
-          if (artifact) {
-            if (artifact.kind === "hint") {
-              const idx = artifacts.findIndex((a) => a.kind === "hint");
-              if (idx >= 0) artifacts[idx] = artifact;
-              else artifacts.push(artifact);
-            } else {
-              artifacts.push(artifact);
-            }
-            currentArtifacts = [...artifacts];
-          }
-        },
-        (data: any) => {
-          const rows2d = rowsToArrays(data.columns || [], data.rows || []);
-          turns = turns.map((x) =>
-            x.id === id
-              ? {
-                  ...x,
-                  thinking: false,
-                  restatement: data.restatement || "",
-                  sql: data.sql || "",
-                  columns: data.columns || [],
-                  rows: rows2d,
-                  confidence: data.confidence || "medium",
-                  reason: data.confidence_reason || "",
-                  basedOn: data.based_on_verified || false,
-                  query_id: data.query_id || id,
-                  executionError: data.execution_error || null,
-                  verdict: null,
-                  thinkingArtifacts: [...artifacts],
-                }
-              : x,
-          );
-          historyTrigger++;
-        },
-        (err: Error) => {
-          turns = turns.map((x) =>
-            x.id === id
-              ? {
-                  ...x,
-                  thinking: false,
-                  restatement: "Something went wrong — please try again.",
-                  sql: "",
-                  columns: [],
-                  rows: [],
-                  confidence: "low" as const,
-                  reason: err.message || "Request failed",
-                  basedOn: false,
-                  query_id: id,
-                  verdict: null,
-                  thinkingArtifacts: [...artifacts],
-                }
-              : x,
-          );
-        },
+      await runQuery(
+        q,
+        (turn) => { turns = [...turns, turn]; },
+        (id, update) => { turns = turns.map((x) => x.id === id ? { ...x, ...update } : x); },
+        abortController.signal,
       );
     } finally {
+      abortController = null;
       loading = false;
     }
+  }
+
+  async function requeryAt(idx: number, question: string) {
+    const q = question.trim();
+    if (!q || loading) return;
+    loading = true;
+    abortController = new AbortController();
+    try {
+      await runQuery(
+        q,
+        (turn) => { turns[idx] = turn; },
+        (id, update) => { turns[idx] = { ...turns[idx], ...update }; },
+        abortController.signal,
+      );
+    } finally {
+      abortController = null;
+      loading = false;
+    }
+  }
+
+  function regenerate(turnId: string) {
+    const idx = turns.findIndex((t) => t.id === turnId);
+    if (idx === -1) return;
+    requeryAt(idx, turns[idx].question);
+  }
+
+  function editAndRequery(turnId: string, newQuestion: string) {
+    const idx = turns.findIndex((t) => t.id === turnId);
+    if (idx === -1) return;
+    requeryAt(idx, newQuestion);
   }
 
   async function handleVerify(
@@ -528,6 +519,9 @@
               isLatest={i === turns.length - 1}
               onVerify={handleVerify}
               liveArtifacts={t.thinking ? currentArtifacts : undefined}
+              onRegenerate={regenerate}
+              onEditPrompt={editAndRequery}
+              modelName={t.thinking ? modelName : modelName}
             />
           {/each}
         {/if}
