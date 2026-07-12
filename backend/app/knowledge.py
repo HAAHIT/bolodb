@@ -45,8 +45,36 @@ class KnowledgeBase:
             CREATE TABLE IF NOT EXISTS glossary (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 db_id TEXT NOT NULL, term TEXT, maps_to TEXT, sql_hint TEXT);
+            -- Semantic catalog (issue #90): a curated per-database catalog that
+            -- maps business language to schema entities, filters and joins.
+            CREATE TABLE IF NOT EXISTS column_descriptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                db_id TEXT NOT NULL, table_name TEXT NOT NULL,
+                column_name TEXT NOT NULL, description TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS metric_definitions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                db_id TEXT NOT NULL, name TEXT NOT NULL,
+                description TEXT, sql_expression TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS join_paths (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                db_id TEXT NOT NULL, tables TEXT NOT NULL,
+                join_condition TEXT NOT NULL, description TEXT);
+            CREATE TABLE IF NOT EXISTS synonyms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                db_id TEXT NOT NULL, term TEXT NOT NULL,
+                entity_type TEXT NOT NULL, entity_name TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS value_mappings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                db_id TEXT NOT NULL, table_name TEXT NOT NULL,
+                column_name TEXT NOT NULL, db_value TEXT NOT NULL,
+                business_label TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS ix_v ON verified(db_id);
             CREATE INDEX IF NOT EXISTS ix_g ON glossary(db_id);
+            CREATE INDEX IF NOT EXISTS ix_cd ON column_descriptions(db_id);
+            CREATE INDEX IF NOT EXISTS ix_md ON metric_definitions(db_id);
+            CREATE INDEX IF NOT EXISTS ix_jp ON join_paths(db_id);
+            CREATE INDEX IF NOT EXISTS ix_sy ON synonyms(db_id);
+            CREATE INDEX IF NOT EXISTS ix_vm ON value_mappings(db_id);
         """
         )
         conn.commit()
@@ -107,6 +135,84 @@ class KnowledgeBase:
                 "SELECT term,maps_to,sql_hint FROM glossary WHERE db_id=?", (db_id,)
             ).fetchall()
         ]
+
+    # ── Semantic catalog (issue #90) ─────────────────────────────────
+    #
+    # The catalog is a dict with these five lists (all optional):
+    #   column_descriptions: {table, column, description}
+    #   metrics:             {name, description, sql_expression}
+    #   joins:               {tables, join_condition, description}
+    #   synonyms:            {term, entity_type, entity_name}
+    #   value_maps:          {table, column, db_value, business_label}
+    # It is stable per connected database, so it is cheap to read on every
+    # query and ideal to feed into schema linking and the generation prompt.
+
+    _CATALOG_TABLES = {
+        "column_descriptions": (
+            "column_descriptions",
+            ("table_name", "column_name", "description"),
+            ("table", "column", "description"),
+        ),
+        "metrics": (
+            "metric_definitions",
+            ("name", "description", "sql_expression"),
+            ("name", "description", "sql_expression"),
+        ),
+        "joins": (
+            "join_paths",
+            ("tables", "join_condition", "description"),
+            ("tables", "join_condition", "description"),
+        ),
+        "synonyms": (
+            "synonyms",
+            ("term", "entity_type", "entity_name"),
+            ("term", "entity_type", "entity_name"),
+        ),
+        "value_maps": (
+            "value_mappings",
+            ("table_name", "column_name", "db_value", "business_label"),
+            ("table", "column", "db_value", "business_label"),
+        ),
+    }
+
+    def set_catalog(self, db_id, catalog):
+        """Replace the whole catalog for a database.
+
+        Each of the five categories present in ``catalog`` is cleared and
+        re-inserted; a category absent from ``catalog`` is left untouched, so
+        callers can save one section at a time.
+        """
+        conn = self._get_conn()
+        for key, (table, cols, in_keys) in self._CATALOG_TABLES.items():
+            if key not in catalog:
+                continue
+            conn.execute(f"DELETE FROM {table} WHERE db_id=?", (db_id,))
+            placeholders = ",".join(["?"] * (len(cols) + 1))
+            col_list = ",".join(("db_id", *cols))
+            for entry in catalog[key] or []:
+                values = (db_id, *(str(entry.get(k, "") or "") for k in in_keys))
+                conn.execute(
+                    f"INSERT INTO {table}({col_list}) VALUES({placeholders})", values
+                )
+        conn.commit()
+
+    def get_catalog(self, db_id):
+        """Return the full catalog for a database as a dict of five lists."""
+        conn = self._get_conn()
+        out = {}
+        for key, (table, cols, out_keys) in self._CATALOG_TABLES.items():
+            rows = conn.execute(
+                f"SELECT {','.join(cols)} FROM {table} WHERE db_id=?", (db_id,)
+            ).fetchall()
+            out[key] = [
+                {ok: r[c] for c, ok in zip(cols, out_keys)} for r in rows
+            ]
+        return out
+
+    def catalog_is_empty(self, db_id):
+        """True when no catalog entry of any kind exists for this database."""
+        catalog = self.get_catalog(db_id)
+        return not any(catalog.values())
 
     def trust_level(self, db_id):
         n = self.count_verified(db_id)

@@ -53,3 +53,48 @@ class GlossaryItem(BaseModel):
 class SaveOnboardReq(BaseModel):
     glossary: list[GlossaryItem] = []
     starters: list[dict] = []
+
+
+# ── Semantic catalog (issue #90) ──────────────────────────────────────
+
+
+class ColumnDescription(BaseModel):
+    table: str
+    column: str
+    description: str = ""
+
+
+class MetricDefinition(BaseModel):
+    name: str
+    description: str = ""
+    sql_expression: str = ""
+
+
+class JoinPath(BaseModel):
+    tables: str
+    join_condition: str
+    description: str = ""
+
+
+class Synonym(BaseModel):
+    term: str
+    entity_type: str = ""
+    entity_name: str = ""
+
+
+class ValueMapping(BaseModel):
+    table: str
+    column: str
+    db_value: str
+    business_label: str = ""
+
+
+class CatalogPayload(BaseModel):
+    """The full semantic catalog for one database. Keys match
+    ``KnowledgeBase.get_catalog`` / ``set_catalog``."""
+
+    column_descriptions: list[ColumnDescription] = []
+    metrics: list[MetricDefinition] = []
+    joins: list[JoinPath] = []
+    synonyms: list[Synonym] = []
+    value_maps: list[ValueMapping] = []
