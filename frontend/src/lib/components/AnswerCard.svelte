@@ -41,7 +41,7 @@
 
     {#if turn.thinking}
       {#if liveArtifacts}
-        <Thinking artifacts={liveArtifacts} />
+        <Thinking artifacts={liveArtifacts} active />
       {:else}
         <Thinking />
       {/if}

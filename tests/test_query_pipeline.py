@@ -81,9 +81,10 @@ class FakeLog:
 
 
 class Req:
-    def __init__(self, question, context=None):
+    def __init__(self, question, context=None, conversation_id=None):
         self.question = question
         self.context = context or []
+        self.conversation_id = conversation_id
 
 
 CFG = {"provider": "gemini", "model": "gemini-2.5-flash"}

@@ -331,7 +331,7 @@
         <form onsubmit={handleSubmit}
           style="display:flex;align-items:center;gap:10px;padding:7px 7px 7px 18px;border:1.5px solid var(--border-2);border-radius:var(--radius-lg);background:var(--surface);box-shadow:var(--shadow-sm);transition:border-color .15s, box-shadow .15s">
           <input bind:value={input} oninput={handleInput} bind:this={inputRef} placeholder="Ask anything about your data…"
-            aria-label="Ask a question about your data" autofocus
+            aria-label="Ask a question about your data" autofocus class="chat-input"
             style="flex:1;border:none;outline:none;background:transparent;font-size:15.5px;color:var(--ink)" />
           <Button kind="primary" type="submit" disabled={!input.trim() || loading}>
             {#snippet icon()}{#if loading}<Spinner />{:else}<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h13M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>{/if}{/snippet}
@@ -352,3 +352,14 @@
     <Settings {modelName} {setModelName} onClose={() => settingsOpen = false} {onDisconnect} />
   {/if}
 </div>
+
+<style>
+  .chat-input:focus {
+    outline: none;
+    box-shadow: none;
+  }
+  .chat-input:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+</style>
