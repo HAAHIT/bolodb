@@ -309,6 +309,24 @@ def create_conversation(user_id, title="", database_id=None):
     return serialize_doc(doc)
 
 
+def conversation_owned_by(user_id, conversation_id):
+    """Return True if this conversation exists and belongs to the user.
+
+    Cheap ownership check used before linking a new turn to a conversation, so
+    a caller can't attach its query to (or bump) another user's conversation.
+    """
+    try:
+        oid = ObjectId(conversation_id)
+    except (InvalidId, TypeError):
+        return False
+    return (
+        db["conversations"].find_one(
+            {"_id": oid, "user_id": str(user_id)}, {"_id": 1}
+        )
+        is not None
+    )
+
+
 def get_conversations(user_id):
     conversations = db["conversations"]
     history = db["query_history"]
@@ -316,10 +334,13 @@ def get_conversations(user_id):
     results = []
     for conv in cursor:
         conv = serialize_doc(conv)
-        # Count turns and get last question
-        turn_count = history.count_documents({"conversation_id": conv["_id"]})
+        # Count turns and get last question — scope to this user so a turn that
+        # was mislinked to this conversation id can't inflate the count.
+        turn_count = history.count_documents(
+            {"conversation_id": conv["_id"], "user_id": str(user_id)}
+        )
         last_turn = history.find_one(
-            {"conversation_id": conv["_id"]},
+            {"conversation_id": conv["_id"], "user_id": str(user_id)},
             sort=[("timestamp", -1)],
         )
         conv["turn_count"] = turn_count
@@ -338,9 +359,12 @@ def get_conversation(user_id, conversation_id):
     if not conv:
         return None
     conv = serialize_doc(conv)
-    # Fetch turns
+    # Fetch turns — scope to this user as well as the conversation so a turn
+    # another account mislinked to this id can never surface here.
     history = db["query_history"]
-    cursor = history.find({"conversation_id": conv["_id"]}).sort("timestamp", 1)
+    cursor = history.find(
+        {"conversation_id": conv["_id"], "user_id": str(user_id)}
+    ).sort("timestamp", 1)
     conv["turns"] = [serialize_doc(doc) for doc in cursor]
     return conv
 
