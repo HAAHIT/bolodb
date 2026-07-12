@@ -6,6 +6,28 @@
   }: { columns: string[]; rows: string[][]; max?: number } = $props();
   let copied = $state(false);
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+  let copiedCell: string | null = $state(null);
+  let copiedCellTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function copyCell(text: string) {
+    const fallback = () => {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); } finally { document.body.removeChild(ta); }
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => fallback());
+    } else {
+      fallback();
+    }
+    copiedCell = text;
+    clearTimeout(copiedCellTimer);
+    copiedCellTimer = setTimeout(() => (copiedCell = null), 800);
+  }
 
   function isNumeric(v: string): boolean {
     return typeof v === "string" && /^[$]?[\d.,%]+$/.test(v);
@@ -68,19 +90,17 @@
     style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface)"
   >
     <div
-      style="display:flex;align-items:center;justify-content:flex-end;padding:7px 12px 0;background:var(--surface-2);border-bottom:1px solid var(--border)"
+      style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px 0;background:var(--surface-2);border-bottom:1px solid var(--border)"
     >
+      <span style="font-size:11.5px;font-weight:600;color:var(--faint)">{rows.length} row{rows.length === 1 ? '' : 's'} returned</span>
       <button
         onclick={copyCSV}
         title="Copy all rows as CSV — paste into Excel or Sheets"
         aria-live="polite"
-        style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;background:{copied
-          ? 'var(--brand-tint)'
-          : 'transparent'};border:{copied
-          ? '1px solid var(--brand-tint-2)'
-          : '1px solid var(--border-2)'};color:{copied
-          ? 'var(--brand-ink)'
-          : 'var(--faint)'};font-size:11.5px;font-weight:650;cursor:pointer;transition:all .15s"
+        class="tb-btn"
+        style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;font-size:11.5px;font-weight:650;color:{copied
+          ? 'var(--brand)'
+          : 'var(--faint)'}"
       >
         {copied ? "✓ Copied!" : "↓ Copy as CSV"}
       </button>
@@ -106,7 +126,8 @@
             {#each r as cell, ci}
               <td
                 class={ci > 0 && isNumeric(cell) ? "tnum" : ""}
-                style="padding:11px 16px;color:{ci === 0
+                onclick={() => copyCell(cell)}
+                style="cursor:pointer;padding:11px 16px;color:{ci === 0
                   ? 'var(--ink)'
                   : 'var(--ink-2)'};font-weight:{ci === 0
                   ? 600
@@ -116,7 +137,8 @@
                   ? 'right'
                   : 'left'};font-size:{ci > 0 && isNumeric(cell)
                   ? '13.5px'
-                  : '14px'}">{cell}</td
+                  : '14px'};position:relative"
+              >{cell}{#if copiedCell === cell}<span style="position:absolute;top:-4px;right:-4px;font-size:9px;font-weight:700;color:var(--brand);background:var(--surface);padding:0 3px;border-radius:3px;white-space:nowrap">Copied!</span>{/if}</td
               >
             {/each}
           </tr>
@@ -125,3 +147,16 @@
     </table>
   </div>
 {/if}
+
+<style>
+  .tb-btn {
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: color .15s;
+  }
+  .tb-btn:hover {
+    color: var(--muted) !important;
+  }
+</style>

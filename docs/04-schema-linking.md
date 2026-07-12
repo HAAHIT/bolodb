@@ -33,6 +33,7 @@ them is a one-line change:
 | Question word matches a **known cell value** | 2.0 per match | "**laptops**" → `products.category` contains `laptops` |
 | Table appears in a **verified similar answer** | +5.0 | You confirmed a similar question before, and its SQL used this table |
 | Table was used by the **previous query** in this conversation | +8.0 | "now filter this for 2023" keeps working on the same tables |
+| Table was picked by the **LLM shortlist pass** (big schemas only) | +6.0 | See "Two-stage linking" below |
 
 Implementation notes (all in `schema_link.py`):
 
@@ -84,6 +85,51 @@ they get more tables:
 | `flash` (default) | 20 | 2 | 5 |
 | `pro` | 25 | 2 | 5 |
 
+## Two-stage linking — big schemas get an AI assist
+
+Word matching has a blind spot: a question about "clients" won't find a table
+called `customers` unless the glossary or verified history bridges the gap.
+On big databases (more than 30 tables — `_SHORTLIST_MIN_TABLES` in
+`backend/app/controllers/query.py`), BoloDB adds a cheap first AI pass:
+
+1. A **names-only catalog** of every table (`orders(id, customer_id, …)` — a
+   few tokens per table even for hundreds of tables) is sent to Gemini with
+   thinking disabled, asking "which tables might matter for this question?"
+   *Code:* `backend/app/llm.py` → `shortlist_tables()`.
+2. The picks come back into local scoring as a **+6 boost** — never as a
+   replacement. If the call fails or the model picks nonsense (invented names
+   are dropped), linking silently falls back to local-only scoring. The
+   shortlist can only ever add signal, not remove it.
+
+Small databases skip this entirely — local scoring alone is accurate there
+and the extra call isn't worth the latency.
+
+## Schema-retry — the AI as a linking-error detector
+
+Even good scoring sometimes drops a table the question needed. The self-repair
+loop (chapter 5) turns that miss into a one-round-trip fix:
+
+- When a generated query **fails** (validation or execution), BoloDB parses
+  the failed SQL for table names. If the model referenced a table that
+  **really exists in the database** but wasn't shown to it, that's not a
+  hallucination — it's the model telling us the linking missed something.
+- The table (plus its FK parents) is added to the linked set, and the next
+  repair attempt sees the widened schema.
+- *Code:* `expand_linked_tables()` in `schema_link.py`, wired via the
+  `on_failure` hook of `run_repair_loop` in `controllers/query.py` →
+  `_on_failure()`. Additions show up in the response's `tables_used` and are
+  logged as `schema-retry: added [...]`.
+
+## How the whole database stays visible (introspection)
+
+Schema linking can only pick from tables it can see. Introspection
+(`backend/app/database.py` → `get_schema()`) therefore collects **structure —
+columns and primary/foreign keys — for every table, however many there are**.
+Only the expensive enrichment (sample rows, per-table row counts, known cell
+values) is capped, at 40 tables (`ENRICH_MAX`), preferring the largest tables
+when row counts are known. A 200-table database is fully linkable and fully
+visible to the AI; the smallest 160 tables just don't carry example values.
+
 ## The output format the AI reads
 
 `compact_schema()` renders each selected table as one dense line — far fewer
@@ -101,15 +147,6 @@ for small text columns) · `~38104 rows` = approximate size.
 
 Those `[values]` matter more than they look: they're why the AI writes
 `WHERE status = 'completed'` instead of guessing `WHERE status = 'complete'`.
-
-## Current limitation: the 40-table introspection cap
-
-Schema linking can only rank tables that introspection collected, and
-`get_schema()` (`backend/app/database.py`, constant `MAX_T`) currently stops
-at the **first 40 tables**. On a database larger than that, tables beyond the
-cap are invisible to both scoring and the AI. The fix — collecting structure
-for every table and capping only the expensive sampling — is implemented in
-[PR #162](https://github.com/HAAHIT/bolodb/pull/162).
 
 ## Debugging: which tables were picked, and why?
 

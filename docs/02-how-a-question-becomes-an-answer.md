@@ -53,6 +53,8 @@ only the relevant ones.
   (details in [chapter 4](04-schema-linking.md)).
 - How many tables are allowed depends on the Gemini model configured —
   `model_budget()` in the same file.
+- On big databases (30+ tables), a cheap AI pre-pass shortlists candidate
+  tables from a names-only catalog first — "two-stage linking", chapter 4.
 
 The chosen tables are rendered into a compact text form the AI reads —
 `compact_schema()` produces lines like:
@@ -85,7 +87,9 @@ Each iteration (at most 3, and no new attempt after 60 seconds):
    'revenue' does not exist in table 'orders'" or the database's own error
    message — is appended to the question and the loop starts over. The AI
    sees exactly what broke and fixes it. *Code:* the feedback text is built
-   by `_feedback()` in `repair.py`.
+   by `_feedback()` in `repair.py`. And if the failed SQL referenced a real
+   table that step 2 didn't select, that table is added to the prompt for
+   the retry ("schema-retry" — chapter 4).
 
 The response records how many attempts were needed (`attempts` field) and
 whether a repair happened (`repaired`) — useful when debugging.

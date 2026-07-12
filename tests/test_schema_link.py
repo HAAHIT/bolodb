@@ -2,6 +2,7 @@
 
 import pytest
 from backend.app.schema_link import (
+    expand_linked_tables,
     model_budget,
     compute_confidence,
     link_relevant_tables,
@@ -209,6 +210,40 @@ def test_confidence_medium_when_novel_question_returns_rows():
     assert based is False
 
 
+def test_link_shortlist_boost_beats_no_match(small_schema):
+    # nothing in the question matches; the LLM-shortlisted table must win
+    result = link_relevant_tables(
+        "hmm", small_schema, [], [], 1, set(), boost_tables={"products"}
+    )
+    assert result[0] == "products"
+
+
+def test_expand_adds_referenced_real_table_and_its_fk_parents(small_schema):
+    # model referenced `orders`, which we never sent; users is its FK parent
+    added = expand_linked_tables(
+        small_schema, ["products"], "SELECT * FROM orders", "sqlite"
+    )
+    assert added == ["orders", "users"]
+
+
+def test_expand_ignores_hallucinated_and_already_linked_tables(small_schema):
+    added = expand_linked_tables(
+        small_schema, ["users"], "SELECT * FROM ghosts JOIN users", "sqlite"
+    )
+    assert added == []
+
+
+def test_expand_is_case_insensitive(small_schema):
+    added = expand_linked_tables(
+        small_schema, ["users"], "SELECT * FROM ORDERS", "sqlite"
+    )
+    assert added == ["orders"]  # users (FK parent) already linked
+
+
+def test_expand_handles_unparseable_sql(small_schema):
+    assert expand_linked_tables(small_schema, ["users"], "not sql ((", "sqlite") == []
+
+
 def test_confidence_uses_the_strongest_retrieved_match():
     confidence, reason, based = compute_confidence(
         retrieved=[{"similarity": 0.2}, {"similarity": 0.8}, {"similarity": 0.4}],
@@ -216,3 +251,60 @@ def test_confidence_uses_the_strongest_retrieved_match():
     )
     assert confidence == "high"
     assert based is True
+
+
+def test_expand_fk_parents_recursive():
+    schema = {
+        "permissions": {
+            "columns": [{"name": "id"}, {"name": "role_id"}],
+            "foreign_keys": [{"column": "role_id", "references": "roles.id"}],
+            "row_count": 100,
+            "distinct_values": {},
+        },
+        "roles": {
+            "columns": [{"name": "id"}, {"name": "created_by"}],
+            "foreign_keys": [{"column": "created_by", "references": "users.id"}],
+            "row_count": 10,
+            "distinct_values": {},
+        },
+        "users": {
+            "columns": [{"name": "id"}, {"name": "name"}],
+            "foreign_keys": [],
+            "row_count": 50,
+            "distinct_values": {},
+        },
+    }
+    added = expand_linked_tables(schema, [], "SELECT * FROM permissions", "sqlite")
+    assert set(added) == {"permissions", "roles", "users"}
+
+
+def test_expand_fk_parents_with_cycle():
+    schema = {
+        "a": {
+            "columns": [{"name": "id"}, {"name": "b_id"}],
+            "foreign_keys": [{"column": "b_id", "references": "b.id"}],
+            "row_count": 100,
+            "distinct_values": {},
+        },
+        "b": {
+            "columns": [{"name": "id"}, {"name": "a_id"}],
+            "foreign_keys": [{"column": "a_id", "references": "a.id"}],
+            "row_count": 100,
+            "distinct_values": {},
+        },
+    }
+    added = expand_linked_tables(schema, [], "SELECT * FROM a", "sqlite")
+    assert set(added) == {"a", "b"}
+
+
+def test_expand_fk_parents_self_reference():
+    schema = {
+        "employees": {
+            "columns": [{"name": "id"}, {"name": "manager_id"}],
+            "foreign_keys": [{"column": "manager_id", "references": "employees.id"}],
+            "row_count": 100,
+            "distinct_values": {},
+        },
+    }
+    added = expand_linked_tables(schema, [], "SELECT * FROM employees", "sqlite")
+    assert added == ["employees"]

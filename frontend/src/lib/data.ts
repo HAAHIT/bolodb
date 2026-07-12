@@ -233,13 +233,13 @@ export function capitalize(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
-export function formatTime(ts: string): string {
-  if (!ts) return "";
-  const d = new Date(ts);
+export function formatTime(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
   const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  if (diff < 60000) return "just now";
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
   return d.toLocaleDateString();
 }

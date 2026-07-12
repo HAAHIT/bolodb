@@ -28,6 +28,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from abc import ABC, abstractmethod
 
 import httpx
@@ -623,8 +624,6 @@ async def shortlist_tables(provider, question, schema, max_columns=4):
     dropped). Raises LLMError like any other provider call — the caller treats
     failure as "no boost" and falls back to local-only linking.
     """
-    import time
-
     start = time.monotonic()
     lines = []
     for t, info in schema.items():

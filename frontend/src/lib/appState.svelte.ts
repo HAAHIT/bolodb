@@ -14,6 +14,7 @@ class AppState {
   starters = $state<string[]>([]);
   isLoaded = $state(false);
   theme = $state("dark");
+  activeConversationId = $state<string | null>(null);
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -98,6 +99,7 @@ class AppState {
     this.realSchema = null;
     this.verifiedCount = 0;
     this.starters = [];
+    this.activeConversationId = null;
     goto("/login");
   }
 
@@ -177,6 +179,7 @@ class AppState {
     this.realSchema = null;
     this.verifiedCount = 0;
     this.starters = [];
+    this.activeConversationId = null;
     goto("/connect");
   }
 }

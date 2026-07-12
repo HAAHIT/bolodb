@@ -89,7 +89,10 @@ the host (`backend/app/database.py` → `connect()`).
   Google (`backend/app/llm.py` → `complete()`).
 - Every question and its outcome is appended to
   `~/.bolodb/sessions/session-<timestamp>.jsonl` — question, SQL,
-  confidence, error, feedback verdicts. This is your replay log.
+  confidence, error, feedback verdicts, plus `tables_used` (exactly which
+  tables the AI saw, including schema-retry additions) and `attempts` (how
+  many generation rounds were needed). This is your replay log; high
+  `attempts` values are the production signal of linking misses.
 
 ### Diagnosing a bad answer, step by step
 

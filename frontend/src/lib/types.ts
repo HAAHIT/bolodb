@@ -77,6 +77,7 @@ export interface Turn {
   id: string;
   question: string;
   thinking: boolean;
+  timestamp?: string;
   restatement?: string;
   sql?: string;
   columns?: string[];
@@ -185,4 +186,28 @@ export interface HistoryStats {
   confidence: { High: number; Medium: number; Low: number };
   daily_activity: { date: string; count: number }[];
   top_tables: { table: string; count: number }[];
+}
+
+export interface Conversation {
+  _id: string;
+  title: string;
+  database_id?: string;
+  turn_count: number;
+  last_question?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationTurn {
+  _id: string;
+  question: string;
+  sql: string;
+  result: Record<string, unknown>[];
+  confidence: "High" | "Medium" | "Low";
+  restatement: string;
+  timestamp: string;
+}
+
+export interface ConversationDetail extends Conversation {
+  turns: ConversationTurn[];
 }

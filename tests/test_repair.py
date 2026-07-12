@@ -144,6 +144,60 @@ def test_max_iterations_floor_runs_at_least_once():
     assert res["ok"] is True
 
 
+def test_on_failure_hook_gets_sql_and_errors_on_validation_failure():
+    gen = FakeGenerator(
+        [
+            {"sql": "SELECT bad FROM x", "restatement": ""},
+            {"sql": "SELECT 1", "restatement": ""},
+        ]
+    )
+    calls = []
+
+    def validate(sql):
+        if "bad" in sql:
+            return {"ok": False, "errors": ["Unknown column: 'bad'"]}
+        return {"ok": True, "errors": []}
+
+    res = run_repair_loop(
+        gen, validate, on_failure=lambda sql, errs: calls.append((sql, errs))
+    )
+    assert res["ok"] is True
+    assert calls == [("SELECT bad FROM x", ["Unknown column: 'bad'"])]
+
+
+def test_on_failure_hook_fires_on_execution_failure_too():
+    gen = FakeGenerator(
+        [
+            {"sql": "SELECT boom", "restatement": ""},
+            {"sql": "SELECT 1", "restatement": ""},
+        ]
+    )
+    calls = []
+
+    def execute(sql):
+        if "boom" in sql:
+            return {"error": "runtime exploded"}
+        return {"columns": [], "rows": []}
+
+    res = run_repair_loop(
+        gen,
+        ok_validate,
+        execute=execute,
+        on_failure=lambda sql, errs: calls.append((sql, errs)),
+    )
+    assert res["ok"] is True
+    assert calls == [("SELECT boom", ["runtime exploded"])]
+
+
+def test_on_failure_hook_not_called_on_success():
+    gen = FakeGenerator([{"sql": "SELECT 1", "restatement": ""}])
+    calls = []
+    run_repair_loop(
+        gen, ok_validate, on_failure=lambda sql, errs: calls.append((sql, errs))
+    )
+    assert calls == []
+
+
 def test_schema_validator_integration():
     schema = {
         "orders": {

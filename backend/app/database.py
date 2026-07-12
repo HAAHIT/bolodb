@@ -258,8 +258,8 @@ class DatabaseManager:
                     continue
 
                 if tbl not in enrich:
-                    # Structure only: still fully visible to schema linking and
-                    # the AI prompt, just without samples/known values.
+                    # Structure only: still fully visible to schema linking
+                    # and the AI prompt, just without samples/known values.
                     schema[tbl] = {
                         "columns": columns,
                         "foreign_keys": fks,

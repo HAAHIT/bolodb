@@ -337,6 +337,8 @@ def get_conversations(user_id):
     results = []
     for conv in cursor:
         conv = serialize_doc(conv)
+        # Count turns and get last question — scope to this user so a turn that
+        # was mislinked to this conversation id can't inflate the count.
         turn_count = history.count_documents(
             {"conversation_id": conv["_id"], "user_id": str(user_id)}
         )
@@ -360,6 +362,8 @@ def get_conversation(user_id, conversation_id):
     if not conv:
         return None
     conv = serialize_doc(conv)
+    # Fetch turns — scope to this user as well as the conversation so a turn
+    # another account mislinked to this id can never surface here.
     history = db["query_history"]
     cursor = history.find(
         {"conversation_id": conv["_id"], "user_id": str(user_id)}
@@ -401,6 +405,9 @@ def delete_conversation(user_id, conversation_id):
         oid = ObjectId(conversation_id)
     except (InvalidId, TypeError):
         return False
+    # Confirm ownership first, then delete the turns before the conversation:
+    # if turn deletion fails the conversation is still there to retry, rather
+    # than leaving orphaned turns behind. Turn deletion is scoped to the owner.
     if (
         conversations.find_one({"_id": oid, "user_id": str(user_id)}, {"_id": 1})
         is None
@@ -416,6 +423,7 @@ def clear_conversations(user_id):
     history = db["query_history"]
     conv_cursor = conversations.find({"user_id": str(user_id)}, {"_id": 1})
     conv_ids = [str(c["_id"]) for c in conv_cursor]
+    # Delete turns before conversations so a partial failure never orphans turns.
     if conv_ids:
         history.delete_many(
             {"conversation_id": {"$in": conv_ids}, "user_id": str(user_id)}
