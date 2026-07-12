@@ -197,7 +197,7 @@
 </div>
 <div style="display:flex;align-items:center">
   <button onclick={() => sidebarOpen = !sidebarOpen} aria-label="Toggle sidebar"
-    style="width:16px;height:48px;flex-shrink:0;cursor:pointer;background:var(--surface);border:none;border-right:1px solid var(--border);border-radius:0;display:flex;align-items:center;justify-content:center;transition:background .15s, opacity .15s;opacity:.4"
+    style="width:16px;height:48px;flex-shrink:0;cursor:pointer;background:var(--surface);border:none;border-right:1px solid var(--border);clip-path:polygon(5px 0,100% 0,calc(100% - 5px) 100%,0 100%);display:flex;align-items:center;justify-content:center;transition:background .15s, opacity .15s;opacity:.4"
     onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1'; (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
     onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '.4'; (e.currentTarget as HTMLElement).style.background = 'var(--surface)' }}>
     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="color:var(--muted)">
