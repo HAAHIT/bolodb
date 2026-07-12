@@ -152,6 +152,25 @@ export interface BankItem {
   base: string;
 }
 
+export interface ConversationTurn {
+  _id: string;
+  question: string;
+  sql: string;
+  result: Record<string, unknown>[];
+  confidence: string;
+  restatement: string;
+  timestamp: string;
+}
+
+export interface Conversation {
+  _id: string;
+  title: string;
+  last_question: string;
+  turn_count: number;
+  updated_at: string;
+  created_at: string;
+}
+
 export interface HistoryEntry {
   _id: string;
   question: string;

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { trustFor } from "$lib/data";
-  import { apiCall, rowsToArrays, streamApiCall } from "$lib/api";
+  import { apiCall, rowsToArrays, streamApiCall, getConversation } from "$lib/api";
   import type {
     Turn,
     SchemaTable,
@@ -8,6 +8,7 @@
     Toast,
     ThinkingArtifact,
     StreamEvent,
+    Conversation,
   } from "$lib/types";
   import Sidebar from "$lib/components/Sidebar.svelte";
   import AnswerCard from "$lib/components/AnswerCard.svelte";
@@ -33,6 +34,7 @@
     dbInfo,
     starters,
     onDisconnect,
+    onActiveConversationChange = (_id: string | null) => {},
   }: {
     engine: string;
     modelName: string;
@@ -45,6 +47,7 @@
     dbInfo: DbInfo | null;
     starters: string[];
     onDisconnect: () => void;
+    onActiveConversationChange?: (id: string | null) => void;
   } = $props();
 
   const dbLabel = $derived(
@@ -60,6 +63,9 @@
   let feedRef: HTMLDivElement | undefined = $state(undefined);
   let historyTrigger = $state(0);
   let currentArtifacts: ThinkingArtifact[] = $state([]);
+  let conversationTrigger = $state(0);
+  let activeConversationId: string | null = $state(null);
+  let showScrollBtn = $state(false);
 
   const trust = $derived(trustFor(verifiedCount));
 
@@ -77,6 +83,16 @@
     turns; // track
     if (feedRef) feedRef.scrollTop = feedRef.scrollHeight;
   });
+
+  function onFeedScroll() {
+    if (!feedRef) return;
+    const d = feedRef.scrollHeight - feedRef.scrollTop - feedRef.clientHeight;
+    showScrollBtn = d > 200;
+  }
+
+  function scrollToBottom() {
+    if (feedRef) feedRef.scrollTop = feedRef.scrollHeight;
+  }
 
   function eventToArtifact(event: StreamEvent): ThinkingArtifact | null {
     switch (event.kind) {
@@ -367,6 +383,49 @@
     }
   }
 
+  async function handleNewConversation() {
+    turns = [];
+    onActiveConversationChange(null);
+  }
+
+  async function handleConversationSelect(convId: string) {
+    if (convId === activeConversationId) return;
+    loading = true;
+    try {
+      const conv = await getConversation(convId);
+      onActiveConversationChange(conv._id);
+      turns = (conv.turns || []).map((t: ConversationTurn) => ({
+        id: t._id,
+        question: t.question,
+        thinking: false,
+        timestamp: t.timestamp,
+        restatement: t.restatement || '',
+        sql: t.sql || '',
+        columns: t.result && t.result.length > 0 ? Object.keys(t.result[0]) : [],
+        rows: t.result ? (() => {
+          const cols = t.result.length > 0 ? Object.keys(t.result[0]) : [];
+          return t.result.map((row: Record<string, unknown>) => cols.map(c => {
+            const v = row[c];
+            return v === null || v === undefined ? '' : String(v);
+          }));
+        })() : [],
+        confidence: (t.confidence || 'medium').toLowerCase() as "high" | "medium" | "low",
+        reason: '',
+        basedOn: false,
+        query_id: t._id,
+        executionError: null,
+        verdict: null,
+        reasonChosen: null,
+      }));
+      conversationTrigger++;
+    } catch (e) {
+      console.error('Failed to load conversation', e);
+      turns = [];
+    } finally {
+      loading = false;
+    }
+  }
+
   function handleSubmit(e: Event) {
     e.preventDefault();
     ask();
@@ -381,6 +440,9 @@
     onSettings={() => (settingsOpen = true)}
     schema={realSchema}
     {dbInfo}
+    {conversationTrigger}
+    {activeConversationId}
+    onConversationSelect={handleConversationSelect}
     {historyTrigger}
     onHistorySelect={(h: any) => (input = h.question)}
   />
@@ -425,7 +487,7 @@
       <div style="display:flex;align-items:center;gap:10px">
         <TrustPill level={trust} count={verifiedCount} />
         {#if turns.length > 0}
-          <Button kind="quiet" size="sm" onclick={() => (turns = [])}>
+          <Button kind="quiet" size="sm" onclick={handleNewConversation}>
             {#snippet icon()}<svg
                 width="16"
                 height="16"
@@ -447,6 +509,7 @@
     <!-- feed -->
     <div
       bind:this={feedRef}
+      onscroll={onFeedScroll}
       style="flex:1;overflow-y:auto;padding:28px 28px 8px"
     >
       <div style="max-width:720px;margin:0 auto">
@@ -463,6 +526,11 @@
           {/each}
         {/if}
       </div>
+      {#if showScrollBtn}
+        <button onclick={scrollToBottom} aria-label="Scroll to latest"
+          style="position:sticky;bottom:16px;left:100%;width:38px;height:38px;border-radius:99px;border:1px solid var(--border);background:var(--surface);color:var(--muted);box-shadow:var(--shadow-md);cursor:pointer;display:grid;place-items:center;font-size:18px;font-weight:700;transition:opacity .2s;z-index:10"
+        >↓</button>
+      {/if}
     </div>
 
     <!-- input -->

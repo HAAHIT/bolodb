@@ -29,7 +29,9 @@ async def _format_sse(stream):
         yield f"data: {json.dumps({'kind': 'error', 'message': 'An internal error has occurred.'})}\n\n"
 
 
-def _safe_save_query(user_id, question, sql, result, confidence):
+def _safe_save_query(
+    user_id, question, sql, result, confidence, conversation_id=None, restatement=""
+):
     import backend.app.mongodatabase as mdb
 
     try:
@@ -39,6 +41,8 @@ def _safe_save_query(user_id, question, sql, result, confidence):
             sql=sql,
             result=result,
             confidence=confidence,
+            conversation_id=conversation_id,
+            restatement=restatement,
         )
     except Exception:
         log.warning("Failed to persist query history in background", exc_info=True)
@@ -60,6 +64,13 @@ async def query(
     if out.get("answered") and out.get("sql"):
         conf = out.get("confidence", "low")
         conf_str = "High" if conf == "high" else "Medium" if conf == "medium" else "Low"
+        # Only link the turn to a conversation the caller actually owns —
+        # otherwise a request could inject turns into someone else's thread.
+        conversation_id = req.conversation_id
+        if conversation_id and not await run_in_threadpool(
+            mdb.conversation_owned_by, user_id, conversation_id
+        ):
+            conversation_id = None
         try:
             await run_in_threadpool(
                 mdb.save_query,
@@ -68,7 +79,11 @@ async def query(
                 sql=out["sql"],
                 result=out.get("rows", []),
                 confidence=conf_str,
+                conversation_id=conversation_id,
+                restatement=out.get("restatement", ""),
             )
+            if conversation_id:
+                await run_in_threadpool(mdb.touch_conversation, conversation_id)
         except Exception:
             log.warning("Failed to persist query history", exc_info=True)
     return out
