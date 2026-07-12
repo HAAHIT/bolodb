@@ -158,6 +158,18 @@ EXPLAIN_SCHEMA = {
     "required": ["explanation"],
 }
 
+SHORTLIST_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "tables": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Names of tables from the catalog that may be needed.",
+        }
+    },
+    "required": ["tables"],
+}
+
 
 def parse_sql_output(raw):
     """Normalize a model SQL response into ``{sql, restatement, assumptions}``.
@@ -596,6 +608,62 @@ async def generate_sql(
             )
         )
     return result
+
+
+async def shortlist_tables(provider, question, schema, max_columns=4):
+    """Stage one of two-stage schema linking for BIG databases.
+
+    Sends a compact catalog of every table name and its first few column
+    names (up to ``max_columns``), and asks which ones might matter for the
+    question. The result is used as a score boost in ``link_relevant_tables``
+    — never as a replacement for local scoring — so a flaky answer can only
+    help, not hurt. Thinking is off: this is a cheap recognition task.
+
+    Returns a set of validated table names (anything the model invents is
+    dropped). Raises LLMError like any other provider call — the caller treats
+    failure as "no boost" and falls back to local-only linking.
+    """
+    import time
+
+    start = time.monotonic()
+    lines = []
+    for t, info in schema.items():
+        cols = [c["name"] for c in info.get("columns", [])]
+        head = ", ".join(cols[:max_columns])
+        more = ", …" if len(cols) > max_columns else ""
+        lines.append(f"{t}({head}{more})")
+    catalog = "\n".join(lines)
+    system = (
+        "You map questions to database tables. Below is the complete catalog "
+        "of tables (name and columns only).\n"
+        "Return every table that might be needed to answer the user's "
+        "question — including the join/bridge tables that connect them. "
+        "Prefer including a borderline table over dropping it. Use ONLY names "
+        "from the catalog.\n\n"
+        f"Catalog:\n{catalog}\n\n"
+        'Reply ONLY with JSON: {"tables":["name1","name2",...]}'
+    )
+    raw = await provider.complete(
+        system, question, json_mode=True, schema=SHORTLIST_SCHEMA, thinking_budget=0
+    )
+    elapsed = time.monotonic() - start
+    catalog_tokens = len(catalog) // 4
+    obj = raw if isinstance(raw, dict) else parse_json(raw)
+    names = obj.get("tables", [])
+    if not isinstance(names, list):
+        names = []
+    by_lower = {t.lower(): t for t in schema}
+    validated = {by_lower[str(n).lower()] for n in names if str(n).lower() in by_lower}
+    log.info(
+        "shortlist: %d tables in catalog (~%d tokens), "
+        "LLM took %.1fs, returned %d / %d validated",
+        len(schema),
+        catalog_tokens,
+        elapsed,
+        len(validated),
+        len(names),
+    )
+    return validated
 
 
 async def explain_sql(provider, sql, dialect):

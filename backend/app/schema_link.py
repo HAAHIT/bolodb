@@ -35,6 +35,7 @@ _W_COLUMN = 1.0
 _W_VALUE = 2.0  # question token matches a known cell value, e.g. "completed"
 _W_VERIFIED = 5.0  # table appears in a previously verified similar answer
 _W_CONTEXT = 8.0  # table was used by the previous query in this conversation
+_W_SHORTLIST = 6.0  # table was picked by the LLM shortlist pass (big schemas)
 _MAX_COLUMN_POINTS = 4.0  # cap so very wide tables can't win on width alone
 _MAX_VALUE_POINTS = 4.0
 _FK_EXTRA_SLOTS = 4  # how many tables FK expansion may add beyond max_tables
@@ -140,18 +141,35 @@ def _tables_in_verified_sql(all_tables, retrieved):
     return used
 
 
-def _fk_parents(schema, table):
-    """Tables that `table` points at via its foreign keys."""
+def _fk_parents(schema, table, seen=None):
+    """Tables that ``table`` points at via its foreign keys (recursive).
+
+    Follows FK chains to arbitrary depth with cycle detection so that
+    schema-retry in :func:`expand_linked_tables` pulls in the entire
+    transitive FK parent graph.
+    """
+    if seen is None:
+        seen = set()
+    if table in seen:
+        return set()
+    seen.add(table)
     parents = set()
     for fk in schema.get(table, {}).get("foreign_keys", []):
         ref = fk.get("references", "").split(".")[0]
-        if ref and ref in schema:
+        if ref and ref in schema and ref not in seen:
             parents.add(ref)
+            parents |= _fk_parents(schema, ref, seen)
     return parents
 
 
 def link_relevant_tables(
-    question, schema, glossary, retrieved, max_tables, context_tables
+    question,
+    schema,
+    glossary,
+    retrieved,
+    max_tables,
+    context_tables,
+    boost_tables=None,
 ):
     """Pick the tables the model should see for this question.
 
@@ -160,8 +178,10 @@ def link_relevant_tables(
 
     1. SCORE every table: question-token matches against the table name
        (weight 3), key columns (1.5), other columns (1), known cell values (2);
-       plus +5 if a verified similar answer used the table and +8 if the
-       previous query in this conversation did.
+       plus +5 if a verified similar answer used the table, +8 if the
+       previous query in this conversation did, and +6 if the LLM shortlist
+       pass picked it (``boost_tables``, used on big schemas — see
+       ``shortlist_tables`` in backend/app/llm.py).
     2. SEED: take the ``max_tables`` best scorers (falling back to the largest
        tables when nothing matches at all).
     3. CONNECT: add FK parents of every seed (a fact table is useless without
@@ -176,6 +196,7 @@ def link_relevant_tables(
     q_stems = _question_stems(question, glossary)
     verified = _tables_in_verified_sql(all_tables, retrieved)
     context_lookup = {t.lower() for t in context_tables}
+    boost_lookup = {t.lower() for t in (boost_tables or ())}
 
     scores = {}
     for t, info in schema.items():
@@ -184,6 +205,8 @@ def link_relevant_tables(
             s += _W_VERIFIED
         if t.lower() in context_lookup:
             s += _W_CONTEXT
+        if t.lower() in boost_lookup:
+            s += _W_SHORTLIST
         scores[t] = s
 
     ranked = sorted(all_tables, key=lambda t: (-scores[t], t))
@@ -217,6 +240,36 @@ def link_relevant_tables(
         {t: scores[t] for t in result},
     )
     return result
+
+
+def expand_linked_tables(schema, tables, sql, dialect):
+    """Schema-retry (see docs/04-schema-linking.md): find real tables a failed
+    SQL attempt referenced that were NOT shown to the model.
+
+    When the model names a table that actually exists in the database but was
+    left out by :func:`link_relevant_tables`, that is not a hallucination — it
+    is the model telling us the linking missed something. The caller adds the
+    returned tables (plus their FK parents, so they stay joinable) to the
+    prompt for the next repair attempt.
+
+    Returns the list of table names to add — empty when the failed SQL only
+    used tables the model was already shown, or names nothing real.
+    """
+    referenced = extract_table_names_from_prev_query(sql, dialect)
+    have = {t.lower() for t in tables}
+    by_lower = {t.lower(): t for t in schema}
+    added = []
+    for name in referenced:
+        real = by_lower.get(name.lower())
+        if real and real.lower() not in have:
+            added.append(real)
+            have.add(real.lower())
+    for t in list(added):
+        for parent in _fk_parents(schema, t):
+            if parent.lower() not in have:
+                added.append(parent)
+                have.add(parent.lower())
+    return added
 
 
 def compact_schema(schema, tables, samples):

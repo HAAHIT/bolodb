@@ -17,11 +17,12 @@ import time
 from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 
-from backend.app.llm import LLMError, explain_sql, generate_sql
+from backend.app.llm import LLMError, explain_sql, generate_sql, shortlist_tables
 from backend.app.repair import run_repair_loop, schema_validator
 from backend.app.schema_link import (
     compact_schema,
     compute_confidence,
+    expand_linked_tables,
     extract_table_names_from_prev_query,
     link_relevant_tables,
     model_budget,
@@ -35,6 +36,11 @@ log = logging.getLogger(__name__)
 # attempt starts after 60s so the user is never left staring at a spinner.
 _MAX_ATTEMPTS = 3
 _MAX_SECONDS = 60
+
+# Two-stage linking kicks in above this many tables: a cheap names-only LLM
+# pass shortlists candidate tables before local scoring. Below it, local
+# scoring alone is accurate enough and the extra call isn't worth the latency.
+_SHORTLIST_MIN_TABLES = 30
 
 
 def _failure_payload(message, tables=None):
@@ -80,15 +86,38 @@ async def run_query(user_id, db, kb, cfg, providers, session_log, req_data):
         if context
         else set()
     )
-    tables = link_relevant_tables(
-        q, full_schema, glossary, retrieved, budget["max_tables"], context_tables
-    )
-    schema_text = compact_schema(full_schema, tables, budget["samples"])
-
-    # Step 3 — generate→validate→execute→repair.
     provider = providers.get()
 
+    # Two-stage linking (docs/04-schema-linking.md): on big schemas, ask the
+    # model which tables might matter from a names-only catalog, then feed the
+    # picks into local scoring as a boost. Any failure falls back silently to
+    # local-only linking — this stage can only ever add signal.
+    shortlist = set()
+    if len(full_schema) > _SHORTLIST_MIN_TABLES:
+        try:
+            shortlist = await shortlist_tables(provider, q, full_schema)
+        except Exception:
+            log.warning("table shortlist failed; using local scoring only")
+
+    # `linked` is mutable on purpose: schema-retry (below) widens it when a
+    # failed attempt shows the model needed a table we didn't send.
+    linked = list(
+        link_relevant_tables(
+            q,
+            full_schema,
+            glossary,
+            retrieved,
+            budget["max_tables"],
+            context_tables,
+            boost_tables=shortlist,
+        )
+    )
+
+    # Step 3 — generate→validate→execute→repair.
+
     async def _generate(feedback):
+        # Rebuilt each attempt so schema-retry expansions reach the model.
+        schema_text = compact_schema(full_schema, linked, budget["samples"])
         return await generate_sql(
             provider,
             q,
@@ -104,22 +133,30 @@ async def run_query(user_id, db, kb, cfg, providers, session_log, req_data):
     async def _execute(sql):
         return await run_in_threadpool(db.execute, user_id, sql)
 
+    def _on_failure(sql, errors):
+        nonlocal linked
+        added = expand_linked_tables(full_schema, linked, sql, dialect)
+        if added:
+            linked.extend(added)
+            log.info("schema-retry: added %s to the linked tables", added)
+
     try:
         loop_result = await run_repair_loop(
             _generate,
             schema_validator(full_schema, dialect),
             execute=_execute,
+            on_failure=_on_failure,
             max_iterations=_MAX_ATTEMPTS,
             max_seconds=_MAX_SECONDS,
         )
     except LLMError as e:
         log.warning("LLM error during run_query: %s", e.detail)
-        out = _failure_payload(e.user_message, tables)
+        out = _failure_payload(e.user_message, linked)
         out["query_id"] = session_log.log_query(db_id, q, out)
         return out
     except Exception:
         log.warning("SQL generation failed during run_query", exc_info=True)
-        out = _failure_payload("Could not form a query - try rephrasing", tables)
+        out = _failure_payload("Could not form a query - try rephrasing", linked)
         out["query_id"] = session_log.log_query(db_id, q, out)
         return out
 
@@ -145,7 +182,7 @@ async def run_query(user_id, db, kb, cfg, providers, session_log, req_data):
         "columns": exec_result.get("columns", []),
         "rows": exec_result.get("rows", []),
         "truncated": exec_result.get("truncated", False),
-        "tables_used": tables,
+        "tables_used": linked,
         # How many generation attempts the self-repair loop needed (1 = first
         # try worked). Useful for debugging and for the UI to show "auto-fixed".
         "attempts": len(attempts),
