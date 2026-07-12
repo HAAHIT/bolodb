@@ -45,9 +45,11 @@
       {:else}
         <Thinking />
       {/if}
-    {:else if turn.thinkingArtifacts}
-      <Thinking artifacts={turn.thinkingArtifacts} collapsed />
-    {:else if turn.isDirect}
+    {:else}
+      {#if turn.thinkingArtifacts?.length}
+        <Thinking artifacts={turn.thinkingArtifacts} collapsed />
+      {/if}
+      {#if turn.isDirect}
       <!-- Direct SQL execution mode -->
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:15px">
         <div style="flex:1">
@@ -171,6 +173,7 @@
           </div>
         {/if}
       {/if}
+    {/if}
     {/if}
   </div>
 </div>
