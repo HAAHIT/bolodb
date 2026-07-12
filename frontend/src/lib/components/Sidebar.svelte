@@ -1,13 +1,12 @@
 <script lang="ts">
   import { schema as defaultSchema, trustFor, providers, formatTime } from '$lib/data';
-  import type { SchemaTable, DbInfo, Conversation, HistoryEntry } from '$lib/types';
+  import type { SchemaTable, DbInfo, Conversation } from '$lib/types';
   import Logo from '$lib/components/ui/Logo.svelte';
   import TrustMeter from '$lib/components/ui/TrustMeter.svelte';
   import { getConversations, deleteConversation, clearConversations, renameConversation } from '$lib/api';
-  import { getHistory, deleteHistoryEntry, clearHistory } from '$lib/api';
 
-  let { engine, modelName, verifiedCount, onSettings, schema, dbInfo, onConversationSelect, activeConversationId, conversationTrigger = 0, onHistorySelect, historyTrigger = 0 }:
-    { engine: string; modelName: string; verifiedCount: number; onSettings: () => void; schema: SchemaTable[] | null; dbInfo: DbInfo | null; onConversationSelect?: (id: string) => void; activeConversationId?: string | null; conversationTrigger?: number; onHistorySelect?: (entry: HistoryEntry) => void; historyTrigger?: number } = $props();
+  let { engine, modelName, verifiedCount, onSettings, schema, dbInfo, onConversationSelect, activeConversationId, conversationTrigger = 0 }:
+    { engine: string; modelName: string; verifiedCount: number; onSettings: () => void; schema: SchemaTable[] | null; dbInfo: DbInfo | null; onConversationSelect?: (id: string) => void; activeConversationId?: string | null; conversationTrigger?: number } = $props();
 
   const trust = $derived(trustFor(verifiedCount));
   const prov = $derived(providers.find(p => p.id === engine) ?? providers[0]);
@@ -17,8 +16,6 @@
   let editingId: string | null = $state(null);
   let editTitle: string = $state('');
   let sidebarOpen = $state(true);
-  let history: HistoryEntry[] = $state([]);
-  let openHistory: boolean = $state(false);
 
   const schemaData = $derived(schema || defaultSchema);
   const dbLabel = $derived(dbInfo ? (dbInfo.url || '').split('/').pop() || dbInfo.dialect || 'your database' : 'your database');
@@ -28,15 +25,6 @@
     getConversations().then(res => {
       if (res && res.conversations) {
         conversations = res.conversations;
-      }
-    }).catch(e => console.error(e));
-  });
-
-  $effect(() => {
-    historyTrigger;
-    getHistory().then(res => {
-      if (res && res.history) {
-        history = res.history;
       }
     }).catch(e => console.error(e));
   });
@@ -90,23 +78,6 @@
     }
   }
 
-  async function handleHistoryDelete(id: string) {
-    try {
-      await deleteHistoryEntry(id);
-      history = history.filter(h => h._id !== id);
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  async function handleClearHistory() {
-    try {
-      await clearHistory();
-      history = [];
-    } catch (e) {
-      console.error(e);
-    }
-  }
 </script>
 
 <div style="display:flex;flex-shrink:0;height:100%">
@@ -207,34 +178,6 @@
       </div>
     {/if}
 
-    <!-- history -->
-    <div style="margin:16px 6px 9px;display:flex;align-items:center;gap:6px">
-      <button onclick={() => openHistory = !openHistory} style="display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;padding:0;font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--faint);text-transform:uppercase;">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="transform:{openHistory?'none':'rotate(-90deg)'};transition:transform .15s;flex-shrink:0"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        History
-      </button>
-      {#if history.length > 0}
-        <button onclick={handleClearHistory} style="margin-left:auto;font-size:10px;color:var(--faint);background:none;border:none;cursor:pointer;text-transform:none;font-weight:700;padding:0">Clear all</button>
-      {/if}
-    </div>
-    {#if openHistory}
-      <div class="rise" style="padding:2px 0 6px 27px">
-        {#if history.length === 0}
-           <div class="mono" style="font-size:11.5px;color:var(--faint);padding:3px 0;font-style:italic">No history yet</div>
-        {:else}
-          {#each history as h (h._id)}
-            <div class="group" style="position:relative;margin-bottom:2px">
-              <button onclick={() => onHistorySelect && onHistorySelect(h)} style="width:100%;text-align:left;background:transparent;border:none;padding:5px 0;cursor:pointer;display:flex;align-items:center;gap:8px">
-                <span style="width:4px;height:4px;border-radius:99px;background:{h.confidence==='High'?'var(--brand)':h.confidence==='Medium'?'var(--c-med)':'var(--border-2)'};flex-shrink:0"></span>
-                <span style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">{h.question}</span>
-              </button>
-              <button onclick={(e) => { e.stopPropagation(); handleHistoryDelete(h._id); }} aria-label="Delete history entry" class="opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 transition-opacity" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:var(--surface);border:none;color:var(--faint);cursor:pointer;padding:4px;font-size:10px;border-radius:4px;display:flex;align-items:center;justify-content:center" title="Delete">✕</button>
-            </div>
-          {/each}
-        {/if}
-      </div>
-    {/if}
   </div>
 
   <!-- engine + settings -->
@@ -252,8 +195,9 @@
     </button>
   </div>
 </div>
-<button onclick={() => sidebarOpen = !sidebarOpen} aria-label="Toggle sidebar"
-    style="width:16px;flex-shrink:0;cursor:pointer;background:var(--surface);border:none;border-right:1px solid var(--border);border-radius:0;display:flex;align-items:center;justify-content:center;transition:background .15s, opacity .15s;opacity:.4"
+<div style="display:flex;align-items:center">
+  <button onclick={() => sidebarOpen = !sidebarOpen} aria-label="Toggle sidebar"
+    style="width:16px;height:48px;flex-shrink:0;cursor:pointer;background:var(--surface);border:none;border-right:1px solid var(--border);border-radius:0;display:flex;align-items:center;justify-content:center;transition:background .15s, opacity .15s;opacity:.4"
     onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1'; (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
     onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '.4'; (e.currentTarget as HTMLElement).style.background = 'var(--surface)' }}>
     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="color:var(--muted)">
@@ -264,4 +208,5 @@
       {/if}
     </svg>
   </button>
+</div>
 </div>

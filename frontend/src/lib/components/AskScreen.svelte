@@ -61,7 +61,6 @@
   let settingsOpen = $state(false);
   let loading = $state(false);
   let feedRef: HTMLDivElement | undefined = $state(undefined);
-  let historyTrigger = $state(0);
   let currentArtifacts: ThinkingArtifact[] = $state([]);
   let conversationTrigger = $state(0);
   let activeConversationId: string | null = $state(null);
@@ -305,7 +304,6 @@
           thinkingArtifacts: [...artifacts],
           timestamp: ts,
         });
-        historyTrigger++;
       },
       (err: Error) => {
         onUpdateTurn(id, {
@@ -477,8 +475,6 @@
     {conversationTrigger}
     {activeConversationId}
     onConversationSelect={handleConversationSelect}
-    {historyTrigger}
-    onHistorySelect={(h: any) => (input = h.question)}
   />
 
   <div
