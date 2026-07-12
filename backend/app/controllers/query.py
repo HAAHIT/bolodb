@@ -416,9 +416,7 @@ async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_dat
             exec_result = await run_in_threadpool(db.execute, user_id, sql)
         except Exception:
             log.warning("Query execution failed during streaming", exc_info=True)
-            exec_result = {
-                "error": "The query could not be run against the database."
-            }
+            exec_result = {"error": "The query could not be run against the database."}
         exec_elapsed = round(time.monotonic() - exec_start, 3)
 
         if not exec_result.get("error"):
