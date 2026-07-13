@@ -3,6 +3,7 @@
   import { apiCall } from "$lib/api";
   import { humanError } from "$lib/data";
   import type { DbInfo } from "$lib/types";
+  import LL from "$lib/i18n/i18n-svelte";
   import posthog from "posthog-js";
   import Logo from "$lib/components/ui/Logo.svelte";
   import Button from "$lib/components/ui/Button.svelte";
@@ -79,7 +80,7 @@
       geminiKey = "";
       posthog.capture("api_key_configured", { provider: "gemini" });
     } catch (e: any) {
-      keyError = e.message || "Could not save the API key.";
+      keyError = e.message || $LL.settings.couldNotSave();
       posthog.captureException(e);
     }
     keySaving = false;
@@ -120,7 +121,7 @@
       } else {
         const url = formMode ? buildUrl() : dbUrl.trim();
         if (!url) {
-          error = "Please fill in all required fields.";
+          error = $LL.connect.fillRequired();
           connecting = null;
           return;
         }
@@ -135,7 +136,7 @@
     } catch (e: any) {
       error =
         humanError(e.message) ||
-        "Connection failed — check your details and try again.";
+        $LL.connect.connectionFailed();
       posthog.captureException(e);
       connecting = null;
     }
@@ -156,7 +157,7 @@
     } catch (e: any) {
       error =
         humanError(e.message) ||
-        "Reconnection failed — the database may no longer be available.";
+        $LL.connect.reconnectionFailed();
       posthog.captureException(e);
       reconnecting = null;
     }
@@ -172,12 +173,12 @@
   function timeAgo(iso: string): string {
     const diff = Date.now() - new Date(iso).getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
+    if (mins < 1) return $LL.common.justNow();
+    if (mins < 60) return $LL.common.minutesAgo({ n: mins });
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
+    if (hrs < 24) return $LL.common.hoursAgo({ n: hrs });
     const days = Math.floor(hrs / 24);
-    return `${days}d ago`;
+    return $LL.common.daysAgo({ n: days });
   }
 </script>
 
@@ -195,7 +196,7 @@
         <span
           class="pulse"
           style="width:7px;height:7px;border-radius:99px;background:var(--brand)"
-        ></span> Running locally · localhost:4321
+        ></span> {$LL.connect.runningLocally()}
       </span>
     </div>
 
@@ -204,15 +205,14 @@
       <h1
         style="font-size:38px;line-height:1.08;letter-spacing:-.03em;margin:0 0 12px;font-weight:800;max-width:600px;text-wrap:balance"
       >
-        Ask your data in plain English.<br /><span style="color:var(--brand)"
-          >Trust</span
-        > the answer you get back.
+        {$LL.connect.askYourData()}<br /><span style="color:var(--brand)"
+          >{$LL.connect.trust()}</span
+        > {$LL.connect.theAnswerYouGetBack()}
       </h1>
       <p
         style="font-size:16.5px;color:var(--muted);margin:0;max-width:560px;line-height:1.55"
       >
-        Pick where the AI runs, connect your database, and start asking
-        questions — no SQL knowledge needed.
+        {$LL.connect.pickWhereAiRuns()}
       </p>
     </div>
 
@@ -240,9 +240,9 @@
               stroke-linejoin="round"
             /></svg
           >
-          <span style="font-weight:700;font-size:15px">Recent databases</span>
+          <span style="font-weight:700;font-size:15px">{$LL.connect.recentDatabases()}</span>
           <span style="font-size:12.5px;color:var(--faint);font-weight:550"
-            >Pick up where you left off</span
+            >{$LL.connect.pickUpWhereYouLeft()}</span
           >
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:10px">
@@ -291,9 +291,7 @@
                   style="font-size:12px;color:var(--faint);font-weight:550;display:flex;align-items:center;gap:8px"
                 >
                   <span
-                    >{conn.table_count || 0} table{conn.table_count === 1
-                      ? ""
-                      : "s"}</span
+                    >{$LL.connect.tablesCount({ n: conn.table_count || 0 })}</span
                   >
                   <span>·</span>
                   <span
@@ -322,12 +320,12 @@
                       stroke-linejoin="round"
                     /></svg
                   >{/if}
-                {reconnecting === conn.db_id ? "Connecting…" : "Connect"}
+                {reconnecting === conn.db_id ? $LL.connect.connecting() : $LL.connect.connect()}
               </button>
               <button
                 onclick={() => removeRecent(conn)}
-                aria-label="Remove"
-                title="Remove from recent"
+                aria-label={$LL.common.remove()}
+                title={$LL.connect.removeFromRecent()}
                 style="padding:5px;border-radius:var(--radius-sm);background:none;border:none;cursor:pointer;color:var(--faint);transition:color .15s"
                 onmouseenter={(e) =>
                   ((e.currentTarget as HTMLElement).style.color =
@@ -354,8 +352,8 @@
     <!-- step 1 — Gemini API key -->
     <Section
       num="1"
-      title="Set up the AI"
-      hint="BoloDB uses Google Gemini to turn your questions into database queries. You just need a free API key."
+      title={$LL.connect.setUpAi()}
+      hint={$LL.connect.setUpAiHint()}
     >
       {#snippet children()}
         {#if keyIsSet && !editingKey}
@@ -378,7 +376,7 @@
             >
             <span
               style="flex:1;font-size:13.5px;font-weight:650;color:var(--brand-ink)"
-              >Gemini API key configured — the AI is ready.</span
+              >{$LL.connect.geminiKeyConfigured()}</span
             >
             <button
               onclick={() => {
@@ -387,7 +385,7 @@
               }}
               style="font-size:12.5px;font-weight:700;color:var(--brand-ink);background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:var(--radius-sm)"
             >
-              Change key
+              {$LL.connect.changeKey()}
             </button>
           </div>
         {:else}
@@ -395,16 +393,15 @@
             <div
               style="font-size:13.5px;color:var(--ink-2);font-weight:550;line-height:1.6;margin-bottom:12px"
             >
-              Get a free API key from
+              {$LL.connect.getFreeKey()}
               <a
                 href={GEMINI_KEY_URL}
                 target="_blank"
                 rel="noopener"
                 style="color:var(--brand-ink);font-weight:700;text-decoration:none"
-                >Google AI Studio →</a
+                >{$LL.connect.googleAiStudio()}</a
               >
-              (sign in with any Google account, click "Create API key", copy it) and
-              paste it below.
+              {$LL.connect.signInWithGoogle()}
             </div>
             <div style="display:flex;gap:10px">
               <input
@@ -432,7 +429,7 @@
                         stroke-linejoin="round"
                       /></svg
                     >{/if}{/snippet}
-                {keySaving ? "Saving…" : "Save key"}
+                {keySaving ? $LL.connect.saving() : $LL.connect.saveKey()}
               </Button>
             </div>
             {#if editingKey}
@@ -443,7 +440,7 @@
                 }}
                 style="font-size:12.5px;color:var(--faint);background:none;border:none;cursor:pointer;font-weight:600;padding:6px 0 0"
               >
-                ← Cancel, keep existing key
+                {$LL.connect.cancelKeepKey()}
               </button>
             {/if}
             {#if keyError}
@@ -479,9 +476,7 @@
               stroke-width="1.8"
             /></svg
           >
-          Even with a cloud engine, only your
-          <b>database structure and your question</b> are sent — never your actual
-          rows of data.
+          {$LL.connect.privacyNotice()}
         </div>
       {/snippet}
     </Section>
@@ -489,8 +484,8 @@
     <!-- step 2 — connect -->
     <Section
       num="2"
-      title="Connect your database"
-      hint="Don't have one yet? Use the sample data to see how it works first."
+      title={$LL.connect.connectDatabase()}
+      hint={$LL.connect.connectDatabaseHint()}
     >
       {#snippet children()}
         <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px">
@@ -518,7 +513,7 @@
                   stroke-width="1.9"
                 /></svg
               >
-              Your database
+              {$LL.connect.yourDatabase()}
             </div>
 
             <!-- DB type selector -->
@@ -526,7 +521,7 @@
               <div
                 style="font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:8px;letter-spacing:.05em;text-transform:uppercase"
               >
-                What type of database?
+                {$LL.connect.whatTypeOfDb()}
               </div>
               <div style="display:flex;flex-wrap:wrap;gap:7px">
                 {#each DB_TYPES as dt}
@@ -559,34 +554,29 @@
                   <label
                     for="db_filepath"
                     style="display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase"
-                    >File path</label
+                    >{$LL.connect.filePath()}</label
                   >
                   <input
                     id="db_filepath"
                     class="field mono"
                     bind:value={filePath}
                     placeholder={dbType === "sqlite"
-                      ? "/Users/you/data/mydb.db"
-                      : "/Users/you/data/mydb.duckdb"}
+                      ? $LL.connect.dbPlaceholderSqlite()
+                      : $LL.connect.dbPlaceholderDuckdb()}
                     style="font-size:13.5px;margin-bottom:6px"
                   />
                   <div
                     style="font-size:12px;color:var(--faint);font-weight:550;line-height:1.45"
                   >
-                    The absolute path to your {dbType === "sqlite"
-                      ? ".db or .sqlite"
-                      : "DuckDB"} file. If using Docker, drop the file in the project's
-                    <code
-                      style="background:var(--surface);padding:2px 4px;border-radius:3px"
-                      >data</code
-                    >
-                    folder and use
-                    <code
-                      style="background:var(--surface);padding:2px 4px;border-radius:3px"
-                      >/app/data/filename.db</code
-                    >.
+                    {#if dbType === "sqlite"}
+                      {$LL.connect.sqliteFileHint()}
+                    {:else}
+                      {$LL.connect.duckdbFileHint()}
+                    {/if}
+                    {$LL.connect.dockerFileHint()}
                     {#if dbType === "duckdb"}
-                      <br />Leave empty to use an in-memory database.{/if}
+                      <br />{$LL.connect.inMemoryDb()}
+                    {/if}
                   </div>
                 </div>
               {:else}
@@ -600,13 +590,13 @@
                       <label
                         for="db_host"
                         style="display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase"
-                        >Host</label
+                        >{$LL.connect.host()}</label
                       >
                       <input
                         id="db_host"
                         class="field"
                         bind:value={host}
-                        placeholder="localhost or db.company.com"
+                        placeholder={$LL.connect.hostPlaceholder()}
                         style="font-size:14px"
                       />
                     </div>
@@ -614,7 +604,7 @@
                       <label
                         for="db_port"
                         style="display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase"
-                        >Port</label
+                        >{$LL.connect.port()}</label
                       >
                       <input
                         id="db_port"
@@ -632,13 +622,13 @@
                       <label
                         for="db_username"
                         style="display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase"
-                        >Username</label
+                        >{$LL.connect.username()}</label
                       >
                       <input
                         id="db_username"
                         class="field"
                         bind:value={user}
-                        placeholder="your_username"
+                        placeholder={$LL.connect.userPlaceholder()}
                         style="font-size:14px"
                         autocomplete="username"
                       />
@@ -647,7 +637,7 @@
                       <label
                         for="db_password"
                         style="display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase"
-                        >Password</label
+                        >{$LL.connect.password()}</label
                       >
                       <input
                         id="db_password"
@@ -664,13 +654,13 @@
                     <label
                       for="db_name"
                       style="display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase"
-                      >Database name</label
+                        >{$LL.connect.databaseName()}</label
                     >
                     <input
                       id="db_name"
                       class="field"
                       bind:value={dbName}
-                      placeholder="my_database"
+                        placeholder={$LL.connect.dbNamePlaceholder()}
                       style="font-size:14px"
                     />
                   </div>
@@ -681,7 +671,7 @@
                 <label
                   for="db_url"
                   style="display:block;font-size:11.5px;font-weight:700;color:var(--faint);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase"
-                  >Connection URL</label
+                  >{$LL.connect.connectionUrl()}</label
                 >
                 <input
                   id="db_url"
@@ -697,7 +687,7 @@
                 <button
                   onclick={() => (formMode = true)}
                   style="font-size:12.5px;color:var(--brand-ink);background:none;border:none;cursor:pointer;font-weight:650;padding:0"
-                  >← Back to the simple form</button
+                  >{$LL.connect.backToSimpleForm()}</button
                 >
               </div>
             {/if}
@@ -707,7 +697,7 @@
                 onclick={() => (formMode = false)}
                 style="font-size:12.5px;color:var(--faint);background:none;border:none;cursor:pointer;font-weight:600;padding:0 0 16px 0;display:block"
               >
-                Have a full connection URL? Use that instead →
+                {$LL.connect.useFullUrl()}
               </button>
             {/if}
 
@@ -737,7 +727,7 @@
                     /></svg
                   >{/if}
               {/snippet}
-              {connecting === "url" ? "Connecting…" : "Connect database"}
+              {connecting === "url" ? $LL.connect.connecting() : $LL.connect.connectDatabaseBtn()}
             </Button>
             <div
               style="display:flex;align-items:center;gap:7px;margin-top:11px;color:var(--faint);font-size:12.5px"
@@ -756,8 +746,7 @@
                   stroke-linejoin="round"
                 /></svg
               >
-              Tip: use a view-only database account — BoloDB never writes to your
-              data.
+              {$LL.connect.viewOnlyTip()}
             </div>
           </div>
 
@@ -789,20 +778,19 @@
                 style="font-weight:700;font-size:16px;color:var(--brand-ink);margin-bottom:5px"
               >
                 {connecting === "sample"
-                  ? "Building sample data…"
-                  : "Try with sample data"}
+                  ? $LL.connect.buildingSample()
+                  : $LL.connect.trySampleData()}
               </div>
               <div
                 style="font-size:13.5px;color:var(--brand-ink);opacity:.85;line-height:1.55"
               >
-                A realistic TechStore e-commerce database, built locally for
-                you. No setup, no credentials, ready in seconds.
+              {$LL.connect.sampleDataDesc()}
               </div>
             </div>
             <div
               style="display:flex;align-items:center;gap:6px;margin-top:18px;font-weight:700;font-size:13.5px;color:var(--brand-ink)"
             >
-              Start in seconds <svg
+              {$LL.connect.startInSeconds()} <svg
                 width="16"
                 height="16"
                 viewBox="0 0 24 24"
@@ -823,7 +811,7 @@
           <div
             style="margin-top:12px;padding:13px 17px;background:var(--c-low-tint);border:1px solid #EBC6BD;border-radius:var(--radius);color:var(--c-low-ink);font-size:13.5px;font-weight:550;line-height:1.55"
           >
-            <b>Couldn't connect —</b>
+            <b>{$LL.connect.couldNotConnect()}</b>
             {error}
           </div>
         {/if}

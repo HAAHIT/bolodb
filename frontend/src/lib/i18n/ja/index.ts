@@ -73,6 +73,7 @@ const ja: Translation = {
   connect: {
     askYourData: "",
     trust: "",
+    theAnswerYouGetBack: "",
     pickWhereAiRuns: "",
     runningLocally: "",
     recentDatabases: "",

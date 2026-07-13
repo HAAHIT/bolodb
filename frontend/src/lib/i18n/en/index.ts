@@ -77,6 +77,7 @@ const en = {
   connect: {
     askYourData: "Ask your data in plain English.",
     trust: "Trust",
+    theAnswerYouGetBack: "the answer you get back.",
     pickWhereAiRuns:
       "Pick where the AI runs, connect your database, and start asking questions \u2014 no SQL knowledge needed.",
     runningLocally: "Running locally \u00b7 localhost:4321",
