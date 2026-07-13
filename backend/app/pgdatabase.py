@@ -43,7 +43,9 @@ def _uuid7():
     rand = int.from_bytes(os.urandom(10), "big")
     rand_a = rand >> 68
     rand_b = rand & ((1 << 62) - 1)
-    return uuid.UUID(int=(ts << 80) | (0x7 << 76) | (rand_a << 64) | (0x2 << 62) | rand_b)
+    return uuid.UUID(
+        int=(ts << 80) | (0x7 << 76) | (rand_a << 64) | (0x2 << 62) | rand_b
+    )
 
 
 load_dotenv()
