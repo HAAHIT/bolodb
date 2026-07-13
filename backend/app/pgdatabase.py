@@ -22,6 +22,8 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PgUUID
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy import pool
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -70,10 +72,20 @@ def get_engine():
     return _engine
 
 
+_session_factory = None
+
+
+def _get_session_factory():
+    global _session_factory
+    if _session_factory is None:
+        _session_factory = async_sessionmaker(
+            get_engine(), class_=AsyncSession, expire_on_commit=False
+        )
+    return _session_factory
+
+
 def _get_session() -> AsyncSession:
-    return async_sessionmaker(
-        get_engine(), class_=AsyncSession, expire_on_commit=False
-    )()
+    return _get_session_factory()()
 
 
 async_session = _get_session
@@ -199,11 +211,11 @@ def _recent_connections_master_cipher():
     return Fernet(master_key)
 
 
-def _recent_connection_cipher():
+def _build_recent_connection_cipher():
     secret = os.getenv("RECENT_CONNECTIONS_KEY")
     if secret:
         key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
-        return Fernet(key), None
+        return Fernet(key)
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     master_cipher = _recent_connections_master_cipher()
     if _CONNECTIONS_KEY_FILE.exists():
@@ -228,7 +240,7 @@ def _recent_connection_cipher():
         else:
             loaded_secret = persisted
         key = base64.urlsafe_b64encode(hashlib.sha256(loaded_secret.encode()).digest())
-        return Fernet(key), None
+        return Fernet(key)
     if master_cipher:
         new_secret = base64.urlsafe_b64encode(os.urandom(32)).decode()
         _CONNECTIONS_KEY_FILE.write_text(
@@ -245,27 +257,51 @@ def _recent_connection_cipher():
             key = base64.urlsafe_b64encode(hashlib.sha256(jwt_secret.encode()).digest())
         else:
             key = base64.urlsafe_b64encode(os.urandom(32))
-    return Fernet(key), None
+    return Fernet(key)
+
+
+_RECENT_CIPHER = None
+
+
+def _recent_connection_cipher():
+    # Cache the derived Fernet at module scope (mirrors _JWKS_CLIENT in auth.py)
+    # to avoid repeated synchronous key-file I/O and key derivation on the
+    # request path. Only cached after a successful build, so a misconfiguration
+    # keeps failing closed on every call rather than being masked.
+    global _RECENT_CIPHER
+    if _RECENT_CIPHER is None:
+        _RECENT_CIPHER = _build_recent_connection_cipher()
+    return _RECENT_CIPHER
 
 
 def _encrypt_connection_url(db_url):
-    return _recent_connection_cipher()[0].encrypt(db_url.encode()).decode()
+    return _recent_connection_cipher().encrypt(db_url.encode()).decode()
 
 
 def _decrypt_connection_url(value):
     try:
-        return _recent_connection_cipher()[0].decrypt(value.encode()).decode()
+        return _recent_connection_cipher().decrypt(value.encode()).decode()
     except (InvalidToken, ValueError, TypeError):
-        jwt_secret = os.getenv("JWT_SECRET")
-        if jwt_secret:
-            try:
-                legacy_key = base64.urlsafe_b64encode(
-                    hashlib.sha256(jwt_secret.encode()).digest()
-                )
-                return Fernet(legacy_key).decrypt(value.encode()).decode()
-            except (InvalidToken, ValueError, TypeError):
-                pass
+        pass
+    jwt_secret = os.getenv("JWT_SECRET")
+    if jwt_secret:
+        try:
+            legacy_key = base64.urlsafe_b64encode(
+                hashlib.sha256(jwt_secret.encode()).digest()
+            )
+            return Fernet(legacy_key).decrypt(value.encode()).decode()
+        except (InvalidToken, ValueError, TypeError):
+            pass
+    # Legacy plaintext connection URLs carry a scheme separator ("://"); Fernet
+    # ciphertext (urlsafe base64) never does. If decryption failed and the value
+    # isn't a recognisable URL, it's corrupt or key-mismatched — fail closed
+    # rather than passing undecryptable ciphertext into the reconnect flow.
+    if "://" in value:
         return value
+    raise RuntimeError(
+        "Failed to decrypt stored connection URL. The encryption key may have "
+        "changed or the stored value is corrupted."
+    )
 
 
 async def get_user_by_email(email: str) -> Optional[dict]:
@@ -304,6 +340,14 @@ async def get_user_by_google_id(google_id: str) -> Optional[dict]:
         )
 
 
+class UserAlreadyExistsError(Exception):
+    """Raised when a user with the same email or google_id already exists.
+
+    Callers convert this into a clean 4xx conflict response instead of letting
+    the underlying IntegrityError surface as a 500.
+    """
+
+
 async def create_user(user_data: UserInDB) -> str:
     async with async_session() as session:
         try:
@@ -316,6 +360,11 @@ async def create_user(user_data: UserInDB) -> str:
             session.add(user)
             await session.commit()
             return str(user.id)
+        except IntegrityError as exc:
+            # Loser of a concurrent signup / google-link race hits the unique
+            # constraint on email or google_id — surface a clean conflict.
+            await session.rollback()
+            raise UserAlreadyExistsError(str(exc)) from exc
         except Exception:
             await session.rollback()
             raise
@@ -540,28 +589,33 @@ async def save_recent_connection(
     encrypted_url = _encrypt_connection_url(db_url)
     async with async_session() as session:
         try:
-            existing = await session.execute(
-                select(RecentConnection).where(
-                    RecentConnection.user_id == uid, RecentConnection.db_id == db_id
-                )
-            )
-            conn = existing.scalar_one_or_none()
-            if conn:
-                conn.db_url = encrypted_url
-                conn.display_url = display_url
-                conn.dialect = dialect
-                conn.table_count = table_count
-                conn.connected_at = _utcnow()
-            else:
-                conn = RecentConnection(
+            # Atomic upsert keyed by the (user_id, db_id) unique constraint —
+            # avoids a select-then-write race where two concurrent saves both
+            # insert and the loser hits an unhandled IntegrityError.
+            stmt = (
+                pg_insert(RecentConnection)
+                .values(
+                    id=_uuid7(),
                     user_id=uid,
                     db_url=encrypted_url,
                     display_url=display_url,
                     dialect=dialect,
                     db_id=db_id,
                     table_count=table_count,
+                    connected_at=_utcnow(),
                 )
-                session.add(conn)
+                .on_conflict_do_update(
+                    index_elements=["user_id", "db_id"],
+                    set_=dict(
+                        db_url=encrypted_url,
+                        display_url=display_url,
+                        dialect=dialect,
+                        table_count=table_count,
+                        connected_at=_utcnow(),
+                    ),
+                )
+            )
+            await session.execute(stmt)
             await session.commit()
         except Exception:
             await session.rollback()
@@ -580,10 +634,12 @@ async def get_recent_connections(user_id: str, limit: int = 5):
         rows = result.scalars().all()
         out = []
         for row in rows:
+            # db_url is intentionally omitted: it is Fernet ciphertext and the
+            # listing endpoint only needs display metadata. Reconnects fetch the
+            # decrypted URL via get_recent_connection_by_db_id.
             d = {
                 "id": row.id,
                 "user_id": row.user_id,
-                "db_url": row.db_url,
                 "display_url": row.display_url,
                 "dialect": row.dialect,
                 "db_id": row.db_id,
@@ -694,16 +750,20 @@ async def get_conversations(user_id: str):
             return []
 
         conv_ids = [c.id for c in convs]
+        # Cast the bound list to uuid[] explicitly: asyncpg cannot infer the
+        # element type of a bare parameter array, so an uncast ANY(:cids) fails
+        # for users with conversation history.
+        cid_params = [str(c) for c in conv_ids]
 
         agg_rows = await session.execute(
             text(
                 "SELECT qh.conversation_id, COUNT(*) AS turn_count, "
                 "MAX(qh.timestamp) AS last_ts "
                 "FROM query_history qh "
-                "WHERE qh.user_id = :uid AND qh.conversation_id = ANY(:cids) "
+                "WHERE qh.user_id = :uid AND qh.conversation_id = ANY(CAST(:cids AS uuid[])) "
                 "GROUP BY qh.conversation_id"
             ),
-            {"uid": uid, "cids": conv_ids},
+            {"uid": uid, "cids": cid_params},
         )
         turn_map: dict[uuid.UUID, int] = {}
         ts_map: dict[uuid.UUID, datetime] = {}
@@ -715,10 +775,10 @@ async def get_conversations(user_id: str):
             text(
                 "SELECT DISTINCT ON (qh.conversation_id) qh.conversation_id, qh.question "
                 "FROM query_history qh "
-                "WHERE qh.user_id = :uid AND qh.conversation_id = ANY(:cids) "
+                "WHERE qh.user_id = :uid AND qh.conversation_id = ANY(CAST(:cids AS uuid[])) "
                 "ORDER BY qh.conversation_id, qh.timestamp DESC"
             ),
-            {"uid": uid, "cids": conv_ids},
+            {"uid": uid, "cids": cid_params},
         )
         question_map: dict[uuid.UUID, str] = {row[0]: row[1] for row in question_rows}
 

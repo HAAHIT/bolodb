@@ -94,7 +94,11 @@ def test_stream_repairs_invalid_sql(monkeypatch):
 def test_stream_inline_repair_loop_feedback(monkeypatch):
     """The stream's inline repair loop must feed execution errors back as
     structured feedback for the next generation attempt, not skip to failure."""
-    monkeypatch.setattr(query_ctrl.mdb, "save_query", lambda **kw: None, raising=True)
+
+    async def fake_save(**kw):
+        pass
+
+    monkeypatch.setattr(query_ctrl.mdb, "save_query", fake_save, raising=True)
     db = FakeDB(
         exec_results=[
             {"error": "no such column: totl"},
@@ -115,7 +119,11 @@ def test_stream_inline_repair_loop_feedback(monkeypatch):
 
 def test_stream_can_be_cancelled_early(monkeypatch):
     """Generator close (simulated client disconnect) must not raise."""
-    monkeypatch.setattr(query_ctrl.mdb, "save_query", lambda **kw: None, raising=True)
+
+    async def fake_save(**kw):
+        pass
+
+    monkeypatch.setattr(query_ctrl.mdb, "save_query", fake_save, raising=True)
     provider = FakeProvider(
         [
             _sql_json("SELECT id FROM orders"),
@@ -127,7 +135,11 @@ def test_stream_can_be_cancelled_early(monkeypatch):
 
 def test_stream_abort_before_result(monkeypatch):
     """Early abort before result event must still clean up tasks."""
-    monkeypatch.setattr(query_ctrl.mdb, "save_query", lambda **kw: None, raising=True)
+
+    async def fake_save(**kw):
+        pass
+
+    monkeypatch.setattr(query_ctrl.mdb, "save_query", fake_save, raising=True)
     provider = FakeProvider(
         [
             _sql_json("SELECT id FROM orders"),

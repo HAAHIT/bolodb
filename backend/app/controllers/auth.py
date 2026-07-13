@@ -15,6 +15,7 @@ from backend.app.pgdatabase import (
     get_user_by_google_id,
     get_user_by_id,
     update_user,
+    UserAlreadyExistsError,
 )
 import jwt
 from datetime import datetime, timedelta, UTC
@@ -90,7 +91,11 @@ async def signup(user: UserSignup):
     hashed_pw = bcrypt.hashpw(encoded_pass, salt)
     hashed_pw = hashed_pw.decode("utf-8")
     user_in_db = UserInDB(email=user.email, hashed_pass=hashed_pw, role=Role.user)
-    await create_user(user_in_db)
+    try:
+        await create_user(user_in_db)
+    except UserAlreadyExistsError:
+        # Concurrent signup lost the race against the unique constraint.
+        raise HTTPException(status_code=400, detail="Email already Registered")
     return True
 
 
@@ -133,7 +138,16 @@ async def google_login(id_token_str, client_id):
         return create_jwt(str(existing_by_email["_id"]), existing_by_email["role"])
 
     user_in_db = UserInDB(email=email, role=Role.user, google_id=google_id)
-    uid = await create_user(user_in_db)
+    try:
+        uid = await create_user(user_in_db)
+    except UserAlreadyExistsError:
+        # A concurrent login created this account first — look it up and sign in.
+        existing = await get_user_by_google_id(google_id) or await get_user_by_email(
+            email
+        )
+        if existing:
+            return create_jwt(str(existing["_id"]), existing["role"])
+        raise HTTPException(status_code=409, detail="Account already exists")
     return create_jwt(uid, Role.user.value)
 
 

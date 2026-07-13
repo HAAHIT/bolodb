@@ -18,13 +18,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
+    # Primary keys carry no server_default: the application is the sole writer
+    # and generates UUIDv7 ids in Python (pgdatabase._uuid7). A gen_random_uuid()
+    # default would emit UUIDv4 on any direct insert/backfill, producing a mix of
+    # UUID versions and losing the time-ordering UUIDv7 provides.
     op.create_table(
         "users",
         sa.Column(
             "id",
             UUID(as_uuid=True),
             primary_key=True,
-            server_default=sa.text("gen_random_uuid()"),
         ),
         sa.Column("email", sa.String(), nullable=False, unique=True),
         sa.Column("hashed_pass", sa.String(), nullable=False, server_default=""),
@@ -44,7 +47,6 @@ def upgrade() -> None:
             "id",
             UUID(as_uuid=True),
             primary_key=True,
-            server_default=sa.text("gen_random_uuid()"),
         ),
         sa.Column(
             "user_id",
@@ -74,7 +76,6 @@ def upgrade() -> None:
             "id",
             UUID(as_uuid=True),
             primary_key=True,
-            server_default=sa.text("gen_random_uuid()"),
         ),
         sa.Column(
             "user_id",
@@ -107,7 +108,6 @@ def upgrade() -> None:
             "id",
             UUID(as_uuid=True),
             primary_key=True,
-            server_default=sa.text("gen_random_uuid()"),
         ),
         sa.Column(
             "user_id",
