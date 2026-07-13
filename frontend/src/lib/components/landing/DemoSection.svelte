@@ -118,7 +118,7 @@
     timeline.to(qbubble, { opacity: 1, duration: 0.3 });
     timeline.call(async () => {
       if (qtext) await typeText(qtext, question, 2500);
-    }, [], undefined, 0.3);
+    }, [], 0.3);
     timeline.set(aiBlock, { display: 'block' });
     timeline.to(aiBlock, { opacity: 1, duration: 0.4 }, '+=0.2');
     timeline.to(schemaLine, { opacity: 1, y: 0, duration: 0.4 });
@@ -132,7 +132,7 @@
     timeline.to(sqlBlock, { opacity: 1, duration: 0.3 }, '+=0.1');
     timeline.call(async () => {
       if (sqlCode) await typeLines(sqlCode, sqlLines, 150);
-    }, [], undefined, 0.1);
+    }, [], 0.1);
     timeline.set(answerCard, { display: 'block' });
     timeline.to(answerCard, { opacity: 1, duration: 0.4, ease: 'power3.out' });
     timeline.to(restatement, { opacity: 1, y: 0, duration: 0.4 });

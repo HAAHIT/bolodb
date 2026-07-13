@@ -28,7 +28,7 @@
     </div>
     <div style="display:flex;gap:20px">
       {#each [{label:'GitHub', href:'https://github.com/HAAHIT/bolodb'}, {label:'Privacy', href:'#'}, {label:'Terms', href:'#'}] as link}
-        <a class="fade-item" {href} target="_blank" rel="noopener noreferrer"
+        <a class="fade-item" href={link.href} target="_blank" rel="noopener noreferrer"
           style="font-size:13px;font-weight:600;color:var(--faint);text-decoration:none;transition:color .15s"
           onmouseenter={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--muted)'}
           onmouseleave={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--faint)'}
