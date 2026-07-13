@@ -167,7 +167,11 @@ def test_stream_injects_catalog_into_prompt(monkeypatch):
             {"term": "clients", "entity_type": "table", "entity_name": "orders"}
         ],
         "metrics": [
-            {"name": "revenue", "description": "", "sql_expression": "SUM(total_amount)"}
+            {
+                "name": "revenue",
+                "description": "",
+                "sql_expression": "SUM(total_amount)",
+            }
         ],
         "value_maps": [],
         "joins": [],
