@@ -52,15 +52,19 @@ const ja = {
   landing: {
     talkToYourDatabase: "データベースに話しかける",
     likeAHuman: "人間のように。",
-    noSqlRequired: "SQLは不要。プレーンな英語で質問し、即座に回答を得て、検証可能なAIエンジンでロジックを信頼できます。",
+    noSqlRequired:
+      "SQLは不要。プレーンな英語で質問し、即座に回答を得て、検証可能なAIエンジンでロジックを信頼できます。",
     startForFree: "無料で始める",
     viewDemo: "デモを見る",
     featureZeroSetupTitle: "ゼロセットアップ",
-    featureZeroSetupDesc: "データベース接続文字列を提供するだけで、BoloDBが自動的にスキーマを推論し、テーブルをインデックス化して即座にクエリできる状態にします。",
+    featureZeroSetupDesc:
+      "データベース接続文字列を提供するだけで、BoloDBが自動的にスキーマを推論し、テーブルをインデックス化して即座にクエリできる状態にします。",
     featureDataStaysYoursTitle: "データはあなたのもの",
-    featureDataStaysYoursDesc: "データベース構造と質問のみがAIに送信されます — テーブル内の行データは決して送信されません。クエリは読み取り専用で実行されます。",
+    featureDataStaysYoursDesc:
+      "データベース構造と質問のみがAIに送信されます — テーブル内の行データは決して送信されません。クエリは読み取り専用で実行されます。",
     featureTrustEngineTitle: "トラストエンジン",
-    featureTrustEngineDesc: "盲目的に信頼しないでください。各質問に対して生成された正確なSQLを表示できます。クエリを検証するたびに、AIが特定のドメインにキャリブレーションされます。",
+    featureTrustEngineDesc:
+      "盲目的に信頼しないでください。各質問に対して生成された正確なSQLを表示できます。クエリを検証するたびに、AIが特定のドメインにキャリブレーションされます。",
     copyright: "\u00a9 2026 BoloDB. All rights reserved.",
     demoTitle: "bolodb-chat-demo",
   },
@@ -74,7 +78,8 @@ const ja = {
     askYourData: "プレーンな英語でデータに質問できます。",
     trust: "信頼",
     theAnswerYouGetBack: "得られる回答。",
-    pickWhereAiRuns: "AIの実行場所を選択し、データベースに接続して質問を開始 — SQLの知識は不要です。",
+    pickWhereAiRuns:
+      "AIの実行場所を選択し、データベースに接続して質問を開始 — SQLの知識は不要です。",
     runningLocally: "ローカルで実行中 · localhost:4321",
     recentDatabases: "最近のデータベース",
     pickUpWhereYouLeft: "中断したところから再開",
@@ -83,19 +88,25 @@ const ja = {
     reconnecting: "再接続中\u2026",
     removeFromRecent: "最近から削除",
     setUpAi: "AIをセットアップ",
-    setUpAiHint: "BoloDBはGoogle Geminiを使用して質問をデータベースクエリに変換します。無料のAPIキーが必要です。",
-    geminiKeyConfigured: "Gemini APIキーが設定されました — AIの準備ができました。",
+    setUpAiHint:
+      "BoloDBはGoogle Geminiを使用して質問をデータベースクエリに変換します。無料のAPIキーが必要です。",
+    geminiKeyConfigured:
+      "Gemini APIキーが設定されました — AIの準備ができました。",
     changeKey: "キーを変更",
     getFreeKey: "無料APIキーを取得",
     googleAiStudio: "Google AI Studio \u2192",
-    signInWithGoogle: '（任意のGoogleアカウントでサインインし、「Create API key」をクリックしてコピー）して以下に貼り付けてください。',
+    signInWithGoogle:
+      "（任意のGoogleアカウントでサインインし、「Create API key」をクリックしてコピー）して以下に貼り付けてください。",
     saveKey: "キーを保存",
     saving: "保存中\u2026",
     cancelKeepKey: "\u2190 キャンセル、既存のキーを保持",
-    privacyNotice: "クラウドエンジンを使用しても、データベース構造と質問のみが送信されます — 実際のデータ行は決して送信されません。",
-    privacyShort: "スキーマと質問のみがGoogle Geminiに送信されSQLが生成されます — 行データは決して送信されません。",
+    privacyNotice:
+      "クラウドエンジンを使用しても、データベース構造と質問のみが送信されます — 実際のデータ行は決して送信されません。",
+    privacyShort:
+      "スキーマと質問のみがGoogle Geminiに送信されSQLが生成されます — 行データは決して送信されません。",
     connectDatabase: "データベースに接続",
-    connectDatabaseHint: "まだお持ちでないですか？サンプルデータで最初にお試しください。",
+    connectDatabaseHint:
+      "まだお持ちでないですか？サンプルデータで最初にお試しください。",
     yourDatabase: "あなたのデータベース",
     whatTypeOfDb: "データベースの種類は？",
     filePath: "ファイルパス",
@@ -108,15 +119,18 @@ const ja = {
     backToSimpleForm: "\u2190 シンプルフォームに戻る",
     useFullUrl: "完全な接続URLをお持ちですか？そちらを使用 \u2192",
     connectDatabaseBtn: "データベースに接続",
-    viewOnlyTip: "ヒント：表示専用のデータベースアカウントを使用 — BoloDBはデータに書き込みません。",
+    viewOnlyTip:
+      "ヒント：表示専用のデータベースアカウントを使用 — BoloDBはデータに書き込みません。",
     trySampleData: "サンプルデータで試す",
     buildingSample: "サンプルデータを構築中\u2026",
-    sampleDataDesc: "実際のTechStore eコマースデータベースをローカルに構築。セットアップ不要、認証情報不要、数秒で準備完了。",
+    sampleDataDesc:
+      "実際のTechStore eコマースデータベースをローカルに構築。セットアップ不要、認証情報不要、数秒で準備完了。",
     startInSeconds: "数秒で開始",
     couldNotConnect: "接続できませんでした —",
     fillRequired: "必須項目をすべて入力してください。",
     connectionFailed: "接続に失敗しました — 詳細を確認して再試行してください。",
-    reconnectionFailed: "再接続に失敗しました — データベースが利用できなくなった可能性があります。",
+    reconnectionFailed:
+      "再接続に失敗しました — データベースが利用できなくなった可能性があります。",
     dbPlaceholderSqlite: "/Users/you/data/mydb.db",
     dbPlaceholderDuckdb: "/Users/you/data/mydb.duckdb",
     hostPlaceholder: "localhost または db.company.com",
@@ -124,7 +138,8 @@ const ja = {
     dbNamePlaceholder: "my_database",
     sqliteFileHint: ".dbまたは.sqliteファイルの絶対パス。",
     duckdbFileHint: "DuckDBファイルの絶対パス。",
-    dockerFileHint: "Dockerを使用する場合、ファイルをプロジェクトのdataフォルダに置き、/app/data/filename.dbを使用します。",
+    dockerFileHint:
+      "Dockerを使用する場合、ファイルをプロジェクトのdataフォルダに置き、/app/data/filename.dbを使用します。",
     inMemoryDb: "空のままにするとインメモリデータベースを使用します。",
     tablesCount: "{n}テーブル",
     justNow: "たった今",
@@ -137,7 +152,8 @@ const ja = {
     askButton: "質問",
     scrollToLatest: "最新にスクロール",
     tableCount: "{n}テーブル",
-    privacyFooter: "スキーマと質問のみがGoogle Geminiに送信されSQLが生成されます — 行データは決して送信されません。",
+    privacyFooter:
+      "スキーマと質問のみがGoogle Geminiに送信されSQLが生成されます — 行データは決して送信されません。",
     sqlCommandDescription: "SQLクエリを直接実行",
     directSql: "ダイレクトSQL",
     directSqlReason: "SQL直接実行",
@@ -176,18 +192,24 @@ const ja = {
     noConversationsYet: "まだ会話がありません",
     deleteConversation: "会話を削除",
     emptyTitle: "何を知りたいですか？",
-    emptyDescription: "データに関する質問をプレーンな英語で入力してください。BoloDBが回答し、その確信度を説明します。",
+    emptyDescription:
+      "データに関する質問をプレーンな英語で入力してください。BoloDBが回答し、その確信度を説明します。",
     questionsVerifiedForDb: "このデータベースで検証済みの質問：",
-    clickAnyQuestion: "上の質問をクリックして実行するか、下に独自の質問を入力してください。",
-    notSureWhereToStart: "どこから始めればよいかわかりませんか？試してみてください：",
+    clickAnyQuestion:
+      "上の質問をクリックして実行するか、下に独自の質問を入力してください。",
+    notSureWhereToStart:
+      "どこから始めればよいかわかりませんか？試してみてください：",
     asYouVerify: "回答を検証すると、データに固有の質問がここに表示されます。",
     wantBetterAnswers: "より良い回答が欲しいですか？",
-    catalogDescription: 'ビジネス用語のデータカタログを作成 — 手動で追加するか、「AIで提案」を使用して自動入力します。',
-    powerUserHint: "パワーユーザー？ /sql SELECT ... と入力してSQLを直接実行します。",
+    catalogDescription:
+      "ビジネス用語のデータカタログを作成 — 手動で追加するか、「AIで提案」を使用して自動入力します。",
+    powerUserHint:
+      "パワーユーザー？ /sql SELECT ... と入力してSQLを直接実行します。",
     executionFailed: "実行に失敗しました",
     sqlExecutionFailed: "SQL実行に失敗しました",
     noMatchingCommands: "一致するコマンドがありません",
-    noRowsMatched: "一致する行がありません — この質問に該当するデータがない可能性があります。",
+    noRowsMatched:
+      "一致する行がありません — この質問に該当するデータがない可能性があります。",
     rowsReturned: "{n}行が返されました",
     copySql: "SQLクエリをコピー",
     copyCsvTitle: "すべての行をCSVとしてコピー — ExcelやSheetsに貼り付け",
@@ -198,16 +220,19 @@ const ja = {
     deletedSuccessfully: "削除に成功しました",
     clearedSuccessfully: "クリアに成功しました",
     milestoneReached: "精度マイルストーンに到達",
-    milestoneAssistedBody: "確信度の高い回答は即座に表示されます — 新しい質問はまだ確認されます。",
+    milestoneAssistedBody:
+      "確信度の高い回答は即座に表示されます — 新しい質問はまだ確認されます。",
     fullyCalibrated: "完全にキャリブレーション済み",
-    milestoneTrustedBody: "すべての回答が直接表示されます。推論はいつでもワンタップで確認できます。",
+    milestoneTrustedBody:
+      "すべての回答が直接表示されます。推論はいつでもワンタップで確認できます。",
     totalQueries: "合計：{n}クエリ",
     accuracy: "精度",
     verifiedCount: "{n}件検証済み",
     calibrateNext: "あと{n}件の正しい回答を検証して{goal}に到達しましょう。",
     calibrateDirect: "確信度の高い回答を待たずに直接表示。",
     calibrateAll: "すべての質問に直接回答 — 推論はワンタップで。",
-    calibrated: "BoloDBはこのデータベースに対して完全にキャリブレーションされています。",
+    calibrated:
+      "BoloDBはこのデータベースに対して完全にキャリブレーションされています。",
     schema: "スキーマ",
     turnCount: "{n}ターン",
     toggleSidebar: "サイドバー切替",
@@ -222,21 +247,27 @@ const ja = {
     resultsTruncated: "結果は切り捨てられました — 最初の{n}行を表示",
     thanksWhatsOff: "ありがとうございます — 何が問題でしたか？",
     mostUsefulSignal: "（これが最も有用なシグナルです）",
-    tellingUsKeepsAccurate: "お知らせいただくことでBoloDBの精度が維持されます — 検証済みの回答は将来の質問の例となります。",
-    loggedAs: '「{reason}」として記録されました。',
+    tellingUsKeepsAccurate:
+      "お知らせいただくことでBoloDBの精度が維持されます — 検証済みの回答は将来の質問の例となります。",
+    loggedAs: "「{reason}」として記録されました。",
     executionErrorTitle: "クエリに問題が発生しました",
-    executionErrorDesc: "BoloDBがクエリを生成しましたが、データベースが実行できませんでした — 列名またはテーブル名が正しく一致しなかった場合に発生することがあります。",
-    executionErrorHint: "質問を言い換えたり、特定のテーブルやメトリクスを指定したり、より多くのコンテキストを追加して再度質問してみてください。",
-    ifResultLooksRight: '結果が正しく見える場合は、下の「はい、正しいです」をクリック — 次回のためにBoloDBが学習します。',
+    executionErrorDesc:
+      "BoloDBがクエリを生成しましたが、データベースが実行できませんでした — 列名またはテーブル名が正しく一致しなかった場合に発生することがあります。",
+    executionErrorHint:
+      "質問を言い換えたり、特定のテーブルやメトリクスを指定したり、より多くのコンテキストを追加して再度質問してみてください。",
+    ifResultLooksRight:
+      "結果が正しく見える場合は、下の「はい、正しいです」をクリック — 次回のためにBoloDBが学習します。",
     trusted: "信頼済み",
     assisted: "アシスト",
     supervised: "監視",
-    trustedBehaviour: "回答が直接表示されます。推論はワンタップで確認できます。",
+    trustedBehaviour:
+      "回答が直接表示されます。推論はワンタップで確認できます。",
     assistedBehaviour: "確信度の高い回答が表示され、新しいものは確認されます。",
     supervisedBehaviour: "学習中は各回答が確認を待ちます。",
     providerGeminiName: "Google Gemini",
     providerGeminiSub: "Gemini API",
-    providerGeminiPrivacy: "スキーマ+質問をGoogleに送信 — 行データは送信しません",
+    providerGeminiPrivacy:
+      "スキーマ+質問をGoogleに送信 — 行データは送信しません",
     providerGeminiCost: "無料枠あり、その後は従量課金",
     providerGeminiAccuracy: "最高",
     providerDefault: "デフォルト",
@@ -247,7 +278,8 @@ const ja = {
     googleGemini: "Google Gemini",
     powersAi: "BoloDBのすべてのAI機能を強化",
     model: "モデル",
-    modelDefaultHint: '不明な場合は「バランス」をお勧めします — ほとんどのデータベースで良好に動作します。',
+    modelDefaultHint:
+      "不明な場合は「バランス」をお勧めします — ほとんどのデータベースで良好に動作します。",
     modelFast: "最速＆最安 — 小規模でシンプルなデータベースに最適",
     modelBalanced: "バランス — ほとんどの用途にお勧め（デフォルト）",
     modelAccurate: "最も正確 — 大規模スキーマや難しい質問に",
@@ -255,9 +287,11 @@ const ja = {
     keyConfigured: "APIキー設定済み",
     cancelKeepKey: "\u2190 キャンセル、既存のキーを保持",
     getKeyAt: "無料キーを取得",
-    keyStoredLocally: "ローカルにのみ保存されます。スキーマ+質問がGoogle Geminiに送信されSQLが生成されます — テーブルデータは決して送信されません。",
+    keyStoredLocally:
+      "ローカルにのみ保存されます。スキーマ+質問がGoogle Geminiに送信されSQLが生成されます — テーブルデータは決して送信されません。",
     dataCatalog: "データカタログ",
-    catalogDescription: "BoloDBにビジネス用語、メトリクス、値の意味を教えて、回答の精度を向上させましょう。",
+    catalogDescription:
+      "BoloDBにビジネス用語、メトリクス、値の意味を教えて、回答の精度を向上させましょう。",
     manageCatalog: "データカタログを管理 \u2192",
     changeDbPrompt: "別のデータベースに接続しますか？",
     disconnectButton: "切断してデータベースを変更",
@@ -291,21 +325,25 @@ const ja = {
     notQuite: "違います",
     yesThatsRight: "はい、正しいです",
     gettingToKnowDb: "データベースを学習中",
-    profileDescription: "テーブルと列を確認して、正確に回答できるようにします。",
+    profileDescription:
+      "テーブルと列を確認して、正確に回答できるようにします。",
     linked: "リンク済み",
     readingDb: "データベースを読み取り中\u2026",
     looksGoodContinue: "問題ありません — 続ける",
     confirmTerms: "用語の意味を確認",
-    glossaryDescription: "スキーマに特別な意味を持つ可能性のある用語が見つかりました。正しく回答するために意味を教えてください。",
+    glossaryDescription:
+      "スキーマに特別な意味を持つ可能性のある用語が見つかりました。正しく回答するために意味を教えてください。",
     means: "の意味\u2026",
     suggested: "SUGGESTED",
     saveTermsAndVerify: "用語を保存して回答を検証",
     checkAnswersBeforeStart: "開始前にいくつかの回答を確認",
-    startersDescription: "自動生成されたクエリをいくつか実行して、最初に正しいかどうか確認してください。",
+    startersDescription:
+      "自動生成されたクエリをいくつか実行して、最初に正しいかどうか確認してください。",
     statusCorrect: "正解！信頼履歴に保存されました。",
     statusWrong: "誤りとしてマーク — これから学習します。",
     statusSkipped: "後でチャットからいつでも検証できます。",
-    startersError: "サンプルクエリを生成できませんでした — このステップはスキップできます。",
+    startersError:
+      "サンプルクエリを生成できませんでした — このステップはスキップできます。",
     startAsking: "質問を開始 \u2192",
     reviewEachAnswer: "上の各回答を確認して続行してください。",
     stepReadDb: "DBを読み取り",
@@ -335,13 +373,18 @@ const ja = {
     removeRow: "行を削除",
     loading: "カタログを読み込み中\u2026",
     couldNotLoad: "カタログを読み込めませんでした。",
-    suggestionsLoaded: "AI提案を読み込みました — 確認して編集し、保存してください。",
+    suggestionsLoaded:
+      "AI提案を読み込みました — 確認して編集し、保存してください。",
     couldNotSuggest: "提案を生成できませんでした。",
     couldNotSave: "カタログを保存できませんでした。",
-    catalogPageDescription: "BoloDBにビジネス言語を教えてください。各質問とともに送信され、より正確に回答します。",
-    synonymsDesc: "チームが使用するビジネス用語をテーブルまたは列にマッピングします。",
-    valueMeaningsDesc: '保存された値のわかりやすいラベル。例：「VIP」はsegment = vipを意味します。',
-    metricsDesc: "再利用可能な計算。例：売上 = SUM(total_amount) WHERE completed。",
+    catalogPageDescription:
+      "BoloDBにビジネス言語を教えてください。各質問とともに送信され、より正確に回答します。",
+    synonymsDesc:
+      "チームが使用するビジネス用語をテーブルまたは列にマッピングします。",
+    valueMeaningsDesc:
+      "保存された値のわかりやすいラベル。例：「VIP」はsegment = vipを意味します。",
+    metricsDesc:
+      "再利用可能な計算。例：売上 = SUM(total_amount) WHERE completed。",
     joinPathsDesc: "テーブルの接続方法。回答が正しく結合されるようにします。",
     columnNotesDesc: "名前だけでは不明瞭な場合の列の意味。",
     thinking: "思考中\u2026",
@@ -349,15 +392,23 @@ const ja = {
     entry: "{n}エントリ",
   },
   errors: {
-    dbConnectionRefused: "データベースサーバーが実行されていないか、到達できません — ホストとポートを確認してください。",
-    wrongCredentials: "ユーザー名またはパスワードが間違っています — 認証情報を再確認してください。",
-    fileNotFound: "ファイルが見つかりません — パスを確認し、ファイルが存在することを確認してください。",
-    dbDoesNotExist: "データベース名が見つかりませんでした — スペルを確認してください。",
-    connectionTimedOut: "接続がタイムアウトしました — サーバーに到達できないか、ファイアウォールの内側にある可能性があります。",
-    sslError: "SSLエラー — URLモードで接続する場合は、末尾に?sslmode=disableを追加してみてください。",
-    driverNotInstalled: "そのデータベースタイプのドライバーがこのサーバーにインストールされていません。",
+    dbConnectionRefused:
+      "データベースサーバーが実行されていないか、到達できません — ホストとポートを確認してください。",
+    wrongCredentials:
+      "ユーザー名またはパスワードが間違っています — 認証情報を再確認してください。",
+    fileNotFound:
+      "ファイルが見つかりません — パスを確認し、ファイルが存在することを確認してください。",
+    dbDoesNotExist:
+      "データベース名が見つかりませんでした — スペルを確認してください。",
+    connectionTimedOut:
+      "接続がタイムアウトしました — サーバーに到達できないか、ファイアウォールの内側にある可能性があります。",
+    sslError:
+      "SSLエラー — URLモードで接続する場合は、末尾に?sslmode=disableを追加してみてください。",
+    driverNotInstalled:
+      "そのデータベースタイプのドライバーがこのサーバーにインストールされていません。",
     accessDenied: "アクセス拒否",
-    sessionExpired: "セッションの有効期限が切れました。再度ログインしてください。",
+    sessionExpired:
+      "セッションの有効期限が切れました。再度ログインしてください。",
     invalidToken: "無効なトークン",
     invalidCredentials: "無効な認証情報",
     emailAlreadyRegistered: "メールアドレスは既に登録されています",
@@ -369,8 +420,10 @@ const ja = {
     internalError: "内部エラーが発生しました。",
     noDatabaseConnected: "データベースが接続されていません",
     emptyQuestion: "空の質問",
-    couldNotFormQuery: "クエリを形成できませんでした — 言い回しを変えてみてください",
-    couldNotFormWorkingQuery: "機能するクエリを形成できませんでした — 言い回しを変えてみてください",
+    couldNotFormQuery:
+      "クエリを形成できませんでした — 言い回しを変えてみてください",
+    couldNotFormWorkingQuery:
+      "機能するクエリを形成できませんでした — 言い回しを変えてみてください",
     sqlGenerationTimeout: "SQL生成が最大時間制限を超えました",
     queryGenerationFailed: "クエリ生成に失敗しました",
     modelReturnedEmptySql: "モデルが空のSQLを返しました",
@@ -380,10 +433,12 @@ const ja = {
     noDatabaseConnectedShort: "データベース未接続",
     emptyStatement: "空のステートメント。",
     selectOnly: "SELECTクエリのみ許可されています（読み取り専用モード）。",
-    singleStatementOnly: "1つのステートメントのみ許可されています（スタッククエリ不可）。",
+    singleStatementOnly:
+      "1つのステートメントのみ許可されています（スタッククエリ不可）。",
     selectIntoNotAllowed: "SELECT INTOは許可されていません。",
     aiKeyInvalid: "AI APIキーが無効または期限切れのようです。",
-    aiKeyDenied: "AIサービスがアクセスを拒否しました — APIキーを確認してください。",
+    aiKeyDenied:
+      "AIサービスがアクセスを拒否しました — APIキーを確認してください。",
     aiModelNotFound: "要求されたAIモデルが見つかりませんでした。",
     aiUnexpectedError: "AIサービスが予期しないエラーを返しました。",
     aiDeclined: "AIがこの質問への回答を拒否しました。",

@@ -52,15 +52,19 @@ const fr = {
   landing: {
     talkToYourDatabase: "Parlez à votre base de données",
     likeAHuman: "comme à un humain.",
-    noSqlRequired: "Pas besoin de SQL. Posez des questions en langage naturel, obtenez des réponses instantanées et faites confiance à la logique grâce à notre moteur d'IA vérifiable.",
+    noSqlRequired:
+      "Pas besoin de SQL. Posez des questions en langage naturel, obtenez des réponses instantanées et faites confiance à la logique grâce à notre moteur d'IA vérifiable.",
     startForFree: "Commencez gratuitement",
     viewDemo: "Voir la démo",
     featureZeroSetupTitle: "Aucune configuration",
-    featureZeroSetupDesc: "Fournissez simplement la chaîne de connexion de votre base de données. BoloDB déduit automatiquement votre schéma, indexe les tables et est prêt à interroger instantanément.",
+    featureZeroSetupDesc:
+      "Fournissez simplement la chaîne de connexion de votre base de données. BoloDB déduit automatiquement votre schéma, indexe les tables et est prêt à interroger instantanément.",
     featureDataStaysYoursTitle: "Vos données restent vôtres",
-    featureDataStaysYoursDesc: "Seules la structure de votre base de données et votre question sont envoyées à l'IA — jamais les lignes de vos tables. Les requêtes sont exécutées en lecture seule.",
+    featureDataStaysYoursDesc:
+      "Seules la structure de votre base de données et votre question sont envoyées à l'IA — jamais les lignes de vos tables. Les requêtes sont exécutées en lecture seule.",
     featureTrustEngineTitle: "Moteur de confiance",
-    featureTrustEngineDesc: "Ne faites jamais confiance aveuglément. Visualisez le SQL exact généré pour chaque question. En vérifiant les requêtes, l'IA se calibre sur votre domaine spécifique.",
+    featureTrustEngineDesc:
+      "Ne faites jamais confiance aveuglément. Visualisez le SQL exact généré pour chaque question. En vérifiant les requêtes, l'IA se calibre sur votre domaine spécifique.",
     copyright: "\u00a9 2026 BoloDB. Tous droits réservés.",
     demoTitle: "bolodb-chat-demo",
   },
@@ -74,7 +78,8 @@ const fr = {
     askYourData: "Interrogez vos données en langage naturel.",
     trust: "Confiance",
     theAnswerYouGetBack: "la réponse que vous obtenez.",
-    pickWhereAiRuns: "Choisissez où l'IA s'exécute, connectez votre base de données et commencez à poser des questions — aucune connaissance SQL nécessaire.",
+    pickWhereAiRuns:
+      "Choisissez où l'IA s'exécute, connectez votre base de données et commencez à poser des questions — aucune connaissance SQL nécessaire.",
     runningLocally: "Exécution locale · localhost:4321",
     recentDatabases: "Bases de données récentes",
     pickUpWhereYouLeft: "Reprenez là où vous vous êtes arrêté",
@@ -83,19 +88,24 @@ const fr = {
     reconnecting: "Reconnexion\u2026",
     removeFromRecent: "Supprimer des récentes",
     setUpAi: "Configurer l'IA",
-    setUpAiHint: "BoloDB utilise Google Gemini pour transformer vos questions en requêtes de base de données. Vous avez juste besoin d'une clé API gratuite.",
+    setUpAiHint:
+      "BoloDB utilise Google Gemini pour transformer vos questions en requêtes de base de données. Vous avez juste besoin d'une clé API gratuite.",
     geminiKeyConfigured: "Clé API Gemini configurée — l'IA est prête.",
     changeKey: "Changer de clé",
     getFreeKey: "Obtenez une clé API gratuite depuis",
     googleAiStudio: "Google AI Studio \u2192",
-    signInWithGoogle: '(connectez-vous avec un compte Google, cliquez sur "Create API key", copiez-la) et collez-la ci-dessous.',
+    signInWithGoogle:
+      '(connectez-vous avec un compte Google, cliquez sur "Create API key", copiez-la) et collez-la ci-dessous.',
     saveKey: "Enregistrer la clé",
     saving: "Enregistrement\u2026",
     cancelKeepKey: "\u2190 Annuler, conserver la clé existante",
-    privacyNotice: "Même avec un moteur cloud, seules la structure de votre base de données et votre question sont envoyées — jamais vos lignes de données réelles.",
-    privacyShort: "Seuls le schéma et votre question sont envoyés à Google Gemini pour générer du SQL — jamais vos données de lignes.",
+    privacyNotice:
+      "Même avec un moteur cloud, seules la structure de votre base de données et votre question sont envoyées — jamais vos lignes de données réelles.",
+    privacyShort:
+      "Seuls le schéma et votre question sont envoyés à Google Gemini pour générer du SQL — jamais vos données de lignes.",
     connectDatabase: "Connectez votre base de données",
-    connectDatabaseHint: "Vous n'en avez pas encore ? Utilisez d'abord les données d'exemple pour voir comment cela fonctionne.",
+    connectDatabaseHint:
+      "Vous n'en avez pas encore ? Utilisez d'abord les données d'exemple pour voir comment cela fonctionne.",
     yourDatabase: "Votre base de données",
     whatTypeOfDb: "Quel type de base de données ?",
     filePath: "Chemin du fichier",
@@ -108,15 +118,19 @@ const fr = {
     backToSimpleForm: "\u2190 Retour au formulaire simple",
     useFullUrl: "Vous avez une URL de connexion complète ? Utilisez-la \u2192",
     connectDatabaseBtn: "Connecter la base de données",
-    viewOnlyTip: "Astuce : utilisez un compte de base de données en lecture seule — BoloDB n'écrit jamais dans vos données.",
+    viewOnlyTip:
+      "Astuce : utilisez un compte de base de données en lecture seule — BoloDB n'écrit jamais dans vos données.",
     trySampleData: "Essayer avec des données d'exemple",
     buildingSample: "Construction des données d'exemple\u2026",
-    sampleDataDesc: "Une base de données e-commerce TechStore réaliste, construite localement pour vous. Sans configuration, sans identifiants, prête en quelques secondes.",
+    sampleDataDesc:
+      "Une base de données e-commerce TechStore réaliste, construite localement pour vous. Sans configuration, sans identifiants, prête en quelques secondes.",
     startInSeconds: "Commencez en quelques secondes",
     couldNotConnect: "Connexion impossible —",
     fillRequired: "Veuillez remplir tous les champs requis.",
-    connectionFailed: "Échec de la connexion — vérifiez vos informations et réessayez.",
-    reconnectionFailed: "Échec de la reconnexion — la base de données n'est peut-être plus disponible.",
+    connectionFailed:
+      "Échec de la connexion — vérifiez vos informations et réessayez.",
+    reconnectionFailed:
+      "Échec de la reconnexion — la base de données n'est peut-être plus disponible.",
     dbPlaceholderSqlite: "/Utilisateurs/vous/donnees/mydb.db",
     dbPlaceholderDuckdb: "/Utilisateurs/vous/donnees/mydb.duckdb",
     hostPlaceholder: "localhost ou db.entreprise.com",
@@ -124,7 +138,8 @@ const fr = {
     dbNamePlaceholder: "ma_base_donnees",
     sqliteFileHint: "Le chemin absolu vers votre fichier .db ou .sqlite.",
     duckdbFileHint: "Le chemin absolu vers votre fichier DuckDB.",
-    dockerFileHint: "Si vous utilisez Docker, placez le fichier dans le dossier de données du projet et utilisez /app/data/nomfichier.db.",
+    dockerFileHint:
+      "Si vous utilisez Docker, placez le fichier dans le dossier de données du projet et utilisez /app/data/nomfichier.db.",
     inMemoryDb: "Laissez vide pour utiliser une base de données en mémoire.",
     tablesCount: "{n} tableau{x}",
     justNow: "à l'instant",
@@ -137,7 +152,8 @@ const fr = {
     askButton: "Demander",
     scrollToLatest: "Aller au plus récent",
     tableCount: "{n} tableau{x}",
-    privacyFooter: "Seuls le schéma et votre question sont envoyés à Google Gemini pour générer du SQL — jamais vos données de lignes.",
+    privacyFooter:
+      "Seuls le schéma et votre question sont envoyés à Google Gemini pour générer du SQL — jamais vos données de lignes.",
     sqlCommandDescription: "Exécuter une requête SQL directement",
     directSql: "SQL DIRECT",
     directSqlReason: "Exécution SQL directe",
@@ -176,21 +192,29 @@ const fr = {
     noConversationsYet: "Pas encore de conversations",
     deleteConversation: "Supprimer la conversation",
     emptyTitle: "Que souhaitez-vous savoir ?",
-    emptyDescription: "Posez n'importe quelle question sur vos données en langage naturel. BoloDB y répondra et expliquera son niveau de confiance.",
+    emptyDescription:
+      "Posez n'importe quelle question sur vos données en langage naturel. BoloDB y répondra et expliquera son niveau de confiance.",
     questionsVerifiedForDb: "Questions vérifiées pour cette base de données :",
-    clickAnyQuestion: "Cliquez sur une question ci-dessus pour l'exécuter, ou saisissez la vôtre ci-dessous.",
-    notSureWhereToStart: "Vous ne savez pas par où commencer ? Essayez de demander :",
-    asYouVerify: "Au fur et à mesure que vous vérifiez les réponses, des questions spécifiques à vos données apparaîtront ici.",
+    clickAnyQuestion:
+      "Cliquez sur une question ci-dessus pour l'exécuter, ou saisissez la vôtre ci-dessous.",
+    notSureWhereToStart:
+      "Vous ne savez pas par où commencer ? Essayez de demander :",
+    asYouVerify:
+      "Au fur et à mesure que vous vérifiez les réponses, des questions spécifiques à vos données apparaîtront ici.",
     wantBetterAnswers: "Vous voulez de meilleures réponses ?",
-    catalogDescription: 'Créez un catalogue de données avec vos termes commerciaux — ajoutez-les manuellement ou utilisez "Suggérer avec l\'IA" pour les remplir automatiquement.',
-    powerUserHint: "Utilisateur avancé ? Tapez /sql SELECT ... pour exécuter du SQL directement.",
+    catalogDescription:
+      'Créez un catalogue de données avec vos termes commerciaux — ajoutez-les manuellement ou utilisez "Suggérer avec l\'IA" pour les remplir automatiquement.',
+    powerUserHint:
+      "Utilisateur avancé ? Tapez /sql SELECT ... pour exécuter du SQL directement.",
     executionFailed: "Échec de l'exécution",
     sqlExecutionFailed: "Échec de l'exécution SQL",
     noMatchingCommands: "Aucune commande correspondante",
-    noRowsMatched: "Aucune ligne correspondante — il n'y a peut-être pas de données correspondant à cette question.",
+    noRowsMatched:
+      "Aucune ligne correspondante — il n'y a peut-être pas de données correspondant à cette question.",
     rowsReturned: "{n} ligne{?s} retournée{?s}",
     copySql: "Copier la requête SQL",
-    copyCsvTitle: "Copier toutes les lignes en CSV — coller dans Excel ou Sheets",
+    copyCsvTitle:
+      "Copier toutes les lignes en CSV — coller dans Excel ou Sheets",
     chartView: "Graphique",
     tableView: "Tableau",
     conversationNotFound: "Conversation introuvable",
@@ -198,15 +222,20 @@ const fr = {
     deletedSuccessfully: "Supprimé avec succès",
     clearedSuccessfully: "Effacé avec succès",
     milestoneReached: "Jalon de précision atteint",
-    milestoneAssistedBody: "Les réponses confiantes s'affichent maintenant immédiatement — les nouvelles questions sont encore examinées.",
+    milestoneAssistedBody:
+      "Les réponses confiantes s'affichent maintenant immédiatement — les nouvelles questions sont encore examinées.",
     fullyCalibrated: "Entièrement calibré",
-    milestoneTrustedBody: "Toutes les réponses apparaissent directement maintenant. Le raisonnement est à un tapotement.",
+    milestoneTrustedBody:
+      "Toutes les réponses apparaissent directement maintenant. Le raisonnement est à un tapotement.",
     totalQueries: "Total : {n} requête{?s}",
     accuracy: "Précision",
     verifiedCount: "{n} vérifiée{?s}",
-    calibrateNext: "Vérifiez {n} réponse{?s} correcte{?s} de plus pour atteindre {goal}.",
-    calibrateDirect: "afficher les réponses confiantes directement sans attendre.",
-    calibrateAll: "répondre à toutes les questions directement — raisonnement à un tapotement.",
+    calibrateNext:
+      "Vérifiez {n} réponse{?s} correcte{?s} de plus pour atteindre {goal}.",
+    calibrateDirect:
+      "afficher les réponses confiantes directement sans attendre.",
+    calibrateAll:
+      "répondre à toutes les questions directement — raisonnement à un tapotement.",
     calibrated: "BoloDB est entièrement calibré pour cette base de données.",
     schema: "Schéma",
     turnCount: "{n} tour{?s}",
@@ -222,22 +251,31 @@ const fr = {
     resultsTruncated: "Résultats tronqués — affichage des {n} premières lignes",
     thanksWhatsOff: "Merci — qu'est-ce qui n'allait pas ?",
     mostUsefulSignal: "(c'est le signal le plus utile)",
-    tellingUsKeepsAccurate: "Vos retours maintiennent BoloDB précis — les réponses vérifiées deviennent des exemples pour les questions futures.",
+    tellingUsKeepsAccurate:
+      "Vos retours maintiennent BoloDB précis — les réponses vérifiées deviennent des exemples pour les questions futures.",
     loggedAs: 'Enregistré comme "{reason}".',
     executionErrorTitle: "La requête a rencontré un problème",
-    executionErrorDesc: "BoloDB a généré une requête mais votre base de données n'a pas pu l'exécuter — cela arrive parfois lorsqu'un nom de colonne ou de table n'a pas été correctement associé.",
-    executionErrorHint: "Essayez de reformuler votre question, en nommant une table ou une métrique spécifique, ou demandez à nouveau avec plus de contexte.",
-    ifResultLooksRight: 'Si le résultat semble correct, cliquez sur "Oui, correct" ci-dessous — cela entraîne BoloDB pour la prochaine fois.',
+    executionErrorDesc:
+      "BoloDB a généré une requête mais votre base de données n'a pas pu l'exécuter — cela arrive parfois lorsqu'un nom de colonne ou de table n'a pas été correctement associé.",
+    executionErrorHint:
+      "Essayez de reformuler votre question, en nommant une table ou une métrique spécifique, ou demandez à nouveau avec plus de contexte.",
+    ifResultLooksRight:
+      'Si le résultat semble correct, cliquez sur "Oui, correct" ci-dessous — cela entraîne BoloDB pour la prochaine fois.',
     trusted: "De confiance",
     assisted: "Assisté",
     supervised: "Supervisé",
-    trustedBehaviour: "Les réponses sont affichées directement. Le raisonnement est à un tapotement.",
-    assistedBehaviour: "Les réponses confiantes sont affichées ; les nouvelles sont examinées.",
-    supervisedBehaviour: "Chaque réponse attend votre confirmation pendant qu'elle apprend.",
+    trustedBehaviour:
+      "Les réponses sont affichées directement. Le raisonnement est à un tapotement.",
+    assistedBehaviour:
+      "Les réponses confiantes sont affichées ; les nouvelles sont examinées.",
+    supervisedBehaviour:
+      "Chaque réponse attend votre confirmation pendant qu'elle apprend.",
     providerGeminiName: "Google Gemini",
     providerGeminiSub: "API Gemini",
-    providerGeminiPrivacy: "Schéma + question envoyés à Google — jamais vos données de lignes",
-    providerGeminiCost: "Niveau gratuit disponible, puis paiement à l'utilisation",
+    providerGeminiPrivacy:
+      "Schéma + question envoyés à Google — jamais vos données de lignes",
+    providerGeminiCost:
+      "Niveau gratuit disponible, puis paiement à l'utilisation",
     providerGeminiAccuracy: "La plus élevée",
     providerDefault: "Par défaut",
   },
@@ -247,17 +285,23 @@ const fr = {
     googleGemini: "Google Gemini",
     powersAi: "Alimente toutes les fonctionnalités d'IA de BoloDB",
     model: "Modèle",
-    modelDefaultHint: 'Vous ne savez pas ? Restez sur "Équilibré" — cela fonctionne bien pour la plupart des bases de données.',
-    modelFast: "Le plus rapide et le moins cher — adapté aux petites bases de données simples",
-    modelBalanced: "Équilibré — recommandé pour la plupart des usages (par défaut)",
-    modelAccurate: "Le plus précis — pour les grands schémas et les questions difficiles",
+    modelDefaultHint:
+      'Vous ne savez pas ? Restez sur "Équilibré" — cela fonctionne bien pour la plupart des bases de données.',
+    modelFast:
+      "Le plus rapide et le moins cher — adapté aux petites bases de données simples",
+    modelBalanced:
+      "Équilibré — recommandé pour la plupart des usages (par défaut)",
+    modelAccurate:
+      "Le plus précis — pour les grands schémas et les questions difficiles",
     apiKey: "Clé API Gemini",
     keyConfigured: "Clé API configurée",
     cancelKeepKey: "\u2190 Annuler, conserver la clé existante",
     getKeyAt: "Obtenez une clé gratuite sur",
-    keyStoredLocally: "Stockée localement uniquement. Schéma + question sont envoyés à Google Gemini pour générer du SQL — jamais vos données de table.",
+    keyStoredLocally:
+      "Stockée localement uniquement. Schéma + question sont envoyés à Google Gemini pour générer du SQL — jamais vos données de table.",
     dataCatalog: "Catalogue de données",
-    catalogDescription: "Apprenez à BoloDB vos termes commerciaux, métriques et significations de valeurs pour que les réponses soient plus précises.",
+    catalogDescription:
+      "Apprenez à BoloDB vos termes commerciaux, métriques et significations de valeurs pour que les réponses soient plus précises.",
     manageCatalog: "Gérer le catalogue de données \u2192",
     changeDbPrompt: "Vous souhaitez connecter une base de données différente ?",
     disconnectButton: "Déconnecter et changer de base de données",
@@ -291,21 +335,25 @@ const fr = {
     notQuite: "Pas tout à fait",
     yesThatsRight: "Oui, c'est correct",
     gettingToKnowDb: "Apprentissage de votre base de données",
-    profileDescription: "Laissez-moi examiner vos tables et colonnes pour pouvoir répondre avec précision.",
+    profileDescription:
+      "Laissez-moi examiner vos tables et colonnes pour pouvoir répondre avec précision.",
     linked: "lié",
     readingDb: "Lecture de votre base de données\u2026",
     looksGoodContinue: "Ça a l'air bon — continuer",
     confirmTerms: "Confirmez la signification de vos termes",
-    glossaryDescription: "J'ai trouvé des termes dans votre schéma qui pourraient être spéciaux. Dites-moi ce qu'ils signifient pour que je réponde correctement.",
+    glossaryDescription:
+      "J'ai trouvé des termes dans votre schéma qui pourraient être spéciaux. Dites-moi ce qu'ils signifient pour que je réponde correctement.",
     means: "signifie\u2026",
     suggested: "SUGGÉRÉ",
     saveTermsAndVerify: "Enregistrer les termes et vérifier les réponses",
     checkAnswersBeforeStart: "Vérifiez quelques réponses avant de commencer",
-    startersDescription: "Laissez-moi exécuter quelques requêtes générées automatiquement pour que vous vérifiez d'abord qu'elles sont correctes.",
+    startersDescription:
+      "Laissez-moi exécuter quelques requêtes générées automatiquement pour que vous vérifiez d'abord qu'elles sont correctes.",
     statusCorrect: "Correct ! Enregistré dans l'historique de confiance.",
     statusWrong: "Marqué comme incorrect — j'apprendrai de cela.",
     statusSkipped: "Vous pouvez toujours vérifier plus tard depuis le chat.",
-    startersError: "Impossible de générer des requêtes d'exemple — vous pouvez passer cette étape.",
+    startersError:
+      "Impossible de générer des requêtes d'exemple — vous pouvez passer cette étape.",
     startAsking: "Commencer à demander \u2192",
     reviewEachAnswer: "Examinez chaque réponse ci-dessus pour continuer.",
     stepReadDb: "Lire votre BD",
@@ -317,9 +365,12 @@ const fr = {
   },
   schema: {
     title: "Schéma",
-    trustSupervised: "Chaque réponse attend votre confirmation pendant qu'elle apprend.",
-    trustAssisted: "Les réponses confiantes sont affichées ; les nouvelles sont examinées.",
-    trustTrusted: "Les réponses sont affichées directement. Le raisonnement est à un tapotement.",
+    trustSupervised:
+      "Chaque réponse attend votre confirmation pendant qu'elle apprend.",
+    trustAssisted:
+      "Les réponses confiantes sont affichées ; les nouvelles sont examinées.",
+    trustTrusted:
+      "Les réponses sont affichées directement. Le raisonnement est à un tapotement.",
     supervised: "Supervisé",
     assisted: "Assisté",
     trusted: "De confiance",
@@ -335,27 +386,41 @@ const fr = {
     removeRow: "Supprimer la ligne",
     loading: "Chargement du catalogue\u2026",
     couldNotLoad: "Impossible de charger le catalogue.",
-    suggestionsLoaded: "Suggestions IA chargées — révisez et modifiez, puis enregistrez.",
+    suggestionsLoaded:
+      "Suggestions IA chargées — révisez et modifiez, puis enregistrez.",
     couldNotSuggest: "Impossible de générer des suggestions.",
     couldNotSave: "Impossible d'enregistrer le catalogue.",
-    catalogPageDescription: "Apprenez à BoloDB votre langage commercial. Il est envoyé avec chaque question pour répondre plus précisément.",
-    synonymsDesc: "Mots commerciaux que votre équipe utilise, associés à une table ou une colonne.",
-    valueMeaningsDesc: 'Une étiquette conviviale pour une valeur stockée, ex. "VIP" signifie segment = vip.',
-    metricsDesc: "Calculs réutilisables, ex. revenu = SUM(montant_total) WHERE terminé.",
-    joinPathsDesc: "Comment les tables se connectent, afin que les réponses les joignent correctement.",
-    columnNotesDesc: "Ce qu'une colonne signifie lorsque le nom seul n'est pas clair.",
+    catalogPageDescription:
+      "Apprenez à BoloDB votre langage commercial. Il est envoyé avec chaque question pour répondre plus précisément.",
+    synonymsDesc:
+      "Mots commerciaux que votre équipe utilise, associés à une table ou une colonne.",
+    valueMeaningsDesc:
+      'Une étiquette conviviale pour une valeur stockée, ex. "VIP" signifie segment = vip.',
+    metricsDesc:
+      "Calculs réutilisables, ex. revenu = SUM(montant_total) WHERE terminé.",
+    joinPathsDesc:
+      "Comment les tables se connectent, afin que les réponses les joignent correctement.",
+    columnNotesDesc:
+      "Ce qu'une colonne signifie lorsque le nom seul n'est pas clair.",
     thinking: "Réflexion\u2026",
     saving: "Enregistrement\u2026",
     entry: "{n} entrée{?s}",
   },
   errors: {
-    dbConnectionRefused: "Le serveur de base de données ne fonctionne pas ou est inaccessible — vérifiez l'hôte et le port.",
-    wrongCredentials: "Nom d'utilisateur ou mot de passe incorrect — vérifiez vos identifiants.",
-    fileNotFound: "Fichier introuvable — vérifiez le chemin et assurez-vous que le fichier existe.",
-    dbDoesNotExist: "Ce nom de base de données n'a pas été trouvé — vérifiez l'orthographe.",
-    connectionTimedOut: "Délai de connexion dépassé — le serveur peut être inaccessible ou derrière un pare-feu.",
-    sslError: "Erreur SSL — si vous vous connectez via une URL, essayez d'ajouter ?sslmode=disable à la fin.",
-    driverNotInstalled: "Le pilote pour ce type de base de données n'est pas installé sur ce serveur.",
+    dbConnectionRefused:
+      "Le serveur de base de données ne fonctionne pas ou est inaccessible — vérifiez l'hôte et le port.",
+    wrongCredentials:
+      "Nom d'utilisateur ou mot de passe incorrect — vérifiez vos identifiants.",
+    fileNotFound:
+      "Fichier introuvable — vérifiez le chemin et assurez-vous que le fichier existe.",
+    dbDoesNotExist:
+      "Ce nom de base de données n'a pas été trouvé — vérifiez l'orthographe.",
+    connectionTimedOut:
+      "Délai de connexion dépassé — le serveur peut être inaccessible ou derrière un pare-feu.",
+    sslError:
+      "Erreur SSL — si vous vous connectez via une URL, essayez d'ajouter ?sslmode=disable à la fin.",
+    driverNotInstalled:
+      "Le pilote pour ce type de base de données n'est pas installé sur ce serveur.",
     accessDenied: "Accès refusé",
     sessionExpired: "Session expirée, veuillez vous reconnecter",
     invalidToken: "Jeton invalide",
@@ -369,18 +434,25 @@ const fr = {
     internalError: "Une erreur interne s'est produite.",
     noDatabaseConnected: "Aucune base de données connectée",
     emptyQuestion: "Question vide",
-    couldNotFormQuery: "Impossible de former une requête — essayez de reformuler",
-    couldNotFormWorkingQuery: "Impossible de former une requête fonctionnelle — essayez de reformuler",
-    sqlGenerationTimeout: "La génération SQL a dépassé la limite de temps maximale",
+    couldNotFormQuery:
+      "Impossible de former une requête — essayez de reformuler",
+    couldNotFormWorkingQuery:
+      "Impossible de former une requête fonctionnelle — essayez de reformuler",
+    sqlGenerationTimeout:
+      "La génération SQL a dépassé la limite de temps maximale",
     queryGenerationFailed: "La génération de requête a échoué",
     modelReturnedEmptySql: "Le modèle a renvoyé un SQL vide",
     retryingCorrections: "Nouvelle tentative avec corrections",
-    queryCouldNotRun: "La requête n'a pas pu être exécutée contre la base de données.",
-    couldNotGenerateValidSql: "Impossible de générer un SQL valide après {n} tentatives",
+    queryCouldNotRun:
+      "La requête n'a pas pu être exécutée contre la base de données.",
+    couldNotGenerateValidSql:
+      "Impossible de générer un SQL valide après {n} tentatives",
     noDatabaseConnectedShort: "Aucune base de données connectée",
     emptyStatement: "Instruction vide.",
-    selectOnly: "Seules les requêtes SELECT sont autorisées (mode lecture seule).",
-    singleStatementOnly: "Une seule instruction est autorisée (pas de requêtes empilées).",
+    selectOnly:
+      "Seules les requêtes SELECT sont autorisées (mode lecture seule).",
+    singleStatementOnly:
+      "Une seule instruction est autorisée (pas de requêtes empilées).",
     selectIntoNotAllowed: "SELECT INTO n'est pas autorisé.",
     aiKeyInvalid: "La clé API IA semble invalide ou expirée.",
     aiKeyDenied: "Le service IA a refusé l'accès — vérifiez votre clé API.",
@@ -391,10 +463,13 @@ const fr = {
     llmError: "Erreur LLM : {error}",
     entryNotFound: "Entrée introuvable ou non autorisée",
     reasonQueryDidNotRun: "la requête générée ne s'est pas exécutée",
-    reasonMatchesVerified: "correspond étroitement à une réponse que vous avez vérifiée auparavant",
-    reasonSimilarToVerified: "similaire à une réponse que vous avez vérifiée auparavant",
+    reasonMatchesVerified:
+      "correspond étroitement à une réponse que vous avez vérifiée auparavant",
+    reasonSimilarToVerified:
+      "similaire à une réponse que vous avez vérifiée auparavant",
     reasonNoMatchingRows: "aucune ligne correspondante",
-    reasonNewQuestion: "nouvelle question — veuillez confirmer qu'elle est correcte",
+    reasonNewQuestion:
+      "nouvelle question — veuillez confirmer qu'elle est correcte",
   },
   streaming: {
     scanningTables: "Analyse des tables : {tables}",

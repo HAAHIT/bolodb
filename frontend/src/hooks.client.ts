@@ -27,8 +27,7 @@ export async function init() {
       const c = getCookie("locale");
       return c ? [c] : [];
     },
-    () =>
-      typeof navigator !== "undefined" ? [...navigator.languages] : [],
+    () => (typeof navigator !== "undefined" ? [...navigator.languages] : []),
   );
   await loadLocaleAsync(detected);
   setLocale(detected);
