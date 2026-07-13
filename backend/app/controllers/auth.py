@@ -15,17 +15,30 @@ from backend.app.pgdatabase import (
     get_user_by_google_id,
     get_user_by_id,
     update_user,
-    serialize_doc,
 )
 import jwt
 from datetime import datetime, timedelta, UTC
+from fastapi.concurrency import run_in_threadpool
 from backend.app.secrets import get_jwt_secret
 
 log = logging.getLogger(__name__)
 
 
+_JWKS_CLIENT = None
+
+
+def _get_jwks_client():
+    global _JWKS_CLIENT
+    if _JWKS_CLIENT is None:
+        from jwt import PyJWKClient
+        _JWKS_CLIENT = PyJWKClient(
+            "https://www.googleapis.com/oauth2/v3/certs", cache_keys=True
+        )
+    return _JWKS_CLIENT
+
+
 async def get_me(user_id):
-    data = serialize_doc(await get_user_by_id(user_id))
+    data = await get_user_by_id(user_id)
     if not data:
         return None
     data.pop("hashed_pass", None)
@@ -83,11 +96,10 @@ async def signup(user: UserSignup):
 async def google_login(id_token_str, client_id):
     """Verify a Google ID token and return JWT tokens for the user."""
     try:
-        from jwt import PyJWKClient
-
-        jwks_url = "https://www.googleapis.com/oauth2/v3/certs"
-        jwks_client = PyJWKClient(jwks_url, cache_keys=True)
-        signing_key = jwks_client.get_signing_key_from_jwt(id_token_str)
+        jwks_client = _get_jwks_client()
+        signing_key = await run_in_threadpool(
+            jwks_client.get_signing_key_from_jwt, id_token_str
+        )
         user_info = jwt.decode(
             id_token_str,
             signing_key.key,

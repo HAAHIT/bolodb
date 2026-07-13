@@ -1,6 +1,7 @@
 """Alembic async migration environment."""
 
 import asyncio
+import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -12,6 +13,11 @@ from backend.app.pgdatabase import Base
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Override with DATABASE_URL from environment — alembic.ini has no credentials
+db_url = os.getenv("DATABASE_URL")
+if db_url:
+    config.set_main_option("sqlalchemy.url", db_url)
 
 target_metadata = Base.metadata
 

@@ -1,9 +1,11 @@
 """FastAPI application."""
 
 import logging
+from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.concurrency import run_in_threadpool
 
 from backend.app import config as cfgmod
 from backend.app.database import DatabaseManager
@@ -27,9 +29,18 @@ logger = logging.getLogger(__name__)
 async def lifespan(app):
     from alembic.config import Config
     from alembic import command
+    from sqlalchemy import text
 
-    alembic_cfg = Config("alembic.ini")
-    command.upgrade(alembic_cfg, "head")
+    alembic_ini = Path(__file__).resolve().parents[1] / "alembic.ini"
+    alembic_cfg = Config(str(alembic_ini))
+    from backend.app.pgdatabase import get_engine
+
+    engine = get_engine()
+    async with engine.begin() as lock_conn:
+        await lock_conn.execute(
+            text("SELECT pg_advisory_xact_lock(2305843009213693951)")
+        )
+        await run_in_threadpool(command.upgrade, alembic_cfg, "head")
     yield
     from backend.app.pgdatabase import dispose_db
 

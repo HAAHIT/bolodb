@@ -33,7 +33,7 @@ services:
 
   # ── PgBouncer: Connection pool ──
   pgbouncer:
-    image: bitnami/pgbouncer:latest
+    image: bitnami/pgbouncer:1.24.0
     container_name: bolodb-pgbouncer
     restart: unless-stopped
     ports:

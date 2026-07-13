@@ -22,6 +22,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PgUUID
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy import pool
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from backend.app.models.user import UserInDB
@@ -44,7 +45,11 @@ _engine = None
 def get_engine():
     global _engine
     if _engine is None:
-        _engine = create_async_engine(DATABASE_URL, pool_size=10, max_overflow=20)
+        _engine = create_async_engine(
+            DATABASE_URL,
+            poolclass=pool.NullPool,
+            connect_args={"statement_cache_size": 0},
+        )
     return _engine
 
 
@@ -186,17 +191,28 @@ def _recent_connection_cipher():
     master_cipher = _recent_connections_master_cipher()
     if _CONNECTIONS_KEY_FILE.exists():
         persisted = _CONNECTIONS_KEY_FILE.read_text().strip()
-        loaded_secret = persisted
         if master_cipher:
-            try:
-                loaded_secret = master_cipher.decrypt(persisted.encode()).decode()
-            except (InvalidToken, ValueError, TypeError):
-                loaded_secret = persisted
+            if persisted.startswith("v1:"):
+                try:
+                    loaded_secret = master_cipher.decrypt(persisted[3:].encode()).decode()
+                except (InvalidToken, ValueError, TypeError):
+                    raise RuntimeError(
+                        "Failed to decrypt connections key file with RECENT_CONNECTIONS_MASTER_KEY. "
+                        "The master key may have changed or the key file is corrupted."
+                    )
+            else:
+                raise RuntimeError(
+                    "RECENT_CONNECTIONS_MASTER_KEY is set but connections key file "
+                    "is not encrypted. Re-run with RECENT_CONNECTIONS_MASTER_KEY unset "
+                    "to regenerate, or set RECENT_CONNECTIONS_KEY directly."
+                )
+        else:
+            loaded_secret = persisted
         key = base64.urlsafe_b64encode(hashlib.sha256(loaded_secret.encode()).digest())
         return Fernet(key), None
     if master_cipher:
         new_secret = base64.urlsafe_b64encode(os.urandom(32)).decode()
-        stored_secret = master_cipher.encrypt(new_secret.encode()).decode()
+        stored_secret = "v1:" + master_cipher.encrypt(new_secret.encode()).decode()
         _CONNECTIONS_KEY_FILE.write_text(stored_secret)
         try:
             os.chmod(_CONNECTIONS_KEY_FILE, 0o600)
@@ -274,7 +290,7 @@ async def create_user(user_data: UserInDB) -> str:
             user = User(
                 email=user_data.email,
                 hashed_pass=user_data.hashed_pass,
-                role=user_data.role,
+                role=user_data.role.value,
                 google_id=user_data.google_id,
             )
             session.add(user)
