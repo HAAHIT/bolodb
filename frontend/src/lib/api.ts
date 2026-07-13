@@ -2,6 +2,9 @@
 
 import type { StreamEvent } from "$lib/types";
 
+import { locale } from "$lib/i18n/i18n-svelte";
+import { get } from "svelte/store";
+
 export async function apiCall(
   path: string,
   body?: unknown,
@@ -15,6 +18,10 @@ export async function apiCall(
     opts.body = JSON.stringify(body);
   }
   opts.credentials = "include";
+  const currentLocale = get(locale);
+  if (currentLocale && currentLocale !== "en") {
+    opts.headers = { ...opts.headers, "X-Locale": currentLocale };
+  }
   const r = await fetch(path, opts);
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.detail || `Request failed: ${r.status}`);

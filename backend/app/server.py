@@ -19,6 +19,7 @@ from backend.app.routes.history import router as history_router
 from backend.app.routes.connections import router as connections_router
 from backend.app.routes.catalog import router as catalog_router
 from backend.app.routes.conversations import router as conversations_router
+from backend.app.i18n.middleware import LocaleMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,8 @@ def create_app(initial_db_url="", readonly=True):
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.add_middleware(LocaleMiddleware)
 
     app.state.cfg = cfg
     app.state.providers = providers
