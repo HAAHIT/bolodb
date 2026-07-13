@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { browser } from '$app/environment';
 
   let canvas: HTMLCanvasElement;
   let THREE: any;
@@ -226,6 +227,7 @@
   });
 
   onDestroy(() => {
+    if (!browser) return;
     cancelAnimationFrame(animationId);
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('resize', onResize);
