@@ -23,8 +23,8 @@ async def _format_sse(stream):
         async for event in stream:
             yield f"data: {json.dumps(event, default=str)}\n\n"
     except Exception:
-        log.exception("Unhandled error while streaming query results")
-        yield f"data: {json.dumps({'kind': 'error', 'message': 'An internal error occurred.'})}\n\n"
+        log.error("Unhandled error while streaming query response", exc_info=True)
+        yield f"data: {json.dumps({'kind': 'error', 'message': 'An internal error has occurred.'})}\n\n"
 
 
 @router.post("/api/query")

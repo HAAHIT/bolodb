@@ -1,3 +1,5 @@
+import logging
+
 import bcrypt
 from pydantic import EmailStr
 from fastapi import HTTPException
@@ -19,6 +21,8 @@ import jwt
 from datetime import datetime, timedelta, UTC
 from backend.app.secrets import get_jwt_secret
 
+log = logging.getLogger(__name__)
+
 
 async def get_me(user_id):
     data = serialize_doc(await get_user_by_id(user_id))
@@ -31,6 +35,10 @@ async def get_me(user_id):
 async def login(email: EmailStr, password: str):
     user_details = await get_user_by_email(email)
     if user_details is None:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    # Google-only accounts have no password hash; reject cleanly instead of
+    # letting bcrypt raise on an empty salt (which would surface as a 500).
+    if not user_details.get("hashed_pass"):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     user_bytes = password.encode()
     if bcrypt.checkpw(user_bytes, user_details["hashed_pass"].encode("utf-8")):
@@ -73,6 +81,7 @@ async def signup(user: UserSignup):
 
 
 async def google_login(id_token_str, client_id):
+    """Verify a Google ID token and return JWT tokens for the user."""
     try:
         from jwt import PyJWKClient
 
@@ -87,12 +96,16 @@ async def google_login(id_token_str, client_id):
             issuer=["https://accounts.google.com", "accounts.google.com"],
         )
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid Google token: {e}")
+        log.warning("Google ID token verification failed: %s", e)
+        raise HTTPException(status_code=401, detail="Invalid Google token")
 
     google_id = user_info["sub"]
     email = user_info.get("email", "")
     if not email:
         raise HTTPException(status_code=400, detail="Google account has no email")
+
+    if user_info.get("email_verified", False) not in (True, "true", "True"):
+        raise HTTPException(status_code=401, detail="Google email is not verified")
 
     existing = await get_user_by_google_id(google_id)
     if existing:
