@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 import asyncio
 from backend.app.llm import generate_glossary, generate_starters
+from backend.app.semantic import suggest_from_schema
 
 
 async def get_glossary(user_id, db, providers):
@@ -36,14 +37,23 @@ async def get_starters(user_id, db, providers):
 
 
 async def save(user_id, db, kb, req_data):
+    """Persist onboarding results (glossary + verified starters) and seed the
+    semantic catalog's deterministic backbone when none exists yet."""
     if not db.connected(user_id):
         raise HTTPException(409, "No database connected")
-    kb.set_glossary(db.get_db_id(user_id), [g.model_dump() for g in req_data.glossary])
+    db_id = db.get_db_id(user_id)
+    kb.set_glossary(db_id, [g.model_dump() for g in req_data.glossary])
     for s in req_data.starters:
         kb.add_verified(
-            db.get_db_id(user_id),
+            db_id,
             s.get("question", ""),
             s.get("sql", ""),
             s.get("restatement", ""),
         )
-    return {"ok": True, "trust": kb.trust_level(db.get_db_id(user_id))}
+    # Seed the semantic catalog (issue #90) with the deterministic backbone —
+    # join paths and value-map scaffolding derived straight from the schema —
+    # so linking and the prompt benefit immediately. The user can enrich it
+    # with AI suggestions and edits from Settings afterwards.
+    if kb.catalog_is_empty(db_id):
+        kb.set_catalog(db_id, suggest_from_schema(db.get_schema(user_id)))
+    return {"ok": True, "trust": kb.trust_level(db_id)}

@@ -46,8 +46,16 @@ class FakeDB:
 
 
 class FakeKB:
+    """Minimal knowledge base with an optional catalog for the query tests."""
+
+    def __init__(self, catalog=None):
+        self._catalog = catalog or {}
+
     def get_glossary(self, db_id):
         return []
+
+    def get_catalog(self, db_id):
+        return self._catalog
 
     def retrieve_similar(self, db_id, q, k=3):
         return []

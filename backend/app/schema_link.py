@@ -35,6 +35,7 @@ _W_COLUMN = 1.0
 _W_VALUE = 2.0  # question token matches a known cell value, e.g. "completed"
 _W_VERIFIED = 5.0  # table appears in a previously verified similar answer
 _W_CONTEXT = 8.0  # table was used by the previous query in this conversation
+_W_CATALOG = 6.0  # table named by a matched catalog synonym/value-map/metric
 _W_SHORTLIST = 6.0  # table was picked by the LLM shortlist pass (big schemas)
 _MAX_COLUMN_POINTS = 4.0  # cap so very wide tables can't win on width alone
 _MAX_VALUE_POINTS = 4.0
@@ -97,6 +98,48 @@ def _question_stems(question, glossary):
         if term_stems & q:
             q |= _stems(g.get("maps_to", "")) | _stems(g.get("sql_hint", ""))
     return q
+
+
+def _catalog_signals(q_stems, catalog, all_tables):
+    """Turn the semantic catalog (issue #90) into linking signals.
+
+    Returns ``(extra_stems, boost_tables)``:
+      * ``extra_stems`` — stems to add to the question (e.g. a matched value
+        label pulls in the stored value it maps to, so ``_score_table`` can
+        match it against a column's known values);
+      * ``boost_tables`` — real table names to score up because a synonym,
+        value mapping, or metric the question mentions lives there.
+    """
+    extra = set()
+    boost = set()
+    if not catalog:
+        return extra, boost
+    lower_tables = {t.lower(): t for t in all_tables}
+
+    for s in catalog.get("synonyms", []) or []:
+        if _stems(s.get("term", "")) & q_stems:
+            entity = s.get("entity_name", "") or ""
+            if s.get("entity_type") == "table" and entity.lower() in lower_tables:
+                boost.add(lower_tables[entity.lower()])
+            else:
+                extra |= _stems(entity)
+
+    for v in catalog.get("value_maps", []) or []:
+        if _stems(v.get("business_label", "")) & q_stems:
+            tbl = (v.get("table", "") or "").lower()
+            if tbl in lower_tables:
+                boost.add(lower_tables[tbl])
+            extra |= _stems(str(v.get("db_value", "")))
+
+    for m in catalog.get("metrics", []) or []:
+        if _stems(m.get("name", "")) & q_stems:
+            expr = (m.get("sql_expression", "") or "").lower()
+            for low, orig in lower_tables.items():
+                if re.search(r"\b" + re.escape(low) + r"\b", expr):
+                    boost.add(orig)
+            extra |= _stems(m.get("sql_expression", ""))
+
+    return extra, boost
 
 
 def _score_table(name, info, q_stems):
@@ -169,6 +212,7 @@ def link_relevant_tables(
     retrieved,
     max_tables,
     context_tables,
+    catalog=None,
     boost_tables=None,
 ):
     """Pick the tables the model should see for this question.
@@ -194,6 +238,8 @@ def link_relevant_tables(
         return all_tables
 
     q_stems = _question_stems(question, glossary)
+    extra_stems, catalog_boost = _catalog_signals(q_stems, catalog, all_tables)
+    q_stems |= extra_stems
     verified = _tables_in_verified_sql(all_tables, retrieved)
     context_lookup = {t.lower() for t in context_tables}
     boost_lookup = {t.lower() for t in (boost_tables or ())}
@@ -205,6 +251,8 @@ def link_relevant_tables(
             s += _W_VERIFIED
         if t.lower() in context_lookup:
             s += _W_CONTEXT
+        if t in catalog_boost:
+            s += _W_CATALOG
         if t.lower() in boost_lookup:
             s += _W_SHORTLIST
         scores[t] = s

@@ -115,6 +115,21 @@ export async function clearHistory(): Promise<any> {
   return apiCall("/api/history", undefined, "DELETE");
 }
 
+// ── Semantic catalog (issue #90) ──
+export async function getCatalog(): Promise<any> {
+  return apiCall("/api/catalog");
+}
+
+export async function saveCatalog(catalog: unknown): Promise<any> {
+  return apiCall("/api/catalog", catalog, "POST");
+}
+
+export async function suggestCatalog(): Promise<any> {
+  return apiCall("/api/catalog/suggest", undefined, "POST");
+}
+
+// --- Conversations ---
+
 export async function getConversations(): Promise<any> {
   return apiCall("/api/conversations");
 }

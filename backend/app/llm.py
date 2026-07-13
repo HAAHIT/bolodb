@@ -159,6 +159,66 @@ EXPLAIN_SCHEMA = {
     "required": ["explanation"],
 }
 
+# Semantic catalog suggestions (issue #90). Joins and value-map *coverage* are
+# derived deterministically from the schema (backend/app/semantic.py); this
+# schema is what we ask the model to enrich: descriptions, metrics, synonyms,
+# and friendly labels for the stored values.
+CATALOG_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "column_descriptions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "table": {"type": "string"},
+                    "column": {"type": "string"},
+                    "description": {"type": "string"},
+                },
+                "required": ["table", "column", "description"],
+            },
+        },
+        "metrics": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "description": {"type": "string"},
+                    "sql_expression": {"type": "string"},
+                },
+                "required": ["name", "sql_expression"],
+            },
+        },
+        "synonyms": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "term": {"type": "string"},
+                    "entity_type": {"type": "string"},
+                    "entity_name": {"type": "string"},
+                },
+                "required": ["term", "entity_type", "entity_name"],
+            },
+        },
+        "value_maps": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "table": {"type": "string"},
+                    "column": {"type": "string"},
+                    "db_value": {"type": "string"},
+                    "business_label": {"type": "string"},
+                },
+                "required": ["table", "column", "db_value", "business_label"],
+            },
+        },
+    },
+    "required": ["column_descriptions", "metrics", "synonyms", "value_maps"],
+}
+
 SHORTLIST_SCHEMA = {
     "type": "object",
     "properties": {
@@ -522,6 +582,78 @@ def _glossary_block(glossary):
     )
 
 
+def _semantic_block(catalog):
+    """Render the curated semantic catalog (issue #90): metric definitions,
+    value meanings, synonyms, join paths and column notes. Like the glossary
+    this is user-curated ground truth for interpreting the question, and it is
+    stable per database so it sits next to the glossary (cache-friendly)."""
+    if not catalog:
+        return ""
+    sections = []
+
+    metrics = catalog.get("metrics") or []
+    if metrics:
+        lines = []
+        for m in metrics:
+            line = f"- {m.get('name', '')} = {m.get('sql_expression', '')}"
+            if m.get("description"):
+                line += f"  ({m['description']})"
+            lines.append(line)
+        sections.append(
+            "Metric definitions (use these exact expressions):\n" + "\n".join(lines)
+        )
+
+    value_maps = catalog.get("value_maps") or []
+    if value_maps:
+        grouped = {}
+        for v in value_maps:
+            key = f"{v.get('table', '')}.{v.get('column', '')}"
+            grouped.setdefault(key, []).append(
+                f'"{v.get("business_label", "")}" = {v.get("db_value", "")!r}'
+            )
+        lines = [f"- {k}: " + ", ".join(vs) for k, vs in grouped.items()]
+        sections.append(
+            "Value meanings (the business label on the left maps to the stored "
+            "value on the right — filter on the stored value):\n" + "\n".join(lines)
+        )
+
+    synonyms = catalog.get("synonyms") or []
+    if synonyms:
+        lines = [
+            f'- "{s.get("term", "")}" -> {s.get("entity_name", "")} '
+            f"({s.get('entity_type', '')})"
+            for s in synonyms
+        ]
+        sections.append(
+            "Synonyms (business word -> schema entity):\n" + "\n".join(lines)
+        )
+
+    joins = catalog.get("joins") or []
+    if joins:
+        lines = []
+        for j in joins:
+            line = f"- {j.get('join_condition', '')}"
+            if j.get("description"):
+                line += f"  ({j['description']})"
+            lines.append(line)
+        sections.append("Preferred join paths:\n" + "\n".join(lines))
+
+    cols = catalog.get("column_descriptions") or []
+    if cols:
+        lines = [
+            f"- {c.get('table', '')}.{c.get('column', '')}: {c.get('description', '')}"
+            for c in cols
+        ]
+        sections.append("Column notes:\n" + "\n".join(lines))
+
+    if not sections:
+        return ""
+    return (
+        "Business catalog for this database (curated by the user — treat as "
+        "ground truth):\n" + "\n\n".join(sections) + "\n\n"
+    )
+
+
 def _examples_block(retrieved, max_examples):
     """Render previously-verified Q→SQL pairs similar to this question.
     Few-shot examples of the user's own verified answers are the single
@@ -540,7 +672,7 @@ def _examples_block(retrieved, max_examples):
 
 
 def build_sql_system_prompt(
-    schema_text, dialect, glossary, retrieved, max_examples, context
+    schema_text, dialect, glossary, retrieved, max_examples, context, catalog=None
 ):
     """Assemble the full system prompt for SQL generation."""
     hint = _DIALECT_HINTS.get(dialect, "")
@@ -562,6 +694,7 @@ def build_sql_system_prompt(
         f"Schema (col PK = primary key, col->t.c = foreign key, [v1,v2] = "
         f"example values):\n{schema_text}\n\n"
         f"{_glossary_block(glossary)}"
+        f"{_semantic_block(catalog)}"
         f"{_examples_block(retrieved, max_examples)}"
         f"{_context_block(context)}"
         "Reply ONLY with this JSON, nothing else:\n"
@@ -582,17 +715,19 @@ async def generate_sql(
     max_examples=3,
     context=None,
     feedback="",
+    catalog=None,
 ):
     """Question (+ optional repair feedback) → ``{sql, restatement, assumptions}``.
 
     ``feedback`` is filled by the repair loop (backend/app/repair.py) when a
     previous attempt failed validation or execution; it describes exactly what
-    was wrong so the model can correct itself.
+    was wrong so the model can correct itself. ``catalog`` is the curated
+    semantic catalog (issue #90) for the connected database.
     """
     if context is None:
         context = []
     system = build_sql_system_prompt(
-        schema_text, dialect, glossary, retrieved, max_examples, context
+        schema_text, dialect, glossary, retrieved, max_examples, context, catalog
     )
     user = question if not feedback else f"{question}\n\n{feedback}"
     result = parse_sql_output(
@@ -680,6 +815,42 @@ async def explain_sql(provider, sql, dialect):
     )
     obj = raw if isinstance(raw, dict) else parse_json(raw)
     return {"explanation": str(obj.get("explanation", "")).strip()}
+
+
+async def suggest_catalog(provider, schema_text):
+    """Suggest semantic-catalog entries (issue #90) for onboarding curation:
+    column descriptions, metric definitions, synonyms, and friendly labels for
+    the stored categorical values. Joins and value-map coverage are added
+    deterministically by the caller (backend/app/semantic.py)."""
+    system = (
+        "You are a data analyst documenting a database for non-technical users.\n"
+        f"{schema_text}\n\n"
+        "Produce a concise semantic catalog:\n"
+        "- column_descriptions: a short plain-English meaning for columns whose "
+        "purpose is not obvious from the name (skip the obvious ones).\n"
+        "- metrics: the business metrics people ask for (e.g. revenue) as a "
+        "name, a one-line description, and a SQL expression built from the real "
+        "table/column names in the schema.\n"
+        "- synonyms: business words a user might say, each mapped to the "
+        "matching table or column (entity_type is 'table' or 'column').\n"
+        "- value_maps: for columns whose example values appear in [brackets], "
+        "give each stored value a friendly business_label.\n"
+        "Use ONLY tables and columns that appear in the schema. Keep it tight."
+    )
+    raw = await provider.complete(
+        system,
+        "Produce the catalog.",
+        json_mode=True,
+        schema=CATALOG_SCHEMA,
+        thinking_budget=0,
+    )
+    obj = raw if isinstance(raw, dict) else parse_json(raw)
+    return {
+        "column_descriptions": obj.get("column_descriptions", []) or [],
+        "metrics": obj.get("metrics", []) or [],
+        "synonyms": obj.get("synonyms", []) or [],
+        "value_maps": obj.get("value_maps", []) or [],
+    }
 
 
 async def generate_glossary(provider, schema_text):

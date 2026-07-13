@@ -27,6 +27,7 @@ from backend.app.schema_link import (
     link_relevant_tables,
     model_budget,
 )
+from backend.app.semantic import filter_catalog
 from backend.app.sqlvalidate import validate_sql
 import backend.app.pgdatabase as mdb
 
@@ -75,6 +76,7 @@ async def run_query(user_id, db, kb, cfg, providers, session_log, req_data):
     # Step 1 — user knowledge: confirmed term meanings + similar verified answers.
     db_id = db.get_db_id(user_id)
     glossary = kb.get_glossary(db_id)
+    catalog = kb.get_catalog(db_id)
     retrieved = kb.retrieve_similar(db_id, q, k=3)
 
     # Step 2 — schema linking: budget for the configured model, then pick tables.
@@ -109,9 +111,12 @@ async def run_query(user_id, db, kb, cfg, providers, session_log, req_data):
             retrieved,
             budget["max_tables"],
             context_tables,
+            catalog=catalog,
             boost_tables=shortlist,
         )
     )
+    # Only the catalog entries for the linked tables go into the prompt.
+    prompt_catalog = filter_catalog(catalog, linked)
 
     # Step 3 — generate→validate→execute→repair.
 
@@ -128,6 +133,7 @@ async def run_query(user_id, db, kb, cfg, providers, session_log, req_data):
             budget["max_examples"],
             context,
             feedback=feedback,
+            catalog=prompt_catalog,
         )
 
     async def _execute(sql):
@@ -331,6 +337,7 @@ async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_dat
     query_start = time.monotonic()
 
     glossary = kb.get_glossary(db.get_db_id(user_id))
+    catalog = kb.get_catalog(db.get_db_id(user_id))
     retrieved = kb.retrieve_similar(db.get_db_id(user_id), q, k=3)
     budget = model_budget(cfg.get("model", ""))
     full_schema = db.get_schema(user_id)
@@ -340,9 +347,17 @@ async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_dat
         else set()
     )
     tables = link_relevant_tables(
-        q, full_schema, glossary, retrieved, budget["max_tables"], context_tables
+        q,
+        full_schema,
+        glossary,
+        retrieved,
+        budget["max_tables"],
+        context_tables,
+        catalog=catalog,
     )
     schema_text = compact_schema(full_schema, tables, budget["samples"])
+    # Only the catalog entries for the linked tables go into the prompt.
+    prompt_catalog = filter_catalog(catalog, tables)
     provider_obj = providers.get()
 
     yield {
@@ -371,6 +386,7 @@ async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_dat
             budget["max_examples"],
             context,
             feedback=feedback,
+            catalog=prompt_catalog,
         )
         llm_task = asyncio.create_task(llm_coro)
         try:
