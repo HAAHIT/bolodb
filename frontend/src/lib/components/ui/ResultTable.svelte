@@ -1,4 +1,5 @@
 <script lang="ts">
+  import LL from "$lib/i18n/i18n-svelte";
   let {
     columns,
     rows,
@@ -83,7 +84,7 @@
   <div
     style="padding:22px 18px;text-align:center;color:var(--muted);background:var(--surface-2);border:1px dashed var(--border-2);border-radius:var(--radius);font-size:14px"
   >
-    No rows matched — there may be no data that fits this question.
+    {$LL.chat.noRowsMatched()}
   </div>
 {:else}
   <div
@@ -92,17 +93,17 @@
     <div
       style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px 0;background:var(--surface-2);border-bottom:1px solid var(--border)"
     >
-      <span style="font-size:11.5px;font-weight:600;color:var(--faint)">{rows.length} row{rows.length === 1 ? '' : 's'} returned</span>
+      <span style="font-size:11.5px;font-weight:600;color:var(--faint)">{$LL.chat.rowsReturned({n: rows.length})}</span>
       <button
         onclick={copyCSV}
-        title="Copy all rows as CSV — paste into Excel or Sheets"
+        title={$LL.chat.copyCsvTitle()}
         aria-live="polite"
         class="tb-btn"
         style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;font-size:11.5px;font-weight:650;color:{copied
           ? 'var(--brand)'
           : 'var(--faint)'}"
       >
-        {copied ? "✓ Copied!" : "↓ Copy as CSV"}
+        {copied ? $LL.chat.copiedCsv() : $LL.chat.copyCsv()}
       </button>
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:14px">
@@ -138,7 +139,7 @@
                   : 'left'};font-size:{ci > 0 && isNumeric(cell)
                   ? '13.5px'
                   : '14px'};position:relative"
-              >{cell}{#if copiedCell === cell}<span style="position:absolute;top:-4px;right:-4px;font-size:9px;font-weight:700;color:var(--brand);background:var(--surface);padding:0 3px;border-radius:3px;white-space:nowrap">Copied!</span>{/if}</td
+              >{cell}{#if copiedCell === cell}<span style="position:absolute;top:-4px;right:-4px;font-size:9px;font-weight:700;color:var(--brand);background:var(--surface);padding:0 3px;border-radius:3px;white-space:nowrap">{$LL.chat.copied()}</span>{/if}</td
               >
             {/each}
           </tr>

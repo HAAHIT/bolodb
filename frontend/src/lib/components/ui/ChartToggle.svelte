@@ -1,4 +1,5 @@
 <script lang="ts">
+  import LL from "$lib/i18n/i18n-svelte";
   let { mode = 'table', onToggle }: { mode: 'table' | 'chart'; onToggle: () => void } = $props();
 </script>
 
@@ -10,9 +11,9 @@
 >
   {#if mode === 'table'}
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
-    Chart
+    {$LL.chat.chartView()}
   {:else}
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="3" x2="21" y1="9" y2="9"/><line x1="9" x2="9" y1="21" y2="9"/></svg>
-    Table
+    {$LL.chat.tableView()}
   {/if}
 </button>

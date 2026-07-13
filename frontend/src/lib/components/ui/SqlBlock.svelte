@@ -1,4 +1,5 @@
 <script lang="ts">
+  import LL from "$lib/i18n/i18n-svelte";
   let { sql }: { sql: string } = $props();
   let open = $state(false);
   let copied = $state(false);
@@ -43,19 +44,19 @@
     <button onclick={() => open = !open} class="btn btn-quiet btn-sm" style="padding:6px 10px;color:var(--muted);font-weight:600;flex-shrink:0">
       <!-- code icon -->
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      {open ? 'Hide query' : 'View the query'}
+      {open ? $LL.chat.hideQuery() : $LL.chat.viewQuery()}
       <!-- caret icon -->
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="transform:{open ? 'rotate(180deg)' : 'none'};transition:transform .2s"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     {#if open}
       <button
         onclick={copySQL}
-        title="Copy SQL query"
+        title={$LL.chat.copySql()}
         aria-live="polite"
         class="tb-btn"
         style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;font-size:11.5px;font-weight:650;color:{copied ? 'var(--brand)' : 'var(--faint)'}"
       >
-        {copied ? "✓ Copied!" : "Copy"}
+        {copied ? $LL.chat.copied() : $LL.chat.copy()}
       </button>
     {/if}
   </div>

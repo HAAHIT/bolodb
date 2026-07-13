@@ -1,10 +1,11 @@
 <script lang="ts">
   import { trustFor } from '$lib/data';
+  import LL from "$lib/i18n/i18n-svelte";
 
   let { count, compact = false }: { count: number; compact?: boolean } = $props();
 
   const t = $derived(trustFor(count));
-  const levels = ['Supervised', 'Assisted', 'Trusted'];
+  const levels = $derived([$LL.schema.supervised(), $LL.schema.assisted(), $LL.schema.trusted()]);
 </script>
 
 <div style="display:flex;flex-direction:column;gap:{compact ? 6 : 9}px">
@@ -17,8 +18,8 @@
   </div>
   {#if !compact}
     <div style="display:flex;justify-content:space-between;align-items:baseline">
-      <span style="font-weight:700;font-size:13.5px;color:var(--ink)">{t.label}</span>
-      <span class="tnum" style="font-size:12px;color:var(--faint);font-weight:600">{count} verified</span>
+      <span style="font-weight:700;font-size:13.5px;color:var(--ink)">{$LL.chat[t.labelKey]()}</span>
+      <span class="tnum" style="font-size:12px;color:var(--faint);font-weight:600">{$LL.chat.verifiedCount({n: count})}</span>
     </div>
   {/if}
 </div>
