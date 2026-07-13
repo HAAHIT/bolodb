@@ -194,18 +194,21 @@ def _recent_connection_cipher():
                 loaded_secret = persisted
         key = base64.urlsafe_b64encode(hashlib.sha256(loaded_secret.encode()).digest())
         return Fernet(key), None
-    new_secret = base64.urlsafe_b64encode(os.urandom(32)).decode()
-    stored_secret = (
-        master_cipher.encrypt(new_secret.encode()).decode()
-        if master_cipher
-        else new_secret
-    )
-    _CONNECTIONS_KEY_FILE.write_text(stored_secret)
-    try:
-        os.chmod(_CONNECTIONS_KEY_FILE, 0o600)
-    except OSError:
-        pass
-    key = base64.urlsafe_b64encode(hashlib.sha256(new_secret.encode()).digest())
+    if master_cipher:
+        new_secret = base64.urlsafe_b64encode(os.urandom(32)).decode()
+        stored_secret = master_cipher.encrypt(new_secret.encode()).decode()
+        _CONNECTIONS_KEY_FILE.write_text(stored_secret)
+        try:
+            os.chmod(_CONNECTIONS_KEY_FILE, 0o600)
+        except OSError:
+            pass
+        key = base64.urlsafe_b64encode(hashlib.sha256(new_secret.encode()).digest())
+    else:
+        jwt_secret = os.getenv("JWT_SECRET")
+        if jwt_secret:
+            key = base64.urlsafe_b64encode(hashlib.sha256(jwt_secret.encode()).digest())
+        else:
+            key = base64.urlsafe_b64encode(os.urandom(32))
     return Fernet(key), None
 
 
