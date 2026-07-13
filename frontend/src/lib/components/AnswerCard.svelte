@@ -10,6 +10,7 @@
   import Thinking from '$lib/components/Thinking.svelte';
   import Flywheel from '$lib/components/Flywheel.svelte';
   import { detectChartData } from '$lib/components/charts/chartUtils';
+  import LL from "$lib/i18n/i18n-svelte";
 
   let { turn, onVerify, isLatest, liveArtifacts, onRegenerate, onEditPrompt, modelName = '' }:
     {
@@ -118,9 +119,9 @@
           />
           <div style="display:flex;gap:6px;justify-content:flex-end">
             <button onclick={cancelEdit}
-              style="padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12.5px;font-weight:600;cursor:pointer">Cancel</button>
+              style="padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12.5px;font-weight:600;cursor:pointer">{$LL.common.cancel()}</button>
             <button onclick={saveEdit}
-              style="padding:5px 12px;border-radius:6px;border:none;background:var(--brand);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer">Save</button>
+              style="padding:5px 12px;border-radius:6px;border:none;background:var(--brand);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer">{$LL.common.save()}</button>
           </div>
         </div>
       </div>
@@ -153,20 +154,20 @@
       <!-- Direct SQL execution mode -->
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:15px">
         <div style="flex:1">
-          <div style="font-size:11px;font-weight:800;color:var(--faint);letter-spacing:.07em;margin-bottom:6px">DIRECT SQL</div>
+          <div style="font-size:11px;font-weight:800;color:var(--faint);letter-spacing:.07em;margin-bottom:6px">{$LL.chat.directSql()}</div>
           <div style="font-size:14px;font-weight:500;line-height:1.4;color:var(--ink);font-family:var(--font-mono);word-break:break-all">{turn.sql || turn.question}</div>
         </div>
         <div style="flex-shrink:0">
           <span style="display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:99px;font-size:12px;font-weight:700;background:var(--surface-3);color:var(--ink-2);border:1px solid var(--border)">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 17l6-6-6-6M12 19h8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Direct SQL
+            {$LL.chat.directSql()}
           </span>
         </div>
       </div>
 
       {#if turn.executionError}
         <div style="padding:14px 16px;background:var(--c-low-tint);border:1px solid #EBC6BD;border-radius:var(--radius-sm);margin-bottom:14px;font-size:13.5px;line-height:1.55;color:var(--c-low-ink)">
-          <div style="font-weight:700;margin-bottom:4px">SQL execution failed</div>
+          <div style="font-weight:700;margin-bottom:4px">{$LL.chat.sqlExecutionFailed()}</div>
           <div style="font-weight:500;font-family:var(--font-mono);font-size:12.5px;opacity:.85">{turn.executionError}</div>
         </div>
       {:else}
@@ -176,12 +177,12 @@
       <!-- restatement + confidence -->
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:15px">
         <div style="flex:1">
-          <div style="font-size:11px;font-weight:800;color:var(--faint);letter-spacing:.07em;margin-bottom:6px">WHAT I UNDERSTOOD</div>
+          <div style="font-size:11px;font-weight:800;color:var(--faint);letter-spacing:.07em;margin-bottom:6px">{$LL.chat.whatIUnderstood()}</div>
           <div style="font-size:16.5px;font-weight:600;letter-spacing:-.01em;line-height:1.4;color:var(--ink);text-wrap:pretty">{turn.restatement}</div>
           {#if turn.basedOn}
             <div style="display:inline-flex;align-items:center;gap:6px;margin-top:9px;font-size:12.5px;font-weight:650;color:var(--brand-ink);background:var(--brand-tint);padding:4px 10px;border-radius:99px">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 1 0 2.5-5.8M4 4v4h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 8v4l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              Based on an answer you verified before
+              {$LL.chat.basedOnVerified()}
             </div>
           {/if}
         </div>
@@ -196,9 +197,9 @@
       <!-- execution error -->
       {#if turn.executionError}
         <div style="padding:14px 16px;background:var(--c-low-tint);border:1px solid #EBC6BD;border-radius:var(--radius-sm);margin-bottom:14px;font-size:13.5px;line-height:1.55;color:var(--c-low-ink)">
-          <div style="font-weight:700;margin-bottom:4px">The query ran into a problem</div>
-          <div style="font-weight:500;margin-bottom:8px">BoloDB generated a query but your database couldn't execute it — this sometimes happens when a column or table name wasn't matched correctly.</div>
-          <div style="font-size:12.5px;font-weight:600;opacity:.75">Try rephrasing your question, naming a specific table or metric, or ask again with more context.</div>
+          <div style="font-weight:700;margin-bottom:4px">{$LL.chat.executionErrorTitle()}</div>
+          <div style="font-weight:500;margin-bottom:8px">{$LL.chat.executionErrorDesc()}</div>
+          <div style="font-size:12.5px;font-weight:600;opacity:.75">{$LL.chat.executionErrorHint()}</div>
         </div>
       {/if}
 
@@ -212,7 +213,7 @@
 
       {#if !turn.executionError && turn.confidence === 'low' && !turn.basedOn}
         <div style="font-size:12.5px;color:var(--c-med-ink);background:var(--c-med-tint);padding:8px 12px;border-radius:var(--radius-sm);margin-bottom:14px;font-weight:600">
-          If the result looks right, click "Yes, correct" below — that trains BoloDB for next time.
+          {$LL.chat.ifResultLooksRight()}
         </div>
       {/if}
 
@@ -239,40 +240,40 @@
             <div style="flex:1">
               <span style="font-size:13.5px;font-weight:650;color:var(--ink-2);display:flex;align-items:center;gap:7px">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="color:var(--brand)"><path d="M12 3l7 3v5c0 4.4-3 8-7 10-4-2-7-5.6-7-10V6l7-3z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                Was this the answer you were looking for?
+                {$LL.chat.confirmationPrompt()}
               </span>
               {#if isLatest}
-                <div style="font-size:11.5px;color:var(--faint);margin-top:4px;font-weight:550">Telling us keeps BoloDB accurate — verified answers become examples for future questions.</div>
+                <div style="font-size:11.5px;color:var(--faint);margin-top:4px;font-weight:550">{$LL.chat.tellingUsKeepsAccurate()}</div>
               {/if}
             </div>
             <Button kind="ghost" size="sm" onclick={() => showReasons = true}>
               {#snippet icon()}<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>{/snippet}
-              No
+              {$LL.common.no()}
             </Button>
             <Button kind="primary" size="sm" onclick={yes}>
               {#snippet icon()}<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.2 4.2L19 7" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>{/snippet}
-              Yes, correct
+              {$LL.chat.yesCorrect()}
             </Button>
           </div>
         {:else if turn.verdict == null && showReasons}
           <div class="rise">
-            <div style="font-size:13.5px;font-weight:700;margin-bottom:10px;color:var(--ink)">Thanks — what was off? <span style="font-weight:500;color:var(--faint)">(this is the most useful signal)</span></div>
+            <div style="font-size:13.5px;font-weight:700;margin-bottom:10px;color:var(--ink)">{$LL.chat.thanksWhatsOff()} <span style="font-weight:500;color:var(--faint)">{$LL.chat.mostUsefulSignal()}</span></div>
             <div style="display:flex;flex-wrap:wrap;gap:8px">
               {#each wrongReasons as r}
                 <button class="chip" onclick={() => no(r.label)}>{r.label}</button>
               {/each}
-              <button class="chip" style="border-style:dashed;color:var(--faint)" onclick={() => showReasons = false}>Cancel</button>
+              <button class="chip" style="border-style:dashed;color:var(--faint)" onclick={() => showReasons = false}>{$LL.common.cancel()}</button>
             </div>
           </div>
         {:else if turn.verdict === 'correct'}
           <div style="display:flex;align-items:center;gap:9px;font-weight:700;font-size:13.5px;color:var(--brand-ink)">
             <span style="width:22px;height:22px;border-radius:99px;background:var(--brand);color:#fff;display:grid;place-items:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.2 4.2L19 7" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-            Verified — saved to this database's knowledge so similar questions get easier.
+            {$LL.chat.verifiedSaved()}
           </div>
         {:else if turn.verdict === 'wrong'}
           <div style="display:flex;align-items:center;gap:9px;font-weight:650;font-size:13.5px;color:var(--c-low-ink)">
             <span style="width:22px;height:22px;border-radius:99px;background:var(--c-low-tint);color:var(--c-low-ink);display:grid;place-items:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
-            Logged as "{turn.reasonChosen}." That failure is captured, not discarded.
+            {$LL.chat.loggedAs({reason: turn.reasonChosen})}
           </div>
         {/if}
       {/if}
@@ -283,22 +284,22 @@
   {#if !turn.thinking && !turn.isDirect && turn.restatement && !editing}
     <div class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
       style="display:flex;gap:2px;margin-top:6px;padding-left:4px">
-      <button class="tb-btn" onclick={() => onRegenerate?.(turn.id)} title="Regenerate">
+      <button class="tb-btn" onclick={() => onRegenerate?.(turn.id)} title={$LL.chat.regenerate()}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M1 4v6h6M23 20v-6h-6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M20.5 6.5A9 9 0 004.9 9M3.5 17.5A9 9 0 0019.1 15" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>
       </button>
-      <button class="tb-btn" onclick={copyResponse} title="Copy response" style="position:relative">
+      <button class="tb-btn" onclick={copyResponse} title={$LL.chat.copyResponse()} style="position:relative">
         {#if copyFeedback === 'response'}
           <span class="tb-copied" aria-live="polite">Copied!</span>
         {/if}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="1.8"/></svg>
       </button>
-      <button class="tb-btn" onclick={copyPrompt} title="Copy prompt" style="position:relative">
+      <button class="tb-btn" onclick={copyPrompt} title={$LL.chat.copyPrompt()} style="position:relative">
         {#if copyFeedback === 'prompt'}
           <span class="tb-copied" aria-live="polite">Copied!</span>
         {/if}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="currentColor" stroke-width="1.8"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       </button>
-      <button class="tb-btn" onclick={startEdit} title="Edit prompt">
+      <button class="tb-btn" onclick={startEdit} title={$LL.chat.editPrompt()}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>

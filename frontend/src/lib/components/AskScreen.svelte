@@ -1,6 +1,7 @@
 <script lang="ts">
   import { trustFor } from "$lib/data";
   import { apiCall, rowsToArrays, streamApiCall, createConversation, getConversation } from "$lib/api";
+  import LL from "$lib/i18n/i18n-svelte";
   import type {
     Turn,
     SchemaTable,
@@ -78,7 +79,7 @@
 
   // Configurable slash commands - add new commands here
   const slashCommands: SlashCommand[] = [
-    { name: "/sql", description: "Execute SQL query directly" },
+    { name: "/sql", description: $LL.chat.sqlCommandDescription() },
   ];
 
   $effect(() => {
@@ -233,7 +234,7 @@
           columns: data.columns || [],
           rows: rows2d,
           confidence: "high" as const,
-          reason: "Direct SQL execution",
+          reason: $LL.chat.directSqlReason(),
           basedOn: false,
           query_id: id,
           executionError: null,
@@ -252,7 +253,7 @@
           reason: "Execution failed",
           basedOn: false,
           query_id: id,
-          executionError: e.message || "SQL execution failed",
+          executionError: e.message || $LL.chat.sqlExecutionFailed(),
           verdict: null,
           isDirect: true,
           timestamp: ts,
@@ -310,7 +311,7 @@
       (err: Error) => {
         onUpdateTurn(id, {
           thinking: false,
-          restatement: "Something went wrong — please try again.",
+          restatement: $LL.common.somethingWentWrong(),
           sql: "",
           columns: [],
           rows: [],
@@ -511,8 +512,8 @@
           </div>
           <div style="font-size:11.5px;color:var(--faint);font-weight:600">
             {tableCount > 0
-              ? `${tableCount} table${tableCount === 1 ? "" : "s"} · `
-              : ""}view only
+              ? `${$LL.chat.tableCount({ n: tableCount })} · `
+              : ""}{$LL.chat.viewOnly()}
           </div>
         </div>
       </div>
@@ -532,7 +533,7 @@
                   stroke-linecap="round"
                 /></svg
               >{/snippet}
-            New conversation
+            {$LL.chat.newConversation()}
           </Button>
         {/if}
       </div>
@@ -562,7 +563,7 @@
         {/if}
       </div>
       {#if showScrollBtn}
-        <button onclick={scrollToBottom} aria-label="Scroll to latest"
+        <button onclick={scrollToBottom} aria-label={$LL.chat.scrollToLatest()}
           style="position:sticky;bottom:16px;left:100%;width:38px;height:38px;border-radius:99px;border:1px solid var(--border);background:var(--surface);color:var(--muted);box-shadow:var(--shadow-md);cursor:pointer;display:grid;place-items:center;font-size:18px;font-weight:700;transition:opacity .2s;z-index:10"
         >↓</button>
       {/if}
@@ -590,8 +591,8 @@
             bind:value={input}
             oninput={(e) => { handleInput(e); handleTextareaResize(e); }}
             bind:this={inputRef}
-            placeholder="Ask anything about your data…"
-            aria-label="Ask a question about your data"
+            placeholder={$LL.chat.askPlaceholder()}
+            aria-label={$LL.chat.ariaAskQuestion()}
             autofocus
             class="chat-input"
             rows={1}
@@ -615,7 +616,7 @@
                     stroke-linejoin="round"
                   /></svg
                 >{/if}{/snippet}
-            Ask
+            {$LL.chat.askButton()}
           </Button>
         </form>
         <div
@@ -636,8 +637,7 @@
               stroke-width="1.8"
             /></svg
           >
-          Only the schema and your question are sent to Google Gemini to generate
-          SQL — never your row data.
+          {$LL.chat.privacyFooter()}
         </div>
       </div>
     </div>

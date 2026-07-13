@@ -219,6 +219,38 @@ const en = {
     milestoneTrustedBody:
       "All answers appear directly now. Reasoning is always one tap away.",
     totalQueries: "Total: {n} quer{?y#ies}",
+    accuracy: "Accuracy",
+    verifiedCount: "{n} verified",
+    calibrateNext: "Verify {n} more correct answer{?s} to reach {goal}.",
+    calibrateDirect:
+      "start showing confident answers directly without waiting.",
+    calibrateAll:
+      "answer all questions directly \u2014 reasoning one tap away.",
+    calibrated: "BoloDB is fully calibrated for this database.",
+    schema: "Schema",
+    turnCount: "{n} turn{?s}",
+    toggleSidebar: "Toggle sidebar",
+    expandThinking: "Expand thinking process",
+    collapseThinking: "Collapse thinking process",
+    sqlAttempt: "SQL attempt {n}",
+    passed: "Passed",
+    stepsCount: "{n} step{?s}",
+    repairsCount: "{n} repair{?s}",
+    beforeLabel: "BEFORE",
+    rowsCount: "{n} row{?s}",
+    resultsTruncated: "Results truncated \u2014 showing first {n} rows",
+    thanksWhatsOff: "Thanks \u2014 what was off?",
+    mostUsefulSignal: "(this is the most useful signal)",
+    tellingUsKeepsAccurate:
+      "Telling us keeps BoloDB accurate \u2014 verified answers become examples for future questions.",
+    loggedAs: 'Logged as "{reason}".',
+    executionErrorTitle: "The query ran into a problem",
+    executionErrorDesc:
+      "BoloDB generated a query but your database couldn\u2019t execute it \u2014 this sometimes happens when a column or table name wasn\u2019t matched correctly.",
+    executionErrorHint:
+      "Try rephrasing your question, naming a specific table or metric, or ask again with more context.",
+    ifResultLooksRight:
+      'If the result looks right, click "Yes, correct" below \u2014 that trains BoloDB for next time.',
   },
   settings: {
     title: "Settings",

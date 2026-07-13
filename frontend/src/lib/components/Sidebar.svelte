@@ -4,6 +4,7 @@
   import Logo from '$lib/components/ui/Logo.svelte';
   import TrustMeter from '$lib/components/ui/TrustMeter.svelte';
   import { getConversations, deleteConversation, clearConversations, renameConversation } from '$lib/api';
+  import LL from "$lib/i18n/i18n-svelte";
 
   let { engine, modelName, verifiedCount, onSettings, schema, dbInfo, onConversationSelect, activeConversationId, conversationTrigger = 0 }:
     { engine: string; modelName: string; verifiedCount: number; onSettings: () => void; schema: SchemaTable[] | null; dbInfo: DbInfo | null; onConversationSelect?: (id: string) => void; activeConversationId?: string | null; conversationTrigger?: number } = $props();
@@ -87,19 +88,23 @@
   <div style="margin:16px 16px 14px;padding:16px;border-radius:var(--radius);background:linear-gradient(165deg, var(--brand-tint), var(--surface-2));border:1px solid var(--border)">
     <div style="display:flex;align-items:center;gap:7px;margin-bottom:11px">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="color:var(--brand)"><path d="M12 3l7 3v5c0 4.4-3 8-7 10-4-2-7-5.6-7-10V6l7-3z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span style="font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--brand-ink);text-transform:uppercase;white-space:nowrap">Accuracy</span>
-      <span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--faint)">{verifiedCount} verified</span>
+      <span style="font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--brand-ink);text-transform:uppercase;white-space:nowrap">{$LL.chat.accuracy()}</span>
+      <span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--faint)">{$LL.chat.verifiedCount({n: verifiedCount})}</span>
     </div>
     <TrustMeter count={verifiedCount} />
     <p style="font-size:12.5px;color:var(--muted);line-height:1.5;margin:11px 0 0">{trust.behaviour}</p>
     {#if trust.next}
       <div style="margin-top:10px;padding:9px 11px;background:var(--surface);border-radius:var(--radius-sm);font-size:12px;color:var(--brand-ink);font-weight:600;line-height:1.5">
-        Verify {trust.next - verifiedCount} more correct answer{trust.next - verifiedCount === 1 ? '' : 's'} and BoloDB will
-        {trust.key === 'supervised' ? 'start showing confident answers directly without waiting.' : 'answer all questions directly — reasoning one tap away.'}
+        {$LL.chat.calibrateNext({
+          n: trust.next - verifiedCount,
+          goal: trust.key === 'supervised'
+            ? $LL.chat.calibrateDirect()
+            : $LL.chat.calibrateAll()
+        })}
       </div>
     {:else}
       <div style="margin-top:10px;padding:9px 11px;background:var(--surface);border-radius:var(--radius-sm);font-size:12px;color:var(--brand-ink);font-weight:600">
-        ✓ BoloDB is fully calibrated for this database.
+        {$LL.chat.calibrated()}
       </div>
     {/if}
   </div>
@@ -108,7 +113,7 @@
   <div style="flex:1;overflow-y:auto;padding:2px 16px 10px">
     <div style="font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--faint);margin:6px 6px 9px;text-transform:uppercase;display:flex;align-items:center;gap:6px">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 9.5h17M9 9.5v10M3.5 14.5h17" stroke="currentColor" stroke-width="1.6"/></svg>
-      Schema
+      {$LL.chat.schema()}
     </div>
     {#each schemaData as t}
       <div style="margin-bottom:3px">
@@ -136,16 +141,16 @@
       <button onclick={() => openConversations = !openConversations} style="display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;padding:0;font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--faint);text-transform:uppercase;">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="transform:{openConversations?'none':'rotate(-90deg)'};transition:transform .15s;flex-shrink:0"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Conversations
+        {$LL.chat.conversations()}
       </button>
       {#if conversations.length > 0}
-        <button onclick={handleClearConvs} style="margin-left:auto;font-size:10px;color:var(--faint);background:none;border:none;cursor:pointer;text-transform:none;font-weight:700;padding:0">Clear all</button>
+        <button onclick={handleClearConvs} style="margin-left:auto;font-size:10px;color:var(--faint);background:none;border:none;cursor:pointer;text-transform:none;font-weight:700;padding:0">{$LL.chat.clearAll()}</button>
       {/if}
     </div>
     {#if openConversations}
       <div class="rise" style="padding:2px 0 6px 27px">
         {#if conversations.length === 0}
-          <div class="mono" style="font-size:11.5px;color:var(--faint);padding:3px 0;font-style:italic">No conversations yet</div>
+          <div class="mono" style="font-size:11.5px;color:var(--faint);padding:3px 0;font-style:italic">{$LL.chat.noConversationsYet()}</div>
         {:else}
           {#each conversations as conv (conv._id)}
             <div class="group" style="position:relative;margin-bottom:2px">
@@ -164,15 +169,15 @@
                     />
                   {:else}
                     <div onclick={(e) => { e.stopPropagation(); startRename(conv, e); }} style="font-size:12px;color:{activeConversationId === conv._id ? 'var(--ink)' : 'var(--muted)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:{activeConversationId === conv._id ? '600' : '400'};cursor:text">
-                      {conv.title || conv.last_question || 'New conversation'}
+                      {conv.title || conv.last_question || $LL.chat.newConversation()}
                     </div>
                     <div style="font-size:10px;color:var(--faint);margin-top:1px">
-                      {conv.turn_count} turn{conv.turn_count === 1 ? '' : 's'} · {formatTime(conv.updated_at)}
+                      {$LL.chat.turnCount({n: conv.turn_count})} · {formatTime(conv.updated_at)}
                     </div>
                   {/if}
                 </div>
               </button>
-              <button onclick={(e) => handleDelete(conv._id, e)} aria-label="Delete conversation" class="opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 transition-opacity" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:var(--surface);border:none;color:var(--faint);cursor:pointer;padding:4px;font-size:10px;border-radius:4px;display:flex;align-items:center;justify-content:center" title="Delete">✕</button>
+              <button onclick={(e) => handleDelete(conv._id, e)} aria-label={$LL.chat.deleteConversation()} class="opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 transition-opacity" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:var(--surface);border:none;color:var(--faint);cursor:pointer;padding:4px;font-size:10px;border-radius:4px;display:flex;align-items:center;justify-content:center" title={$LL.chat.deleteConversation()}>✕</button>
             </div>
           {/each}
         {/if}
@@ -197,7 +202,7 @@
   </div>
 <div style="position:absolute;right:0;top:0;bottom:0;width:1px;pointer-events:none;background:linear-gradient(to bottom,var(--border) 0%,var(--border) calc(50% - 24px),transparent calc(50% - 24px),transparent calc(50% + 24px),var(--border) calc(50% + 24px),var(--border) 100%)"></div>
 </div>
-<button onclick={() => sidebarOpen = !sidebarOpen} aria-label="Toggle sidebar"
+<button onclick={() => sidebarOpen = !sidebarOpen} aria-label={$LL.chat.toggleSidebar()}
   style="position:absolute;top:50%;left:{sidebarOpen ? '277px' : '0px'};width:18px;height:48px;cursor:pointer;background:var(--surface);border:none;border-radius:0 8px 8px 0;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s,left .2s;color:var(--faint);z-index:2;border-right:1px solid var(--border);border-top:1px solid var(--border);border-bottom:1px solid var(--border);transform:translateY(-50%)"
   onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; (e.currentTarget as HTMLElement).style.color = 'var(--muted)' }}
   onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; (e.currentTarget as HTMLElement).style.color = 'var(--faint)' }}>
