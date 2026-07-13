@@ -263,12 +263,12 @@
         {#each SECTIONS as section (section.key)}
           <div style="margin-top:18px">
             <div style="font-size:13.5px;font-weight:800;color:var(--ink)">
-              {$LL.schema[section.titleKey]()}
+              {($LL.schema as any)[section.titleKey]()}
             </div>
             <div
               style="font-size:12px;color:var(--faint);font-weight:550;margin:2px 0 8px"
             >
-              {$LL.schema[section.hintKey]()}
+              {($LL.schema as any)[section.hintKey]()}
             </div>
             {#each catalog[section.key] as row, i (i)}
               <div
@@ -317,7 +317,7 @@
               onclick={() => addRow(section)}
               style="font-size:12.5px;font-weight:700;color:var(--brand-ink);background:none;border:none;cursor:pointer;padding:4px 0"
             >
-              + Add {$LL.schema[section.titleKey]()}
+              + Add {($LL.schema as any)[section.titleKey]()}
             </button>
           </div>
         {/each}

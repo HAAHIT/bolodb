@@ -135,8 +135,8 @@ export type StreamEvent =
   | { kind: "error"; message: string };
 
 export interface Toast {
-  title: string;
-  body: string;
+  title?: string;
+  body?: string;
   titleKey?: string;
   bodyKey?: string;
 }

@@ -5,7 +5,7 @@
   import Spinner from "$lib/components/ui/Spinner.svelte";
   import DataCatalog from "$lib/components/DataCatalog.svelte";
   import { onMount } from "svelte";
-  import LL, { locale } from "$lib/i18n/i18n-svelte";
+  import LL, { locale, setLocale } from "$lib/i18n/i18n-svelte";
   import { loadLocale } from "$lib/i18n/i18n-util.sync";
   import { setLocaleCookie } from "$lib/i18n/localeUtils";
 
@@ -40,13 +40,13 @@
     },
   ];
 
-  const LOCALES = ["en", "de", "ja", "es", "fr"];
+  const LOCALES = ["en", "de", "ja", "es", "fr"] as const;
   let currentLocale = $derived($locale);
 
-  function switchLocale(l: string) {
+  function switchLocale(l: (typeof LOCALES)[number]) {
     setLocaleCookie(l);
     loadLocale(l);
-    locale.set(l);
+    setLocale(l);
   }
 
   let model = $state((() => modelName || "gemini-flash-latest")());

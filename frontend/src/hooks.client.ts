@@ -3,7 +3,7 @@ import { env } from "$env/dynamic/public";
 import type { HandleClientError } from "@sveltejs/kit";
 import { detectLocale } from "$lib/i18n/i18n-util";
 import { loadLocaleAsync } from "$lib/i18n/i18n-util.async";
-import { locale } from "$lib/i18n/i18n-svelte";
+import { setLocale } from "$lib/i18n/i18n-svelte";
 
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
@@ -23,12 +23,15 @@ export async function init() {
   });
 
   const detected = detectLocale(
-    () => getCookie("locale") || undefined,
+    () => {
+      const c = getCookie("locale");
+      return c ? [c] : [];
+    },
     () =>
-      typeof navigator !== "undefined" ? navigator.languages[0] : undefined,
+      typeof navigator !== "undefined" ? [...navigator.languages] : [],
   );
   await loadLocaleAsync(detected);
-  locale.set(detected);
+  setLocale(detected);
 }
 
 export const handleError: HandleClientError = async ({ error, message }) => {

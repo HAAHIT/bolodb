@@ -18,7 +18,7 @@
   </div>
   {#if !compact}
     <div style="display:flex;justify-content:space-between;align-items:baseline">
-      <span style="font-weight:700;font-size:13.5px;color:var(--ink)">{$LL.chat[t.labelKey]()}</span>
+      <span style="font-weight:700;font-size:13.5px;color:var(--ink)">{($LL.chat as any)[t.labelKey]()}</span>
       <span class="tnum" style="font-size:12px;color:var(--faint);font-weight:600">{$LL.chat.verifiedCount({n: count})}</span>
     </div>
   {/if}

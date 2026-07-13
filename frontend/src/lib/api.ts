@@ -10,17 +10,21 @@ export async function apiCall(
   body?: unknown,
   method?: string,
 ): Promise<any> {
+  const headers: Record<string, string> = {};
+  let reqBody: string | undefined;
+  if (body) {
+    headers["Content-Type"] = "application/json";
+    reqBody = JSON.stringify(body);
+  }
   const opts: RequestInit = {
     method: method || (body ? "POST" : "GET"),
+    headers,
+    body: reqBody,
   };
-  if (body) {
-    opts.headers = { "Content-Type": "application/json" };
-    opts.body = JSON.stringify(body);
-  }
   opts.credentials = "include";
   const currentLocale = get(locale);
   if (currentLocale && currentLocale !== "en") {
-    opts.headers = { ...opts.headers, "X-Locale": currentLocale };
+    headers["X-Locale"] = currentLocale;
   }
   const r = await fetch(path, opts);
   const data = await r.json().catch(() => ({}));

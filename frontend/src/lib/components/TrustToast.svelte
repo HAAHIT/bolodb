@@ -2,8 +2,8 @@
   import type { Toast } from '$lib/types';
   import LL from "$lib/i18n/i18n-svelte";
   let { toast }: { toast: Toast } = $props();
-  const toastTitle = $derived(toast.titleKey ? $LL.chat[toast.titleKey]() : toast.title);
-  const toastBody = $derived(toast.bodyKey ? $LL.chat[toast.bodyKey]() : toast.body);
+  const toastTitle = $derived(toast.titleKey ? ($LL.chat as any)[toast.titleKey]() : toast.title);
+  const toastBody = $derived(toast.bodyKey ? ($LL.chat as any)[toast.bodyKey]() : toast.body);
 </script>
 
 <div style="position:absolute;bottom:96px;left:50%;transform:translateX(-50%);z-index:20;animation:toastIn .5s var(--spring) both">

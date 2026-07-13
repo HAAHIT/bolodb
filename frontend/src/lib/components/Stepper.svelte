@@ -2,7 +2,7 @@
   import LL from "$lib/i18n/i18n-svelte";
   let { step }: { step: string } = $props();
   const stepKeys: [string, string][] = [['profile', 'stepReadDb'], ['glossary', 'stepDefineTerms'], ['starters', 'stepCheckAnswers']];
-  let steps = $derived(stepKeys.map(([k, tk]) => [k, $LL.onboard[tk]()] as [string, string]));
+  let steps = $derived(stepKeys.map(([k, tk]) => [k, ($LL.onboard as any)[tk]()] as [string, string]));
   const idx = $derived(steps.findIndex(s => s[0] === step));
 </script>
 

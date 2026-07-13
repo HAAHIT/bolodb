@@ -135,7 +135,7 @@
       onConnect(kind === "sample", res);
     } catch (e: any) {
       const ek = humanErrorKey(e.message);
-      error = (ek ? $LL.errors[ek]() : null) ||
+      error = (ek ? ($LL.errors as any)[ek]() : null) ||
         $LL.connect.connectionFailed();
       posthog.captureException(e);
       connecting = null;
@@ -156,7 +156,7 @@
       onConnect(false, res);
     } catch (e: any) {
       const ek = humanErrorKey(e.message);
-      error = (ek ? $LL.errors[ek]() : null) ||
+      error = (ek ? ($LL.errors as any)[ek]() : null) ||
         $LL.connect.reconnectionFailed();
       posthog.captureException(e);
       reconnecting = null;

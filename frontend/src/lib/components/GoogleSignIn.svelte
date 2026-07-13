@@ -5,13 +5,6 @@
 
   let { onSuccess }: { onSuccess: () => void } = $props();
 
-  declare global {
-    interface Window {
-      google?: any;
-      __GOOGLE_CLIENT_ID__?: string;
-    }
-  }
-
   let googleReady = $state(false);
   let error = $state("");
 
@@ -49,12 +42,12 @@
   function initGSI() {
     if (!window.google?.accounts?.id) return;
     window.google.accounts.id.initialize({
-      client_id: window.__GOOGLE_CLIENT_ID__,
+      client_id: window.__GOOGLE_CLIENT_ID__!,
       callback: handleGoogleLogin,
     });
     window.google.accounts.id.renderButton(
-      document.getElementById("gsi-button"),
-      { theme: "outline", size: "large", width: "316" }
+      document.getElementById("gsi-button")!,
+      { theme: "outline", size: "large", width: 316 }
     );
   }
 
