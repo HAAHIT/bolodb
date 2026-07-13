@@ -46,7 +46,9 @@ async def me(user_token=Depends(get_current_user)):
 
 @router.post("/login")
 async def login(login_data: UserLogin):
-    token = await backend.app.controllers.auth.login(login_data.email, login_data.password)
+    token = await backend.app.controllers.auth.login(
+        login_data.email, login_data.password
+    )
     response = JSONResponse({"message": "Login Success"})
     secure = get_cookie_secure()
     response.set_cookie(

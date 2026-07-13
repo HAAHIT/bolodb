@@ -54,9 +54,7 @@ async def reconnect(
     db_id = request_body.get("db_id", "")
     if not db_id:
         raise HTTPException(400, "db_id is required")
-    conn = await mdb.get_recent_connection_by_db_id(
-        user_token["user_id"], db_id
-    )
+    conn = await mdb.get_recent_connection_by_db_id(user_token["user_id"], db_id)
     if not conn or not conn.get("db_url"):
         raise HTTPException(404, "Saved connection not found")
     req = ConnectReq(db_url=conn["db_url"])

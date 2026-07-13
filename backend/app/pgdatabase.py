@@ -8,8 +8,17 @@ from typing import Optional
 from cryptography.fernet import Fernet, InvalidToken
 from dotenv import load_dotenv
 from sqlalchemy import (
-    String, Integer, UniqueConstraint, ForeignKey, Text, DateTime,
-    text, select, delete, update, func
+    String,
+    Integer,
+    UniqueConstraint,
+    ForeignKey,
+    Text,
+    DateTime,
+    text,
+    select,
+    delete,
+    update,
+    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PgUUID
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
@@ -40,7 +49,9 @@ def get_engine():
 
 
 def _get_session() -> AsyncSession:
-    return async_sessionmaker(get_engine(), class_=AsyncSession, expire_on_commit=False)()
+    return async_sessionmaker(
+        get_engine(), class_=AsyncSession, expire_on_commit=False
+    )()
 
 
 async_session = _get_session
@@ -52,49 +63,75 @@ class Base(DeclarativeBase):
 
 class User(Base):
     __tablename__ = "users"
-    id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid7)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid7
+    )
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     hashed_pass: Mapped[str] = mapped_column(String, nullable=False, default="")
     role: Mapped[str] = mapped_column(String, nullable=False, default="user")
     google_id: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
 
 
 class Conversation(Base):
     __tablename__ = "conversations"
-    id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid7)
-    user_id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid7
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     title: Mapped[str] = mapped_column(String, nullable=False, default="")
     database_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
 
 
 class QueryHistory(Base):
     __tablename__ = "query_history"
-    id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid7)
-    user_id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid7
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     question: Mapped[str] = mapped_column(Text, nullable=False)
     sql: Mapped[str] = mapped_column(Text, nullable=False, default="")
     result: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     confidence: Mapped[str] = mapped_column(String, nullable=False, default="low")
     restatement: Mapped[str] = mapped_column(Text, nullable=False, default="")
     conversation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True
+        PgUUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="SET NULL"),
+        nullable=True,
     )
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
 
 
 class RecentConnection(Base):
     __tablename__ = "recent_connections"
-    id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid7)
-    user_id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid7
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     db_url: Mapped[str] = mapped_column(Text, nullable=False)
     display_url: Mapped[str] = mapped_column(String, nullable=False)
     dialect: Mapped[str] = mapped_column(String, nullable=False)
     db_id: Mapped[str] = mapped_column(String, nullable=False)
     table_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    connected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
     __table_args__ = (UniqueConstraint("user_id", "db_id"),)
 
 
@@ -159,7 +196,9 @@ def _recent_connection_cipher():
         return Fernet(key), None
     new_secret = base64.urlsafe_b64encode(os.urandom(32)).decode()
     stored_secret = (
-        master_cipher.encrypt(new_secret.encode()).decode() if master_cipher else new_secret
+        master_cipher.encrypt(new_secret.encode()).decode()
+        if master_cipher
+        else new_secret
     )
     _CONNECTIONS_KEY_FILE.write_text(stored_secret)
     try:
@@ -196,10 +235,16 @@ async def get_user_by_email(email: str) -> Optional[dict]:
         user = result.scalar_one_or_none()
         if user is None:
             return None
-        return serialize_doc({
-            "id": user.id, "email": user.email, "hashed_pass": user.hashed_pass,
-            "role": user.role, "google_id": user.google_id, "created_at": user.created_at,
-        })
+        return serialize_doc(
+            {
+                "id": user.id,
+                "email": user.email,
+                "hashed_pass": user.hashed_pass,
+                "role": user.role,
+                "google_id": user.google_id,
+                "created_at": user.created_at,
+            }
+        )
 
 
 async def get_user_by_google_id(google_id: str) -> Optional[dict]:
@@ -208,10 +253,16 @@ async def get_user_by_google_id(google_id: str) -> Optional[dict]:
         user = result.scalar_one_or_none()
         if user is None:
             return None
-        return serialize_doc({
-            "id": user.id, "email": user.email, "hashed_pass": user.hashed_pass,
-            "role": user.role, "google_id": user.google_id, "created_at": user.created_at,
-        })
+        return serialize_doc(
+            {
+                "id": user.id,
+                "email": user.email,
+                "hashed_pass": user.hashed_pass,
+                "role": user.role,
+                "google_id": user.google_id,
+                "created_at": user.created_at,
+            }
+        )
 
 
 async def create_user(user_data: UserInDB) -> str:
@@ -241,10 +292,16 @@ async def get_user_by_id(user_id: str) -> Optional[dict]:
         user = result.scalar_one_or_none()
         if user is None:
             return None
-        return serialize_doc({
-            "id": user.id, "email": user.email, "hashed_pass": user.hashed_pass,
-            "role": user.role, "google_id": user.google_id, "created_at": user.created_at,
-        })
+        return serialize_doc(
+            {
+                "id": user.id,
+                "email": user.email,
+                "hashed_pass": user.hashed_pass,
+                "role": user.role,
+                "google_id": user.google_id,
+                "created_at": user.created_at,
+            }
+        )
 
 
 _ALLOWED_USER_FIELDS = frozenset({"google_id", "hashed_pass"})
@@ -307,9 +364,12 @@ async def get_query_history(user_id: str, limit: int = 100):
         out = []
         for row in rows:
             d = {
-                "id": row.id, "user_id": row.user_id,
-                "question": row.question, "sql": row.sql,
-                "result": row.result, "confidence": row.confidence,
+                "id": row.id,
+                "user_id": row.user_id,
+                "question": row.question,
+                "sql": row.sql,
+                "result": row.result,
+                "confidence": row.confidence,
                 "restatement": row.restatement,
                 "conversation_id": row.conversation_id,
                 "timestamp": row.timestamp,
@@ -365,7 +425,12 @@ async def get_query_stats(user_id: str):
                     start = pos + len(keyword)
                     end = start
                     while end < len(sql_lower) and sql_lower[end] not in (
-                        " ", "\n", "\t", ";", "(", ",",
+                        " ",
+                        "\n",
+                        "\t",
+                        ";",
+                        "(",
+                        ",",
                     ):
                         end += 1
                     tbl = sql_lower[start:end].strip().strip('"').strip("'").strip("`")
@@ -374,8 +439,14 @@ async def get_query_stats(user_id: str):
                         and not tbl.startswith("(")
                         and tbl
                         not in (
-                            "select", "where", "on", "and", "or",
-                            "set", "into", "values",
+                            "select",
+                            "where",
+                            "on",
+                            "and",
+                            "or",
+                            "set",
+                            "into",
+                            "values",
                         )
                     ):
                         table_usage[tbl] = table_usage.get(tbl, 0) + 1
@@ -399,7 +470,9 @@ async def delete_history_entry(user_id: str, entry_id: str) -> bool:
     async with async_session() as session:
         try:
             result = await session.execute(
-                delete(QueryHistory).where(QueryHistory.id == eid, QueryHistory.user_id == uid)
+                delete(QueryHistory).where(
+                    QueryHistory.id == eid, QueryHistory.user_id == uid
+                )
             )
             await session.commit()
             return result.rowcount > 0
@@ -412,14 +485,18 @@ async def clear_history(user_id: str):
     uid = _to_uuid(user_id)
     async with async_session() as session:
         try:
-            await session.execute(delete(QueryHistory).where(QueryHistory.user_id == uid))
+            await session.execute(
+                delete(QueryHistory).where(QueryHistory.user_id == uid)
+            )
             await session.commit()
         except Exception:
             await session.rollback()
             raise
 
 
-async def save_recent_connection(user_id, db_url, display_url, dialect, db_id, table_count):
+async def save_recent_connection(
+    user_id, db_url, display_url, dialect, db_id, table_count
+):
     uid = _to_uuid(user_id)
     encrypted_url = _encrypt_connection_url(db_url)
     async with async_session() as session:
@@ -438,8 +515,12 @@ async def save_recent_connection(user_id, db_url, display_url, dialect, db_id, t
                 conn.connected_at = _utcnow()
             else:
                 conn = RecentConnection(
-                    user_id=uid, db_url=encrypted_url, display_url=display_url,
-                    dialect=dialect, db_id=db_id, table_count=table_count,
+                    user_id=uid,
+                    db_url=encrypted_url,
+                    display_url=display_url,
+                    dialect=dialect,
+                    db_id=db_id,
+                    table_count=table_count,
                 )
                 session.add(conn)
             await session.commit()
@@ -461,10 +542,14 @@ async def get_recent_connections(user_id: str, limit: int = 5):
         out = []
         for row in rows:
             d = {
-                "id": row.id, "user_id": row.user_id,
-                "db_url": row.db_url, "display_url": row.display_url,
-                "dialect": row.dialect, "db_id": row.db_id,
-                "table_count": row.table_count, "connected_at": row.connected_at,
+                "id": row.id,
+                "user_id": row.user_id,
+                "db_url": row.db_url,
+                "display_url": row.display_url,
+                "dialect": row.dialect,
+                "db_id": row.db_id,
+                "table_count": row.table_count,
+                "connected_at": row.connected_at,
             }
             out.append(serialize_doc(d))
         return out
@@ -502,10 +587,14 @@ async def get_recent_connection_by_db_id(user_id: str, db_id: str) -> Optional[d
         if conn is None:
             return None
         d = {
-            "id": conn.id, "user_id": conn.user_id,
-            "db_url": conn.db_url, "display_url": conn.display_url,
-            "dialect": conn.dialect, "db_id": conn.db_id,
-            "table_count": conn.table_count, "connected_at": conn.connected_at,
+            "id": conn.id,
+            "user_id": conn.user_id,
+            "db_url": conn.db_url,
+            "display_url": conn.display_url,
+            "dialect": conn.dialect,
+            "db_id": conn.db_id,
+            "table_count": conn.table_count,
+            "connected_at": conn.connected_at,
         }
         if "db_url" in d:
             d["db_url"] = _decrypt_connection_url(d["db_url"])
@@ -517,7 +606,9 @@ async def create_conversation(user_id, title="", database_id=None):
     async with async_session() as session:
         try:
             conv = Conversation(
-                user_id=uid, title=title, database_id=database_id,
+                user_id=uid,
+                title=title,
+                database_id=database_id,
             )
             session.add(conv)
             await session.commit()
@@ -526,9 +617,12 @@ async def create_conversation(user_id, title="", database_id=None):
             await session.rollback()
             raise
         d = {
-            "id": conv.id, "user_id": conv.user_id,
-            "title": conv.title, "database_id": conv.database_id,
-            "created_at": conv.created_at, "updated_at": conv.updated_at,
+            "id": conv.id,
+            "user_id": conv.user_id,
+            "title": conv.title,
+            "database_id": conv.database_id,
+            "created_at": conv.created_at,
+            "updated_at": conv.updated_at,
         }
         return serialize_doc(d)
 
@@ -587,16 +681,17 @@ async def get_conversations(user_id: str):
             ),
             {"uid": uid, "cids": conv_ids},
         )
-        question_map: dict[uuid.UUID, str] = {
-            row[0]: row[1] for row in question_rows
-        }
+        question_map: dict[uuid.UUID, str] = {row[0]: row[1] for row in question_rows}
 
         out = []
         for conv in convs:
             d = {
-                "id": conv.id, "user_id": conv.user_id,
-                "title": conv.title, "database_id": conv.database_id,
-                "created_at": conv.created_at, "updated_at": conv.updated_at,
+                "id": conv.id,
+                "user_id": conv.user_id,
+                "title": conv.title,
+                "database_id": conv.database_id,
+                "created_at": conv.created_at,
+                "updated_at": conv.updated_at,
             }
             d = serialize_doc(d)
             d["turn_count"] = turn_map.get(conv.id, 0)
@@ -621,9 +716,12 @@ async def get_conversation(user_id: str, conversation_id: str):
         if conv is None:
             return None
         d = {
-            "id": conv.id, "user_id": conv.user_id,
-            "title": conv.title, "database_id": conv.database_id,
-            "created_at": conv.created_at, "updated_at": conv.updated_at,
+            "id": conv.id,
+            "user_id": conv.user_id,
+            "title": conv.title,
+            "database_id": conv.database_id,
+            "created_at": conv.created_at,
+            "updated_at": conv.updated_at,
         }
         d = serialize_doc(d)
 
@@ -638,9 +736,12 @@ async def get_conversation(user_id: str, conversation_id: str):
         turns = []
         for turn in turns_result.scalars().all():
             td = {
-                "id": turn.id, "user_id": turn.user_id,
-                "question": turn.question, "sql": turn.sql,
-                "result": turn.result, "confidence": turn.confidence,
+                "id": turn.id,
+                "user_id": turn.user_id,
+                "question": turn.question,
+                "sql": turn.sql,
+                "result": turn.result,
+                "confidence": turn.confidence,
                 "restatement": turn.restatement,
                 "conversation_id": turn.conversation_id,
                 "timestamp": turn.timestamp,

@@ -53,6 +53,7 @@ class UserPublic(BaseModel):
     email: EmailStr
     role: Role
 
+
 class GoogleLogin(BaseModel):
     id_token: str
     client_id: str

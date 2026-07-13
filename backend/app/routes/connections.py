@@ -15,7 +15,5 @@ async def get_connections(user_token=Depends(get_current_user)):
 
 @router.delete("/api/connections/{connection_id}")
 async def delete_connection(connection_id: str, user_token=Depends(get_current_user)):
-    deleted = await mdb.delete_recent_connection(
-        user_token["user_id"], connection_id
-    )
+    deleted = await mdb.delete_recent_connection(user_token["user_id"], connection_id)
     return {"ok": deleted}

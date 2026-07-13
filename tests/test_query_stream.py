@@ -47,8 +47,10 @@ def _collect(provider, db=None, monkeypatch_saves=None):
 
 def test_stream_happy_path_emits_result(monkeypatch):
     saved = []
+
     async def fake_save(**kw):
         saved.append(kw)
+
     monkeypatch.setattr(query_ctrl.mdb, "save_query", fake_save)
     provider = FakeProvider([_sql_json("SELECT id FROM orders")])
     events = _collect(provider)
@@ -73,6 +75,7 @@ def test_stream_happy_path_emits_result(monkeypatch):
 def test_stream_repairs_invalid_sql(monkeypatch):
     async def fake_save(**kw):
         pass
+
     monkeypatch.setattr(query_ctrl.mdb, "save_query", fake_save)
     provider = FakeProvider(
         [
@@ -136,8 +139,10 @@ def test_stream_abort_before_result(monkeypatch):
 def test_stream_repairs_execution_failure(monkeypatch):
     """A query that validates but fails at execution must feed back into the
     repair loop, matching the non-streaming run_query behaviour."""
+
     async def fake_save(**kw):
         pass
+
     monkeypatch.setattr(query_ctrl.mdb, "save_query", fake_save)
     # both SQLs validate fine; the first fails at execution, the second works
     db = FakeDB(

@@ -27,10 +27,12 @@ logger = logging.getLogger(__name__)
 async def lifespan(app):
     from alembic.config import Config
     from alembic import command
+
     alembic_cfg = Config("alembic.ini")
     command.upgrade(alembic_cfg, "head")
     yield
     from backend.app.pgdatabase import dispose_db
+
     await dispose_db()
 
 

@@ -5,7 +5,6 @@ never be trusted for find-or-link, otherwise an unverified email matching an
 existing password account would allow account takeover.
 """
 
-import asyncio
 import jwt
 import pytest
 from fastapi import HTTPException
@@ -36,11 +35,14 @@ async def test_google_login_rejects_unverified_email(monkeypatch):
         monkeypatch,
         {"sub": "g-1", "email": "victim@example.com", "email_verified": False},
     )
+
     # would take over an existing account if this were allowed
     async def fake_get_by_google_id(gid):
         return None
+
     async def fake_get_by_email(e):
         return {"_id": "existing", "role": "user"}
+
     monkeypatch.setattr(auth, "get_user_by_google_id", fake_get_by_google_id)
     monkeypatch.setattr(auth, "get_user_by_email", fake_get_by_email)
 
@@ -56,12 +58,16 @@ async def test_google_login_creates_user_for_verified_email(monkeypatch):
         monkeypatch,
         {"sub": "g-2", "email": "new@example.com", "email_verified": True},
     )
+
     async def fake_get_by_google_id(gid):
         return None
+
     async def fake_get_by_email(e):
         return None
+
     async def fake_create_user(u):
         return "uid-123"
+
     monkeypatch.setattr(auth, "get_user_by_google_id", fake_get_by_google_id)
     monkeypatch.setattr(auth, "get_user_by_email", fake_get_by_email)
     monkeypatch.setattr(auth, "create_user", fake_create_user)
@@ -78,10 +84,13 @@ async def test_google_login_rejects_empty_email(monkeypatch):
         monkeypatch,
         {"sub": "g-3", "email": "", "email_verified": True},
     )
+
     async def fake_get_by_google_id(gid):
         return None
+
     async def fake_get_by_email(e):
         return None
+
     monkeypatch.setattr(auth, "get_user_by_google_id", fake_get_by_google_id)
     monkeypatch.setattr(auth, "get_user_by_email", fake_get_by_email)
 
@@ -113,12 +122,16 @@ async def test_google_login_links_existing_email(monkeypatch):
         monkeypatch,
         {"sub": "g-4", "email": "existing@example.com", "email_verified": True},
     )
+
     async def fake_get_by_google_id(gid):
         return None
+
     async def fake_get_by_email(e):
         return {"_id": "existing-id", "role": "user"}
+
     async def fake_update_user(uid, **kw):
         return None
+
     monkeypatch.setattr(auth, "get_user_by_google_id", fake_get_by_google_id)
     monkeypatch.setattr(auth, "get_user_by_email", fake_get_by_email)
     monkeypatch.setattr(auth, "update_user", fake_update_user)
