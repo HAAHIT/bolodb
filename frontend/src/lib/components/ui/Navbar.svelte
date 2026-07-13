@@ -2,12 +2,13 @@
   import { appState } from '$lib/appState.svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import LL from '$lib/i18n/i18n-svelte';
   import Logo from './Logo.svelte';
 
   const navLinks = [
-    { label: 'Chat', path: '/chat' },
-    { label: 'Dashboard', path: '/dashboard' },
-    { label: 'Connect', path: '/connect' }
+    { label: $LL.nav.chat, path: '/chat' },
+    { label: $LL.nav.dashboard, path: '/dashboard' },
+    { label: $LL.nav.connect, path: '/connect' }
   ];
 </script>
 
@@ -28,9 +29,8 @@
   </div>
 
   <div class="navbar-right">
-    <button class="theme-toggle" onclick={() => appState.toggleTheme()} aria-label="Toggle Theme">
+    <button class="theme-toggle" onclick={() => appState.toggleTheme()} aria-label={$LL.nav.toggleTheme()}>
       {#if appState.theme === 'dark'}
-        <!-- Sun icon for light mode toggle -->
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="5"></circle>
           <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -43,7 +43,6 @@
           <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
         </svg>
       {:else}
-        <!-- Moon icon for dark mode toggle -->
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
         </svg>
@@ -52,7 +51,7 @@
     <div class="divider"></div>
     {#if appState.dbInfo}
       <button class="logout-btn" onclick={() => appState.logout()}>
-        Logout
+        {$LL.auth.logOut()}
       </button>
     {/if}
   </div>
@@ -76,7 +75,6 @@
     z-index: 1000;
   }
 
-  /* Support for dark mode backdrop blur without explicitly hardcoding rgb if possible */
   :global([data-theme="dark"]) .navbar {
     background: rgba(20, 21, 24, 0.7);
   }

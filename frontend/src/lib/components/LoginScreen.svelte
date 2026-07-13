@@ -4,6 +4,7 @@
   import Button from "$lib/components/ui/Button.svelte";
   import Spinner from "$lib/components/ui/Spinner.svelte";
   import GoogleSignIn from "$lib/components/GoogleSignIn.svelte";
+  import LL from "$lib/i18n/i18n-svelte";
   import posthog from "posthog-js";
 
   let { onLogin }: { onLogin: () => void } = $props();
@@ -16,15 +17,13 @@
   async function login(e: Event) {
     e.preventDefault();
     if (!email || !password) {
-      error = "Please enter email and password";
+      error = $LL.auth.pleaseEnterEmailAndPassword();
       return;
     }
     loading = true;
     error = "";
     try {
       await apiCall("/api/auth/login", { email, password });
-      // Use a hash of the email as the analytics identity — never send
-      // plaintext PII to an analytics platform without explicit consent.
       const anonymousId = Array.from(
         new Uint8Array(
           await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email))
@@ -34,7 +33,7 @@
       posthog.capture("user_logged_in", { method: "email" });
       onLogin();
     } catch (err: any) {
-      error = err.message || "Login failed";
+      error = err.message || $LL.auth.loginFailed();
       posthog.captureException(err);
     } finally {
       loading = false;
@@ -54,9 +53,9 @@
       <div style="display:flex;justify-content:center;margin-bottom:16px">
         <Logo size={40} />
       </div>
-      <h1 style="margin:0;font-size:24px;font-weight:700">Welcome back</h1>
+      <h1 style="margin:0;font-size:24px;font-weight:700">{$LL.auth.welcomeBack()}</h1>
       <p style="margin:8px 0 0;color:var(--muted);font-size:14.5px">
-        Sign in to your BoloDB account
+        {$LL.auth.signInToAccount()}
       </p>
     </div>
 
@@ -65,14 +64,14 @@
         <label
           for="email"
           style="display:block;font-size:12px;font-weight:700;color:var(--faint);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em"
-          >Email</label
+          >{$LL.common.email()}</label
         >
         <input
           id="email"
           type="email"
           class="field"
           bind:value={email}
-          placeholder="you@company.com"
+          placeholder={$LL.auth.emailPlaceholder()}
           style="width:100%;box-sizing:border-box"
           required
         />
@@ -81,14 +80,14 @@
         <label
           for="password"
           style="display:block;font-size:12px;font-weight:700;color:var(--faint);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em"
-          >Password</label
+          >{$LL.common.password()}</label
         >
         <input
           id="password"
           type="password"
           class="field"
           bind:value={password}
-          placeholder="••••••••"
+          placeholder={$LL.auth.passwordPlaceholder()}
           style="width:100%;box-sizing:border-box"
           required
         />
@@ -111,14 +110,13 @@
         {#snippet icon()}
           {#if loading}<Spinner />{/if}
         {/snippet}
-        {loading ? "Signing in…" : "Sign in"}
+        {loading ? $LL.auth.signingIn() : $LL.auth.signIn()}
       </Button>
     </form>
 
     <div style="display:flex;align-items:center;gap:12px;margin:20px 0">
       <span style="flex:1;height:1px;background:var(--border)"></span>
-      <span style="font-size:12.5px;color:var(--muted);font-weight:500">or</span
-      >
+      <span style="font-size:12.5px;color:var(--muted);font-weight:500">{$LL.common.or()}</span>
       <span style="flex:1;height:1px;background:var(--border)"></span>
     </div>
 
@@ -127,10 +125,10 @@
     <div
       style="text-align:center;margin-top:24px;font-size:13.5px;color:var(--muted)"
     >
-      Don't have an account? <a
+      {$LL.auth.noAccount()} <a
         href="/signup"
         style="color:var(--brand-ink);font-weight:650;text-decoration:none"
-        >Sign up</a
+        >{$LL.auth.signUp()}</a
       >
     </div>
   </div>

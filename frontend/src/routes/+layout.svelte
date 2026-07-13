@@ -3,16 +3,27 @@
   import { appState } from '$lib/appState.svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { locale } from '$lib/i18n/i18n-svelte';
   import Navbar from '$lib/components/ui/Navbar.svelte';
 
   let { children } = $props();
+
+  const RTL = ['ar', 'he', 'fa', 'ur'];
+
+  $effect(() => {
+    document.documentElement.lang = $locale;
+    if (RTL.includes($locale)) {
+      document.documentElement.dir = 'rtl';
+    } else {
+      document.documentElement.dir = 'ltr';
+    }
+  });
 </script>
 
 <svelte:head>
-  <title>BoloDB — Ask your data. Trust the answer.</title>
+  <title>BoloDB</title>
 </svelte:head>
 
-<!-- Only show navbar if loaded and not on home/login/signup. Or we can just show it everywhere, but let's hide on root or auth if needed. Actually we want it globally if we are connected. Let's hide it on login/signup/onboard by checking path -->
 {#if appState.isLoaded && $page.url.pathname !== '/login' && $page.url.pathname !== '/signup' && $page.url.pathname !== '/onboard'}
   <Navbar />
 {/if}

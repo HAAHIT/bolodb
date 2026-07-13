@@ -1,22 +1,34 @@
 <script lang="ts">
-  let { size = 28, withText = true, sub = false }: { size?: number; withText?: boolean; sub?: boolean } = $props();
+  import { page } from '$app/stores';
+  import LL from '$lib/i18n/i18n-svelte';
+
+  let { size = 28, sub = true }: { size?: number; sub?: boolean } = $props();
 </script>
 
-<div style="display:flex;align-items:center;gap:10px">
-  <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-    <rect x="2.2" y="2.2" width="27.6" height="27.6" rx="9" fill="var(--brand)" />
-    <path d="M9 20.5c2.3 1.7 4.6 2.5 7 2.5 2.4 0 4.7-.8 7-2.5" stroke="#fff" stroke-width="2.1" stroke-linecap="round" />
-    <circle cx="12" cy="13" r="1.9" fill="#fff" />
-    <circle cx="20" cy="13" r="1.9" fill="#fff" />
+<div class="logo-wrapper" style="display:flex;align-items:center;gap:10px">
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 28 28"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    style="flex-shrink:0"
+  >
+    <rect width="28" height="28" rx="8" fill="var(--brand)" />
+    <path
+      d="M10.8 6.5 L10.8 18 L13.2 18 L13.2 6.5 Z M6.5 12.8 L18 12.8 L18 10.4 L6.5 10.4 Z"
+      fill="#fff"
+      transform="translate(1, 1) scale(0.85)"
+    />
   </svg>
-  {#if withText}
-    <div style="line-height:1">
-      <div style="font-weight:800;font-size:{size * 0.66}px;letter-spacing:-.02em;color:var(--ink)">
-        Bolo<span style="color:var(--brand)">DB</span>
+  <div style="line-height:1.15">
+    <span style="font-weight:800;font-size:{size * 0.75}px;color:var(--ink);letter-spacing:-.02em"
+      >{$LL.common.appName()}</span
+    >
+    {#if sub}
+      <div style="font-size:{size * 0.38}px;color:var(--muted);font-weight:600;margin-top:1px">
+        {$LL.common.tagline()}
       </div>
-      {#if sub}
-        <div style="font-size:11.5px;color:var(--faint);font-weight:600;margin-top:3px">Ask your data. Trust the answer.</div>
-      {/if}
-    </div>
-  {/if}
+    {/if}
+  </div>
 </div>

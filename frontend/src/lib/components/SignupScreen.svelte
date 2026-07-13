@@ -4,6 +4,7 @@
   import Button from "$lib/components/ui/Button.svelte";
   import Spinner from "$lib/components/ui/Spinner.svelte";
   import { goto } from "$app/navigation";
+  import LL from "$lib/i18n/i18n-svelte";
   import posthog from "posthog-js";
 
   let email = $state("");
@@ -13,10 +14,9 @@
   let success = $state(false);
 
   const passwordRules = [
-    { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
-    { label: "One uppercase letter (A-Z)", test: (p: string) => /[A-Z]/.test(p) },
-    { label: "One lowercase letter (a-z)", test: (p: string) => /[a-z]/.test(p) },
-    { label: "One number (0-9)", test: (p: string) => /[0-9]/.test(p) },
+    { label: $LL.auth.passwordMinLength, test: (p: string) => p.length >= 8 },
+    { label: $LL.auth.passwordUpperLower, test: (p: string) => /[A-Z]/.test(p) && /[a-z]/.test(p) },
+    { label: $LL.auth.passwordNumber, test: (p: string) => /[0-9]/.test(p) },
   ];
 
   const passwordChecks = $derived(passwordRules.map((r) => ({ label: r.label, met: r.test(password) })));
@@ -35,7 +35,7 @@
       success = true;
       setTimeout(() => goto("/login"), 2000);
     } catch (err: any) {
-      error = err.message || "Signup failed";
+      error = err.message || $LL.auth.signupFailed();
       posthog.captureException(err);
     } finally {
       loading = false;
@@ -55,9 +55,9 @@
       <div style="display:flex;justify-content:center;margin-bottom:16px">
         <Logo size={40} />
       </div>
-      <h1 style="margin:0;font-size:24px;font-weight:700">Create an account</h1>
+      <h1 style="margin:0;font-size:24px;font-weight:700">{$LL.auth.createAccount()}</h1>
       <p style="margin:8px 0 0;color:var(--muted);font-size:14.5px">
-        Join BoloDB today
+        {$LL.auth.joinBoloDB()}
       </p>
     </div>
 
@@ -65,7 +65,7 @@
       <div
         style="padding:16px;background:var(--brand-tint);border:1px solid var(--brand-tint-2);border-radius:var(--radius);color:var(--brand-ink);text-align:center;font-weight:550;line-height:1.5"
       >
-        Account created successfully!<br />
+        {$LL.auth.signUpSuccess()}<br />
         Redirecting you to login…
       </div>
     {:else}
@@ -77,14 +77,14 @@
           <label
             for="email"
             style="display:block;font-size:12px;font-weight:700;color:var(--faint);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em"
-            >Email</label
+            >{$LL.common.email()}</label
           >
           <input
             id="email"
             type="email"
             class="field"
             bind:value={email}
-            placeholder="you@company.com"
+            placeholder={$LL.auth.emailPlaceholder()}
             style="width:100%;box-sizing:border-box"
             required
           />
@@ -93,14 +93,14 @@
           <label
             for="password"
             style="display:block;font-size:12px;font-weight:700;color:var(--faint);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em"
-            >Password</label
+            >{$LL.common.password()}</label
           >
           <input
             id="password"
             type="password"
             class="field"
             bind:value={password}
-            placeholder="••••••••"
+            placeholder={$LL.auth.passwordPlaceholder()}
             style="width:100%;box-sizing:border-box"
             required
           />
@@ -136,17 +136,17 @@
           {#snippet icon()}
             {#if loading}<Spinner />{/if}
           {/snippet}
-          {loading ? "Creating account…" : "Sign up"}
+          {loading ? $LL.auth.signingUp() : $LL.auth.signUp()}
         </Button>
       </form>
 
       <div
         style="text-align:center;margin-top:24px;font-size:13.5px;color:var(--muted)"
       >
-        Already have an account? <a
+        {$LL.auth.alreadyHaveAccount()} <a
           href="/login"
           style="color:var(--brand-ink);font-weight:650;text-decoration:none"
-          >Sign in</a
+          >{$LL.auth.signIn()}</a
         >
       </div>
     {/if}
