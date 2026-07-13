@@ -168,11 +168,6 @@ def _db_url_fernet():
         key = base64.urlsafe_b64encode(hashlib.sha256(jwt_secret.encode()).digest())
         return Fernet(key)
     secret = base64.urlsafe_b64encode(os.urandom(32)).decode()
-    _DB_URL_KEY_FILE.write_text(secret)
-    try:
-        os.chmod(_DB_URL_KEY_FILE, 0o600)
-    except OSError:
-        pass
     key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
     return Fernet(key)
 

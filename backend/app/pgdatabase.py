@@ -217,8 +217,9 @@ def _recent_connection_cipher():
         return Fernet(key), None
     if master_cipher:
         new_secret = base64.urlsafe_b64encode(os.urandom(32)).decode()
-        stored_secret = "v1:" + master_cipher.encrypt(new_secret.encode()).decode()
-        _CONNECTIONS_KEY_FILE.write_text(stored_secret)
+        _CONNECTIONS_KEY_FILE.write_text(
+            "v1:" + master_cipher.encrypt(new_secret.encode()).decode()
+        )
         try:
             os.chmod(_CONNECTIONS_KEY_FILE, 0o600)
         except OSError:
