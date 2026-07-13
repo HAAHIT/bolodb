@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import os
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -31,6 +32,18 @@ from backend.app.config import CONFIG_DIR
 
 def _utcnow():
     return datetime.now(timezone.utc)
+
+
+def _uuid7():
+    try:
+        return uuid.uuid7()
+    except AttributeError:
+        pass
+    ts = int(time.time() * 1000)
+    rand = int.from_bytes(os.urandom(10), "big")
+    rand_a = rand >> 68
+    rand_b = rand & ((1 << 62) - 1)
+    return uuid.UUID(int=(ts << 80) | (0x7 << 76) | (rand_a << 64) | (0x2 << 62) | rand_b)
 
 
 load_dotenv()
@@ -71,7 +84,7 @@ class Base(DeclarativeBase):
 class User(Base):
     __tablename__ = "users"
     id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid7
+        PgUUID(as_uuid=True), primary_key=True, default=_uuid7
     )
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     hashed_pass: Mapped[str] = mapped_column(String, nullable=False, default="")
@@ -85,7 +98,7 @@ class User(Base):
 class Conversation(Base):
     __tablename__ = "conversations"
     id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid7
+        PgUUID(as_uuid=True), primary_key=True, default=_uuid7
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -103,7 +116,7 @@ class Conversation(Base):
 class QueryHistory(Base):
     __tablename__ = "query_history"
     id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid7
+        PgUUID(as_uuid=True), primary_key=True, default=_uuid7
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -126,7 +139,7 @@ class QueryHistory(Base):
 class RecentConnection(Base):
     __tablename__ = "recent_connections"
     id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid7
+        PgUUID(as_uuid=True), primary_key=True, default=_uuid7
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
