@@ -7,27 +7,29 @@ from backend.app.models.user import (
     Role,
     validate_password_strength,
 )
-from backend.app.mongodatabase import (
+from backend.app.pgdatabase import (
     create_user,
     get_user_by_email,
+    get_user_by_google_id,
     get_user_by_id,
     update_user,
     serialize_doc,
 )
-from bson import ObjectId
 import jwt
 from datetime import datetime, timedelta, UTC
 from backend.app.secrets import get_jwt_secret
 
 
-def get_me(user_id):
-    data = serialize_doc(get_user_by_id(user_id))
+async def get_me(user_id):
+    data = serialize_doc(await get_user_by_id(user_id))
+    if not data:
+        return None
     data.pop("hashed_pass", None)
     return data
 
 
-def login(email: EmailStr, password: str):
-    user_details = get_user_by_email(email)
+async def login(email: EmailStr, password: str):
+    user_details = await get_user_by_email(email)
     if user_details is None:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     user_bytes = password.encode()
@@ -58,21 +60,60 @@ def create_jwt(user_id, role):
     return {"access_token": access_encoded_jwt, "refresh_token": refresh_encoded_jwt}
 
 
-def signup(user: UserSignup):
-    if get_user_by_email(user.email) is not None:
+async def signup(user: UserSignup):
+    if await get_user_by_email(user.email) is not None:
         raise HTTPException(status_code=400, detail="Email already Registered")
     encoded_pass = user.password.encode("utf-8")
     salt = bcrypt.gensalt()
     hashed_pw = bcrypt.hashpw(encoded_pass, salt)
     hashed_pw = hashed_pw.decode("utf-8")
     user_in_db = UserInDB(email=user.email, hashed_pass=hashed_pw, role=Role.user)
-    create_user(user_in_db)
+    await create_user(user_in_db)
     return True
 
 
-def change_password(user_id, old_password, new_password):
+async def google_login(id_token_str, client_id):
+    try:
+        from jwt import PyJWKClient
+
+        jwks_url = "https://www.googleapis.com/oauth2/v3/certs"
+        jwks_client = PyJWKClient(jwks_url, cache_keys=True)
+        signing_key = jwks_client.get_signing_key_from_jwt(id_token_str)
+        user_info = jwt.decode(
+            id_token_str,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=client_id,
+            issuer=["https://accounts.google.com", "accounts.google.com"],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid Google token: {e}")
+
+    google_id = user_info["sub"]
+    email = user_info.get("email", "")
+    if not email:
+        raise HTTPException(status_code=400, detail="Google account has no email")
+
+    existing = await get_user_by_google_id(google_id)
+    if existing:
+        return create_jwt(str(existing["_id"]), existing["role"])
+
+    existing_by_email = await get_user_by_email(email)
+    if existing_by_email:
+        await update_user(
+            existing_by_email["_id"],
+            google_id=google_id,
+        )
+        return create_jwt(str(existing_by_email["_id"]), existing_by_email["role"])
+
+    user_in_db = UserInDB(email=email, role=Role.user, google_id=google_id)
+    uid = await create_user(user_in_db)
+    return create_jwt(uid, Role.user.value)
+
+
+async def change_password(user_id, old_password, new_password):
     validate_password_strength(new_password)
-    user_details = get_user_by_id(user_id)
+    user_details = await get_user_by_id(user_id)
     if user_details is None:
         raise HTTPException(status_code=404, detail="User not found")
     old_pass_enc = old_password.encode("utf-8")
@@ -81,9 +122,9 @@ def change_password(user_id, old_password, new_password):
         salt = bcrypt.gensalt()
         new_hashed_pw = bcrypt.hashpw(new_pass_enc, salt)
         user_details["hashed_pass"] = new_hashed_pw.decode("utf-8")
-        update_user(
-            {"_id": ObjectId(user_id)},
-            {"$set": {"hashed_pass": user_details["hashed_pass"]}},
+        await update_user(
+            user_id,
+            hashed_pass=user_details["hashed_pass"],
         )
         return True
     raise HTTPException(status_code=401, detail="Incorrect Password, Please try again")

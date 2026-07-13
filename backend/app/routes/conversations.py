@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from backend.app.dependencies import get_current_user
-from starlette.concurrency import run_in_threadpool
 import backend.app.controllers.conversations as ctrl
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
@@ -20,7 +19,7 @@ class RenameConversationReq(BaseModel):
 @router.get("")
 async def list_conversations(user_token=Depends(get_current_user)):
     user_id = user_token["user_id"]
-    convs = await run_in_threadpool(ctrl.list_conversations, user_id)
+    convs = await ctrl.list_conversations(user_id)
     return JSONResponse({"conversations": convs})
 
 
@@ -30,8 +29,7 @@ async def create_conversation(
     user_token=Depends(get_current_user),
 ):
     user_id = user_token["user_id"]
-    conv = await run_in_threadpool(
-        ctrl.create_conversation,
+    conv = await ctrl.create_conversation(
         user_id,
         title=req.title,
         database_id=req.database_id,
@@ -45,7 +43,7 @@ async def get_conversation(
     user_token=Depends(get_current_user),
 ):
     user_id = user_token["user_id"]
-    conv = await run_in_threadpool(ctrl.get_conversation, user_id, conversation_id)
+    conv = await ctrl.get_conversation(user_id, conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return JSONResponse(conv)
@@ -58,9 +56,7 @@ async def rename_conversation(
     user_token=Depends(get_current_user),
 ):
     user_id = user_token["user_id"]
-    success = await run_in_threadpool(
-        ctrl.rename_conversation, user_id, conversation_id, req.title
-    )
+    success = await ctrl.rename_conversation(user_id, conversation_id, req.title)
     if not success:
         raise HTTPException(
             status_code=404, detail="Conversation not found or unauthorized"
@@ -74,9 +70,7 @@ async def delete_conversation(
     user_token=Depends(get_current_user),
 ):
     user_id = user_token["user_id"]
-    success = await run_in_threadpool(
-        ctrl.delete_conversation, user_id, conversation_id
-    )
+    success = await ctrl.delete_conversation(user_id, conversation_id)
     if not success:
         raise HTTPException(
             status_code=404, detail="Conversation not found or unauthorized"
@@ -87,5 +81,5 @@ async def delete_conversation(
 @router.delete("")
 async def clear_conversations(user_token=Depends(get_current_user)):
     user_id = user_token["user_id"]
-    await run_in_threadpool(ctrl.clear_conversations, user_id)
+    await ctrl.clear_conversations(user_id)
     return JSONResponse({"message": "Cleared successfully"})

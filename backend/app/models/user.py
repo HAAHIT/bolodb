@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field, EmailStr, ConfigDict, field_validator
+from pydantic import BaseModel, EmailStr, field_validator
 
 
 class Role(Enum):
@@ -35,18 +35,25 @@ class UserSignup(BaseModel):
         return validate_password_strength(v)
 
 
-class UserInDB(BaseModel):
-    id: Optional[str] = Field(None, alias="_id")
+class UserLogin(BaseModel):
     email: EmailStr
-    hashed_pass: str
-    role: Role
+    password: str
 
-    model_config = ConfigDict(populate_by_name=True)
+
+class UserInDB(BaseModel):
+    id: str = ""
+    email: EmailStr
+    hashed_pass: str = ""
+    role: Role
+    google_id: Optional[str] = None
 
 
 class UserPublic(BaseModel):
-    id: Optional[str] = Field(None, alias="_id")
+    id: str = ""
     email: EmailStr
     role: Role
 
-    model_config = ConfigDict(populate_by_name=True)
+
+class GoogleLogin(BaseModel):
+    id_token: str
+    client_id: str

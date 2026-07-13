@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from backend.app import config as cfgmod
 from backend.app.database import sanitize_url
 from backend.sample_data import ensure_sample_db
-import backend.app.mongodatabase as mdb
+import backend.app.pgdatabase as mdb
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,10 +20,9 @@ async def connect(db, kb, cfg, req_data, user_id=None):
     result["has_knowledge"] = kb.count_verified(db_id) > 0
     result["starters"] = [v["question"] for v in kb.get_verified(db_id)[:6]]
 
-    # Save to user's recent connections
     if user_id:
         try:
-            mdb.save_recent_connection(
+            await mdb.save_recent_connection(
                 user_id=user_id,
                 db_url=req_data.db_url,
                 display_url=sanitize_url(req_data.db_url),
@@ -42,8 +41,6 @@ async def connect_sample(db, kb, cfg, user_id=None):
     result = db.connect(user_id, url)
     if not result["ok"]:
         raise HTTPException(500, result["error"])
-    # cfg["last_db_url"] = url
-    # cfgmod.save_config(cfg)
 
     if kb.count_verified(db.get_db_id(user_id)) == 0:
         kb.set_glossary(
@@ -93,10 +90,9 @@ async def connect_sample(db, kb, cfg, user_id=None):
     ]
     result["is_sample"] = True
 
-    # Save to user's recent connections
     if user_id:
         try:
-            mdb.save_recent_connection(
+            await mdb.save_recent_connection(
                 user_id=user_id,
                 db_url=url,
                 display_url=sanitize_url(url),
@@ -112,11 +108,6 @@ async def connect_sample(db, kb, cfg, user_id=None):
 
 async def disconnect(user_id, db, cfg):
     db.disconnect(user_id)
-    # cfg.pop("last_db_url", None)
-    # try:
-    # cfgmod.save_config(cfg)
-    # except Exception as e:
-    #     logger.warning("Failed to save config after disconnect: %s", e)
     return {"ok": True}
 
 

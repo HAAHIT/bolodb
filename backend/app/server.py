@@ -1,6 +1,7 @@
 """FastAPI application."""
 
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -22,6 +23,17 @@ from backend.app.routes.conversations import router as conversations_router
 logger = logging.getLogger(__name__)
 
 
+@asynccontextmanager
+async def lifespan(app):
+    from alembic.config import Config
+    from alembic import command
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
+    yield
+    from backend.app.pgdatabase import dispose_db
+    await dispose_db()
+
+
 def create_app(initial_db_url="", readonly=True):
     cfg = cfgmod.load_config()
     providers = ProviderManager(cfg)
@@ -29,7 +41,7 @@ def create_app(initial_db_url="", readonly=True):
     kb = KnowledgeBase(cfgmod.KB_FILE)
     session_log = SessionLog(cfgmod.CONFIG_DIR)
 
-    app = FastAPI(title="BoloDB", version="2.0.0")
+    app = FastAPI(title="BoloDB", version="2.0.0", lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,
