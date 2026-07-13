@@ -62,19 +62,32 @@ leave `<!-- COPY -->` markers so it's swappable without touching layout.
 
 ---
 
-## 3. Reference & inspiration (the bar, not to copy)
+## 3. Art direction & reference (the bar, not to copy)
 
-- **Linear** — dark-first restraint, gradient/mesh backdrops, crisp typography,
-  scroll-reveals that feel weightless. Our default theme is already Linear-like.
-- **Vercel / Resend** — product-demo-as-hero, tasteful code aesthetics.
-- **Stripe** — the gold standard for "explain a technical product to humans"
-  with scroll-scrubbed diagrams.
-- **Awwwards SOTD motion vocabulary** — magnetic buttons, cursor-aware cards,
-  masked text reveals, number count-ups, marquee logo rows.
+**Direction: "Living light, calm confidence."** Dark-first (BoloDB's default
+theme), premium, and *alive* — a generative gradient/aurora atmosphere breathing
+behind crisp typography and glass surfaces, with cinematic but restrained motion.
+This is richer than a flat Linear look: the background itself is a signature.
+
+**Reference board** (stakeholder-loved; borrow the intent, not the layout):
+
+| Reference | What we take |
+|---|---|
+| **Reflect** — reflect.app | The living, iridescent **gradient/aurora** hero atmosphere; dark, premium, typographic calm. |
+| **Zajno** — motion.zajno.com | **Motion-as-narrative**: animation guides the eye and *unpacks* information; seamless section transitions; micro-interaction craft (WebGL/GSAP/GLSL). |
+| **Hydra Design Labs** — hydradesignlabs.com | Cinematic, **design-first precision**; one or two bold hero moments; intentionality. |
+| **Stryds** — stryds.com | **Vibrant gradients pulsing on dark**, rounded forms, energetic-yet-approachable; each section moves with purpose. |
+| **Antigravity** — antigravity.google | A **generative, physics-inspired ambient background** effect as signature atmosphere. |
+| **Stripe** | The gold standard for scroll-scrubbed diagrams that *explain a technical product to humans* (our pipeline, §4.3). |
+
+**Palette move:** layer an **aurora accent gradient** — brand blue `#4da6ff` →
+emerald `#62e0b0` → a restrained violet — over the existing dark tokens; in
+`crisp`/`soft` the aurora cools to brand green (`#1b9e6b`). Confidence semantics
+unchanged.
 
 We borrow the *vocabulary*, not the layouts. BoloDB's differentiator is
-**trust**, so our signature moment is the trust/verification loop (§6), not a
-generic hero animation.
+**trust**, so the atmosphere sets the mood while our signature *content* moment
+stays the trust/verification loop (§6) — never a generic gradient-hero template.
 
 ---
 
@@ -92,11 +105,20 @@ generic hero animation.
   in" + primary "Start free" right. Sticky, `backdrop-filter: blur(12px)`,
   translucent `--surface`, 1px `--border-2` bottom. On scroll past hero, it
   condenses (height 72→60px, stronger shadow) via a single ScrollTrigger.
-- **Backdrop:** keep the ambient orbs concept but upgrade to a layered mesh
-  gradient + a subtle SVG grain/noise overlay at ~3% opacity (kills banding on
-  dark gradients). Orbs drift *very slowly* (30–40s loop, transform-only) and
-  parallax with scroll at low intensity. All decorative, `aria-hidden`,
-  `pointer-events: none`.
+- **Backdrop — the living aurora atmosphere (signature).** This is the
+  Reflect/Antigravity move. Build it in **two tiers** so quality scales with the
+  device:
+  - **Tier 1 (default, always ships):** a layered CSS/Canvas **aurora** — 2–3
+    large iridescent gradient fields (blue→emerald→violet) that drift *very
+    slowly* (30–40s, transform-only), parallax gently with scroll, over a subtle
+    SVG grain/noise at ~3% (kills banding on dark). Cheap, universal.
+  - **Tier 2 (progressive enhancement, behind decision D-3):** an optional
+    **WebGL flow-field / gradient-shader** layer (e.g. OGL, a few KB) for the
+    truly "alive" Antigravity feel. **Lazy-loaded, client-only,** and gated: only
+    on capable, non-`save-data`, non-reduced-motion, sufficient-`deviceMemory`
+    sessions; otherwise Tier 1 shows. Must pause off-screen and cap DPR.
+  - All decorative: `aria-hidden`, `pointer-events: none`, never the LCP element,
+    fully replaced by a static gradient under reduced-motion.
 - **Smooth scroll:** Lenis (see §5). Anchor links use Lenis `scrollTo`.
 
 ### 4.1 Hero
@@ -202,9 +224,12 @@ This is the section engineers should internalize before writing any animation.
 | **ScrollTrigger** | Scroll-linked reveals, pin, scrub | GSAP plugin. |
 | **SplitText** | Line/char masked text reveals | GSAP plugin (now free). Has built-in `revert()` — call it on cleanup. |
 | **Lenis** | Smooth scroll | Pair with ScrollTrigger via `lenis.on('scroll', ScrollTrigger.update)` and drive Lenis from `gsap.ticker`. |
+| **OGL** *(optional, D-3)* | Tier-2 WebGL aurora / flow-field background | ~5 KB gz, minimal WebGL. **Only** for the Tier-2 atmosphere (§4.0); lazy, gated, with a static fallback. Not required for launch. |
 
 Do **not** add Framer Motion / Motion One / AOS as well — one motion stack.
-Everything ships lazy-loaded and code-split (§7). Budget: < 45 KB gz total.
+Everything ships lazy-loaded and code-split (§7). Budget: < 45 KB gz for the
+core motion stack; the optional WebGL layer is separately lazy-loaded and gated,
+never on the critical path.
 
 ### 5.2 Motion principles (the house style)
 1. **Transform & opacity only.** Never animate `width`, `top`, `box-shadow`,
@@ -251,19 +276,23 @@ Each is a `use:` action in `src/lib/actions/` so juniors compose, not copy.
 ## 6. Signature "wow" moments (pick 2–3 to ship; the rest are stretch)
 
 Awwwards juries reward **one or two** memorable, on-brand moments — not ten.
-Ranked by payoff-to-effort:
+Commit to 2–3 (decision D-2). Ranked by payoff-to-effort:
 
 1. **The live demo (§4.2).** Highest priority. It *is* the product. Nail the
    choreography and it carries the page.
-2. **Magnetic CTA + tactile buttons.** Cheap, high perceived quality, everywhere.
-3. **Scroll-scrubbed pipeline (§4.3).** The "explain it to humans" moment.
-   Medium effort; big comprehension payoff.
-4. **Trust flip cards (§4.4.1).** Answer→SQL flip literally demonstrates the
+2. **The living aurora atmosphere (§4.0).** The reference-defining mood
+   (Reflect/Antigravity). Tier 1 is cheap and universal; it makes the whole page
+   feel premium and alive before any content animates.
+3. **Magnetic CTA + tactile buttons.** Cheap, high perceived quality, everywhere.
+4. **Scroll-scrubbed pipeline (§4.3).** The "explain it to humans" moment
+   (Stripe/Zajno — motion that *unpacks* information). Medium effort; big
+   comprehension payoff.
+5. **Trust flip cards (§4.4.1).** Answer→SQL flip literally demonstrates the
    trust pitch. On-brand and delightful.
-5. **(Stretch) Schema constellation.** A lightweight SVG/Canvas graph of
-   tables/keys that gently animates and links on scroll — visualizes "it knows
-   your schema." Lazy-loaded, off by default under reduced-motion. Only if
-   budget allows; do not block launch on it.
+6. **(Stretch) WebGL flow-field atmosphere (Tier 2, §4.0)** and/or a **schema
+   constellation** — a lightweight graph of tables/keys that links on scroll
+   ("it knows your schema"). Both lazy-loaded, gated, off under reduced-motion.
+   Do not block launch on either.
 
 ---
 
@@ -478,6 +507,9 @@ plus copy + any custom illustration/SVG from design.
 
 ---
 
-*Companion visual reference:* a live **Motion & Design Spec** (interactive brief
-with the easing tokens, magnetic button, reveal, and demo storyboard) accompanies
-this document so engineers can *feel* the target quality, not just read it.
+*Companion visual reference:* [`docs/landing-page-motion-spec.html`](./landing-page-motion-spec.html)
+is a self-contained, dependency-free page — **open it in a browser** to *feel*
+the target quality (living aurora background, magnetic buttons, spotlight cards,
+easing tokens, masked reveals, and the looping query→answer demo), or **read its
+source** for reference implementations of each interaction. The build specifies
+the GSAP + Lenis equivalents to use in the real SvelteKit code.
