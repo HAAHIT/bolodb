@@ -3,18 +3,18 @@
 @plugin '@tailwindcss/typography';
 
 @font-face {
-  font-family: 'Hanken Grotesk';
+  font-family: "Hanken Grotesk";
   font-style: normal;
   font-weight: 400 800;
   font-display: swap;
-  src: url('/fonts/HankenGrotesk.woff2') format('woff2');
+  src: url("/fonts/HankenGrotesk.woff2") format("woff2");
 }
 @font-face {
-  font-family: 'JetBrains Mono';
+  font-family: "JetBrains Mono";
   font-style: normal;
   font-weight: 400 600;
   font-display: swap;
-  src: url('/fonts/JetBrainsMono.woff2') format('woff2');
+  src: url("/fonts/JetBrainsMono.woff2") format("woff2");
 }
 
 /* ============================================================

@@ -1,6 +1,13 @@
 import { browser } from "$app/environment";
 
-type SectionId = "hero" | "demo" | "pipeline" | "trust" | "flywheel" | "integrations" | "cta";
+type SectionId =
+  | "hero"
+  | "demo"
+  | "pipeline"
+  | "trust"
+  | "flywheel"
+  | "integrations"
+  | "cta";
 
 let _posthog: any = null;
 
@@ -24,7 +31,9 @@ export async function trackLpView() {
   await capture("lp_view", {
     theme: document.documentElement.getAttribute("data-theme"),
     referrer: document.referrer || "(direct)",
-    device: /Mobile|Android|iPhone/.test(navigator.userAgent) ? "mobile" : "desktop",
+    device: /Mobile|Android|iPhone/.test(navigator.userAgent)
+      ? "mobile"
+      : "desktop",
   });
 }
 
@@ -32,7 +41,11 @@ export function trackSectionView(section: SectionId) {
   capture("lp_section_view", { section });
 }
 
-export function trackCtaClick(location: string, label: string, destination: string) {
+export function trackCtaClick(
+  location: string,
+  label: string,
+  destination: string,
+) {
   capture("lp_cta_click", { location, label, destination });
 }
 
@@ -51,5 +64,3 @@ export function trackThemeToggle(toTheme: string) {
 export function trackScrollDepth(depth: number) {
   capture("lp_scroll_depth", { depth });
 }
-
-

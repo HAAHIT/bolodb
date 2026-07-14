@@ -3,7 +3,7 @@ import { loadGsap } from "$lib/motion/gsap";
 
 export function countUp(
   node: HTMLElement,
-  options: { from?: number; to: number; duration?: number; suffix?: string }
+  options: { from?: number; to: number; duration?: number; suffix?: string },
 ) {
   if (!browser) return;
   const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -35,13 +35,13 @@ export function countUp(
               onUpdate: function (this: any) {
                 node.textContent = `${fmt.format(Math.round(this.targets()[0].value))}${suffix}`;
               },
-            }
+            },
           );
           observer?.disconnect();
         }
       }
     },
-    { threshold: 0.3 }
+    { threshold: 0.3 },
   );
 
   observer.observe(node);
