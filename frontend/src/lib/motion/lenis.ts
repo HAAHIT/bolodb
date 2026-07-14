@@ -37,6 +37,9 @@ export function scrollTo(target: string | HTMLElement, options?: any) {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     return;
   }
-  const selector = typeof target === "string" && !target.startsWith("#") ? "#" + target : target;
+  const selector =
+    typeof target === "string" && !target.startsWith("#")
+      ? "#" + target
+      : target;
   _lenis.scrollTo(selector, options);
 }

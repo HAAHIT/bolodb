@@ -6,7 +6,10 @@ export function magnetic(node: HTMLElement) {
   if (mq.matches || "ontouchstart" in window) return;
 
   let raf: number | null = null;
-  let tx = 0, ty = 0, cx = 0, cy = 0;
+  let tx = 0,
+    ty = 0,
+    cx = 0,
+    cy = 0;
 
   function loop() {
     cx += (tx - cx) * 0.18;

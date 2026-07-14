@@ -1,7 +1,10 @@
 import { browser } from "$app/environment";
 import { loadGsap } from "$lib/motion/gsap";
 
-export function reveal(node: HTMLElement, options: { threshold?: number } = {}) {
+export function reveal(
+  node: HTMLElement,
+  options: { threshold?: number } = {},
+) {
   if (!browser) return;
   const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
   const threshold = options.threshold ?? 0.2;
@@ -33,7 +36,7 @@ export function reveal(node: HTMLElement, options: { threshold?: number } = {}) 
         }
       }
     },
-    { threshold }
+    { threshold },
   );
 
   observer.observe(node);
