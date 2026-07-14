@@ -21,6 +21,7 @@ if db_url:
         db_url = "postgresql+asyncpg://" + db_url[len("postgresql://") :]
     elif db_url.startswith("postgres://"):
         db_url = "postgresql+asyncpg://" + db_url[len("postgres://") :]
+    db_url = db_url.replace("%", "%%")
     config.set_main_option("sqlalchemy.url", db_url)
 
 target_metadata = Base.metadata
@@ -48,10 +49,13 @@ async def run_async_migrations() -> None:
     connectable = create_async_engine(
         config.get_main_option("sqlalchemy.url"),
         poolclass=pool.NullPool,
+        connect_args={"statement_cache_size": 0},
     )
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-    await connectable.dispose()
+    try:
+        async with connectable.connect() as connection:
+            await connection.run_sync(do_run_migrations)
+    finally:
+        await connectable.dispose()
 
 
 def run_migrations_online() -> None:
