@@ -38,14 +38,17 @@ async def refresh_jwt(refresh_token: str = Cookie(None)):
 
 @router.get("/me")
 async def me(user_token=Depends(get_current_user)):
-    user = backend.app.controllers.auth.get_me(user_token["user_id"])
-    user.pop("hashed_pass", None)
+    user = await backend.app.controllers.auth.get_me(user_token["user_id"])
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     return JSONResponse({"message": "My details", "content": user})
 
 
 @router.post("/login")
 async def login(login_data: UserLogin):
-    token = backend.app.controllers.auth.login(login_data.email, login_data.password)
+    token = await backend.app.controllers.auth.login(
+        login_data.email, login_data.password
+    )
     response = JSONResponse({"message": "Login Success"})
     secure = get_cookie_secure()
     response.set_cookie(
@@ -67,7 +70,7 @@ async def login(login_data: UserLogin):
 
 @router.post("/signup")
 async def signup(user_data: UserSignup):
-    backend.app.controllers.auth.signup(user_data)
+    await backend.app.controllers.auth.signup(user_data)
     return JSONResponse({"message": "Signup Successful"}, status_code=201)
 
 
@@ -78,7 +81,7 @@ async def google_auth(google_data: GoogleLogin):
         raise HTTPException(status_code=500, detail="Google sign-in is not configured")
     if google_data.client_id != client_id:
         raise HTTPException(status_code=400, detail="Client ID mismatch")
-    tokens = backend.app.controllers.auth.google_login(
+    tokens = await backend.app.controllers.auth.google_login(
         google_data.id_token, google_data.client_id
     )
     response = JSONResponse({"message": "Google sign-in successful"})
@@ -111,7 +114,7 @@ async def logout():
 @router.post("/change-password")
 async def change_password(request: Request, user_token=Depends(get_current_user)):
     body = await request.json()
-    backend.app.controllers.auth.change_password(
+    await backend.app.controllers.auth.change_password(
         user_token["user_id"], body["old_password"], body["new_password"]
     )
     return JSONResponse({"message": "Password changed successfully"})

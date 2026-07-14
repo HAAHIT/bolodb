@@ -9,30 +9,46 @@ from backend.app.models.user import (
     Role,
     validate_password_strength,
 )
-from backend.app.mongodatabase import (
+from backend.app.pgdatabase import (
     create_user,
     get_user_by_email,
     get_user_by_google_id,
     get_user_by_id,
     update_user,
-    serialize_doc,
+    UserAlreadyExistsError,
 )
-from bson import ObjectId
 import jwt
 from datetime import datetime, timedelta, UTC
+from fastapi.concurrency import run_in_threadpool
 from backend.app.secrets import get_jwt_secret
 
 log = logging.getLogger(__name__)
 
 
-def get_me(user_id):
-    data = serialize_doc(get_user_by_id(user_id))
+_JWKS_CLIENT = None
+
+
+def _get_jwks_client():
+    global _JWKS_CLIENT
+    if _JWKS_CLIENT is None:
+        from jwt import PyJWKClient
+
+        _JWKS_CLIENT = PyJWKClient(
+            "https://www.googleapis.com/oauth2/v3/certs", cache_keys=True
+        )
+    return _JWKS_CLIENT
+
+
+async def get_me(user_id):
+    data = await get_user_by_id(user_id)
+    if not data:
+        return None
     data.pop("hashed_pass", None)
     return data
 
 
-def login(email: EmailStr, password: str):
-    user_details = get_user_by_email(email)
+async def login(email: EmailStr, password: str):
+    user_details = await get_user_by_email(email)
     if user_details is None:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     # Google-only accounts have no password hash; reject cleanly instead of
@@ -67,26 +83,29 @@ def create_jwt(user_id, role):
     return {"access_token": access_encoded_jwt, "refresh_token": refresh_encoded_jwt}
 
 
-def signup(user: UserSignup):
-    if get_user_by_email(user.email) is not None:
+async def signup(user: UserSignup):
+    if await get_user_by_email(user.email) is not None:
         raise HTTPException(status_code=400, detail="Email already Registered")
     encoded_pass = user.password.encode("utf-8")
     salt = bcrypt.gensalt()
     hashed_pw = bcrypt.hashpw(encoded_pass, salt)
     hashed_pw = hashed_pw.decode("utf-8")
     user_in_db = UserInDB(email=user.email, hashed_pass=hashed_pw, role=Role.user)
-    create_user(user_in_db)
+    try:
+        await create_user(user_in_db)
+    except UserAlreadyExistsError:
+        # Concurrent signup lost the race against the unique constraint.
+        raise HTTPException(status_code=400, detail="Email already Registered")
     return True
 
 
-def google_login(id_token_str, client_id):
+async def google_login(id_token_str, client_id):
     """Verify a Google ID token and return JWT tokens for the user."""
     try:
-        from jwt import PyJWKClient
-
-        jwks_url = "https://www.googleapis.com/oauth2/v3/certs"
-        jwks_client = PyJWKClient(jwks_url, cache_keys=True)
-        signing_key = jwks_client.get_signing_key_from_jwt(id_token_str)
+        jwks_client = _get_jwks_client()
+        signing_key = await run_in_threadpool(
+            jwks_client.get_signing_key_from_jwt, id_token_str
+        )
         user_info = jwt.decode(
             id_token_str,
             signing_key.key,
@@ -95,8 +114,6 @@ def google_login(id_token_str, client_id):
             issuer=["https://accounts.google.com", "accounts.google.com"],
         )
     except Exception as e:
-        # Log the real cause but don't echo raw verification internals to the
-        # client — a generic 401 is all the caller needs.
         log.warning("Google ID token verification failed: %s", e)
         raise HTTPException(status_code=401, detail="Invalid Google token")
 
@@ -105,33 +122,38 @@ def google_login(id_token_str, client_id):
     if not email:
         raise HTTPException(status_code=400, detail="Google account has no email")
 
-    # Only trust the email once Google says it is verified. Without this,
-    # a token carrying an unverified email could be used to link into — and
-    # take over — an existing password account that happens to share it.
     if user_info.get("email_verified", False) not in (True, "true", "True"):
         raise HTTPException(status_code=401, detail="Google email is not verified")
 
-    existing = get_user_by_google_id(google_id)
+    existing = await get_user_by_google_id(google_id)
     if existing:
         return create_jwt(str(existing["_id"]), existing["role"])
 
-    existing_by_email = get_user_by_email(email)
+    existing_by_email = await get_user_by_email(email)
     if existing_by_email:
-        update_user(
-            {"_id": existing_by_email["_id"]},
-            {"$set": {"google_id": google_id}},
+        await update_user(
+            existing_by_email["_id"],
+            google_id=google_id,
         )
         return create_jwt(str(existing_by_email["_id"]), existing_by_email["role"])
 
     user_in_db = UserInDB(email=email, role=Role.user, google_id=google_id)
-    result = create_user(user_in_db)
-    uid = str(result.inserted_id)
+    try:
+        uid = await create_user(user_in_db)
+    except UserAlreadyExistsError:
+        # A concurrent login created this account first — look it up and sign in.
+        existing = await get_user_by_google_id(google_id) or await get_user_by_email(
+            email
+        )
+        if existing:
+            return create_jwt(str(existing["_id"]), existing["role"])
+        raise HTTPException(status_code=409, detail="Account already exists")
     return create_jwt(uid, Role.user.value)
 
 
-def change_password(user_id, old_password, new_password):
+async def change_password(user_id, old_password, new_password):
     validate_password_strength(new_password)
-    user_details = get_user_by_id(user_id)
+    user_details = await get_user_by_id(user_id)
     if user_details is None:
         raise HTTPException(status_code=404, detail="User not found")
     old_pass_enc = old_password.encode("utf-8")
@@ -140,9 +162,9 @@ def change_password(user_id, old_password, new_password):
         salt = bcrypt.gensalt()
         new_hashed_pw = bcrypt.hashpw(new_pass_enc, salt)
         user_details["hashed_pass"] = new_hashed_pw.decode("utf-8")
-        update_user(
-            {"_id": ObjectId(user_id)},
-            {"$set": {"hashed_pass": user_details["hashed_pass"]}},
+        await update_user(
+            user_id,
+            hashed_pass=user_details["hashed_pass"],
         )
         return True
     raise HTTPException(status_code=401, detail="Incorrect Password, Please try again")

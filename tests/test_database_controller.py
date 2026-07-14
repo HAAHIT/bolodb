@@ -36,11 +36,11 @@ def test_connect_uses_user_scoped_connect_and_result_metadata(monkeypatch):
 
     saved = {}
     monkeypatch.setattr(database_ctrl.cfgmod, "save_config", lambda cfg: None)
-    monkeypatch.setattr(
-        database_ctrl.mdb,
-        "save_recent_connection",
-        lambda **kwargs: saved.update(kwargs),
-    )
+
+    async def fake_save(**kwargs):
+        saved.update(kwargs)
+
+    monkeypatch.setattr(database_ctrl.mdb, "save_recent_connection", fake_save)
 
     db = DummyDB()
     kb = DummyKB()
@@ -74,11 +74,11 @@ def test_connect_sample_uses_result_metadata_for_recent_connection(monkeypatch):
     monkeypatch.setattr(
         database_ctrl, "ensure_sample_db", lambda: "sqlite:///sample.db"
     )
-    monkeypatch.setattr(
-        database_ctrl.mdb,
-        "save_recent_connection",
-        lambda **kwargs: saved.update(kwargs),
-    )
+
+    async def fake_save(**kwargs):
+        saved.update(kwargs)
+
+    monkeypatch.setattr(database_ctrl.mdb, "save_recent_connection", fake_save)
 
     result = asyncio.run(
         database_ctrl.connect_sample(DummyDB(), DummyKB(), {}, user_id="u1")

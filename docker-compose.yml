@@ -16,31 +16,20 @@ services:
     container_name: bolodb-backend
     restart: unless-stopped
     ports:
-      - "4321:4321"                       # Exposed to host for development
+      - "4321:4321"
     volumes:
-      - bolodb-data:/home/bolodb/.bolodb  # Persist config + knowledge DB
-      - ./data:/app/data                  # Drop local SQLite/DuckDB files here
+      - bolodb-data:/home/bolodb/.bolodb
+      - ./data:/app/data
     environment:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - DATABASE_URL=${DATABASE_URL:? Database URL must be set}
       - PYTHONUNBUFFERED=1
       - RUNNING_IN_DOCKER=true
-      # - MONGO_URI=mongodb://mongodb:27017
-      - MONGO_URI=${MONGO_URI}
+      - OLLAMA_URL=http://host.docker.internal:11434
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    networks:
-      - bolodb-net
-
-  # ── MongoDB: Database ──
-  mongodb:
-    image: mongo:latest
-    container_name: bolodb-mongodb
-    restart: unless-stopped
-    ports:
-      - "27017:27017"
-    volumes:
-      - bolodb-mongodb-data:/data/db
     networks:
       - bolodb-net
 
@@ -84,8 +73,13 @@ services:
 
 volumes:
   bolodb-data:
-  bolodb-mongodb-data:
+  bolodb-postgres-data:
+  bolodb-postgres-wal:
 
 networks:
   bolodb-net:
     driver: bridge
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: fd00:b010::/64

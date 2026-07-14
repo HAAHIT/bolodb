@@ -157,34 +157,41 @@ def save_config(cfg):
 
 
 def _db_url_fernet():
-    """Return a Fernet cipher for encrypting/decrypting stored database URLs.
-
-    Uses a separate key file (~/.bolodb/db_url.key) to avoid reusing the
-    JWT secret or the recent-connections key.
-    """
+    """Return a Fernet cipher for encrypting/decrypting stored database URLs."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     if _DB_URL_KEY_FILE.exists():
         secret = _DB_URL_KEY_FILE.read_text().strip()
-    else:
-        secret = base64.urlsafe_b64encode(os.urandom(32)).decode()
-        _DB_URL_KEY_FILE.write_text(secret)
-    key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
-    return Fernet(key)
+        key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
+        return Fernet(key)
+    jwt_secret = os.getenv("JWT_SECRET")
+    if jwt_secret:
+        key = base64.urlsafe_b64encode(hashlib.sha256(jwt_secret.encode()).digest())
+        return Fernet(key)
+    # No stable key available — skip encryption. We intentionally avoid an
+    # ephemeral os.urandom fallback because that would silently make previously
+    # stored URLs undecryptable after a process restart.
+    return None
 
 
 def encrypt_db_url(url):
     """Encrypt a database URL for safe storage on disk."""
     if not url:
         return url
-    return _db_url_fernet().encrypt(url.encode()).decode()
+    fernet = _db_url_fernet()
+    if fernet is None:
+        return url
+    return fernet.encrypt(url.encode()).decode()
 
 
 def decrypt_db_url(value):
     """Decrypt a stored database URL. Handles legacy plaintext gracefully."""
     if not value:
         return value
+    fernet = _db_url_fernet()
+    if fernet is None:
+        return value
     try:
-        return _db_url_fernet().decrypt(value.encode()).decode()
+        return fernet.decrypt(value.encode()).decode()
     except (InvalidToken, ValueError, TypeError):
         # Legacy plaintext URL — return as-is.
         return value

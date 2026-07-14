@@ -1,8 +1,11 @@
 """FastAPI application."""
 
 import logging
+from pathlib import Path
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.concurrency import run_in_threadpool
 
 from backend.app import config as cfgmod
 from backend.app.database import DatabaseManager
@@ -23,6 +26,31 @@ from backend.app.routes.conversations import router as conversations_router
 logger = logging.getLogger(__name__)
 
 
+@asynccontextmanager
+async def lifespan(app):
+    from alembic.config import Config
+    from alembic import command
+    from sqlalchemy import text
+
+    alembic_ini = Path(__file__).resolve().parents[1] / "alembic.ini"
+    alembic_cfg = Config(str(alembic_ini))
+    alembic_cfg.set_main_option(
+        "script_location", str(Path(__file__).resolve().parents[1] / "alembic")
+    )
+    from backend.app.pgdatabase import get_engine
+
+    engine = get_engine()
+    async with engine.begin() as lock_conn:
+        await lock_conn.execute(
+            text("SELECT pg_advisory_xact_lock(2305843009213693951)")
+        )
+        await run_in_threadpool(command.upgrade, alembic_cfg, "head")
+    yield
+    from backend.app.pgdatabase import dispose_db
+
+    await dispose_db()
+
+
 def create_app(initial_db_url="", readonly=True):
     cfg = cfgmod.load_config()
     providers = ProviderManager(cfg)
@@ -30,7 +58,7 @@ def create_app(initial_db_url="", readonly=True):
     kb = KnowledgeBase(cfgmod.KB_FILE)
     session_log = SessionLog(cfgmod.CONFIG_DIR)
 
-    app = FastAPI(title="BoloDB", version="2.0.0")
+    app = FastAPI(title="BoloDB", version="2.0.0", lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,
