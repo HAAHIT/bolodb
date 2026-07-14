@@ -485,18 +485,18 @@
     background: var(--surface-2);
     border-bottom: 1px solid var(--border-2);
   }
-  .result-table th.num,
-  .result-table td.num {
+  :global(.result-table th.num),
+  :global(.result-table td.num) {
     text-align: right;
   }
-  .result-table td {
+  :global(.result-table td) {
     padding: 10px 14px;
     color: var(--ink);
     border-bottom: 1px solid var(--border);
   }
-  .result-table tr:last-child td { border-bottom: none; }
+  :global(.result-table tr:last-child td) { border-bottom: none; }
 
-  .row-anim {
+  :global(.row-anim) {
     opacity: 0;
     transform: translateY(8px);
   }
