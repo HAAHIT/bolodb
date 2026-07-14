@@ -11,6 +11,17 @@ COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci
 
 COPY frontend/ .
+
+# Render only injects dashboard env vars at container runtime, not into
+# `docker build`. Declaring matching ARGs makes Render forward them as
+# build args, which SvelteKit needs since adapter-static bakes
+# $env/dynamic/public values in at build time (there's no server to
+# inject them per-request in a static export).
+ARG PUBLIC_POSTHOG_PROJECT_TOKEN
+ARG PUBLIC_POSTHOG_HOST
+ENV PUBLIC_POSTHOG_PROJECT_TOKEN=$PUBLIC_POSTHOG_PROJECT_TOKEN \
+    PUBLIC_POSTHOG_HOST=$PUBLIC_POSTHOG_HOST
+
 RUN npm run build
 
 # ── Production stage ──
