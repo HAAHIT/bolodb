@@ -140,7 +140,6 @@
     width: 100vw;
     height: 100vh;
     pointer-events: none;
-    filter: blur(26px);
   }
 
   .backdrop-noise {
