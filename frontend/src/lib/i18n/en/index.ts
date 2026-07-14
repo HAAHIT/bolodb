@@ -55,7 +55,7 @@ const en = {
     noSqlRequired:
       "No SQL required. Ask questions in plain English, get instant answers, and trust the logic with our verifiable AI engine.",
     startForFree: "Start for free",
-    viewDemo: "View Demo",
+    viewDemo: "Watch it work",
     featureZeroSetupTitle: "Zero Setup",
     featureZeroSetupDesc:
       "Just provide your database connection string. BoloDB automatically infers your schema, indexes tables, and is ready to query instantly.",

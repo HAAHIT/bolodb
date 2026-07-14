@@ -1,28 +1,9 @@
-import type { Handle } from "@sveltejs/kit";
+import { loadLocale } from "$lib/i18n/i18n-util.sync";
+import { setLocale } from "$lib/i18n/i18n-svelte";
 
-const SUPPORTED = ["en", "de", "ja", "es", "fr"];
+loadLocale("en");
+setLocale("en");
 
-export const handle: Handle = async ({ event, resolve }) => {
-  const accept = event.request.headers.get("accept-language") || "";
-  const cookie = event.cookies.get("locale") || "";
-
-  let locale = "en";
-  if (SUPPORTED.includes(cookie)) {
-    locale = cookie;
-  } else if (SUPPORTED.includes(accept.slice(0, 2))) {
-    locale = accept.slice(0, 2);
-  }
-
-  const response = await resolve(event, {
-    transformPageChunk: ({ html }) => html.replace("%lang%", locale),
-  });
-
-  if (!cookie && locale !== "en") {
-    response.headers.set(
-      "Set-Cookie",
-      `locale=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`,
-    );
-  }
-
-  return response;
-};
+export async function handle({ event, resolve }) {
+  return resolve(event);
+}
