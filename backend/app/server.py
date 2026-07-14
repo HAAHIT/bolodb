@@ -34,6 +34,9 @@ async def lifespan(app):
 
     alembic_ini = Path(__file__).resolve().parents[1] / "alembic.ini"
     alembic_cfg = Config(str(alembic_ini))
+    alembic_cfg.set_main_option(
+        "script_location", str(Path(__file__).resolve().parents[1] / "alembic")
+    )
     from backend.app.pgdatabase import get_engine
 
     engine = get_engine()

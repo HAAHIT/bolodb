@@ -64,8 +64,13 @@ def get_engine():
                 "DATABASE_URL environment variable is required. "
                 "Example: postgresql+asyncpg://user:pass@host:5432/dbname"
             )
+        db_url = _ENGINE_URL
+        if db_url.startswith("postgresql://"):
+            db_url = "postgresql+asyncpg://" + db_url[len("postgresql://") :]
+        elif db_url.startswith("postgres://"):
+            db_url = "postgresql+asyncpg://" + db_url[len("postgres://") :]
         _engine = create_async_engine(
-            _ENGINE_URL,
+            db_url,
             poolclass=pool.NullPool,
             connect_args={"statement_cache_size": 0},
         )

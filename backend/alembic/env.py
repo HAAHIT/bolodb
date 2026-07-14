@@ -17,6 +17,10 @@ if config.config_file_name is not None:
 # Override with DATABASE_URL from environment — alembic.ini has no credentials
 db_url = os.getenv("DATABASE_URL")
 if db_url:
+    if db_url.startswith("postgresql://"):
+        db_url = "postgresql+asyncpg://" + db_url[len("postgresql://") :]
+    elif db_url.startswith("postgres://"):
+        db_url = "postgresql+asyncpg://" + db_url[len("postgres://") :]
     config.set_main_option("sqlalchemy.url", db_url)
 
 target_metadata = Base.metadata

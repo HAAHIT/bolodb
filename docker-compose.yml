@@ -8,56 +8,6 @@
 # ──────────────────────────────────────────────
 
 services:
-  # ── PostgreSQL: Application state ──
-  postgres:
-    image: postgres:16-alpine
-    container_name: bolodb-postgres
-    restart: unless-stopped
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: bolodb
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bolodb}
-      POSTGRES_DB: bolodb
-    volumes:
-      - bolodb-postgres-data:/var/lib/postgresql/data
-      - bolodb-postgres-wal:/wal_archive
-      - ./postgres/postgres.conf:/etc/postgresql/postgresql.conf:ro
-    networks:
-      - bolodb-net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bolodb"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  # ── PgBouncer: Connection pool ──
-  pgbouncer:
-    image: bitnami/pgbouncer:1.24.0
-    container_name: bolodb-pgbouncer
-    restart: unless-stopped
-    ports:
-      - "6432:6432"
-    environment:
-      POSTGRESQL_HOST: postgres
-      POSTGRESQL_PORT: 5432
-      POSTGRESQL_USERNAME: bolodb
-      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-bolodb}
-      POSTGRESQL_DATABASE: bolodb
-      PGBOUNCER_POOL_MODE: transaction
-      PGBOUNCER_DEFAULT_POOL_SIZE: 25
-      PGBOUNCER_MAX_CLIENT_CONN: 100
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bolodb -h 127.0.0.1 -p 6432"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - bolodb-net
-
   # ── Backend: FastAPI / Uvicorn ──
   backend:
     build:
@@ -74,13 +24,10 @@ services:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - DATABASE_URL=postgresql+asyncpg://bolodb:${POSTGRES_PASSWORD:-bolodb}@pgbouncer:6432/bolodb
+      - DATABASE_URL=${DATABASE_URL:? Database URL must be set}
       - PYTHONUNBUFFERED=1
       - RUNNING_IN_DOCKER=true
       - OLLAMA_URL=http://host.docker.internal:11434
-    depends_on:
-      pgbouncer:
-        condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -132,3 +79,7 @@ volumes:
 networks:
   bolodb-net:
     driver: bridge
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: fd00:b010::/64
