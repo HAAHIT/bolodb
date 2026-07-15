@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://bolodb.com/sitemap.xml
+Sitemap: https://bolodb.dev/sitemap.xml

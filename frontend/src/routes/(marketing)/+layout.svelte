@@ -102,38 +102,38 @@
   <meta name="robots" content="index, follow" />
   <meta property="og:title" content="BoloDB — Talk to Your Database Like a Human | AI Data Analyst" />
   <meta property="og:description" content="BoloDB is the AI data analyst you can trust. Ask questions in plain English and get verified, SQL-backed answers from PostgreSQL, MySQL, SQL Server, or SQLite — read-only, no code required." />
-  <meta property="og:url" content="https://bolodb.com/" />
+  <meta property="og:url" content="https://bolodb.dev/" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="BoloDB" />
   <meta property="og:locale" content="en_US" />
-  <meta property="og:image" content="https://bolodb.com/og-image.svg" />
+  <meta property="og:image" content="https://bolodb.dev/og-image.svg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="BoloDB — Talk to Your Database Like a Human | AI Data Analyst" />
   <meta name="twitter:description" content="BoloDB is the AI data analyst you can trust. Ask questions in plain English and get verified, SQL-backed answers from PostgreSQL, MySQL, SQL Server, or SQLite — read-only, no code required." />
-  <meta name="twitter:image" content="https://bolodb.com/og-image.svg" />
-  <link rel="canonical" href="https://bolodb.com/" />
-  <link rel="alternate" href="https://bolodb.com/" hreflang="x-default" />
-  <link rel="alternate" href="https://bolodb.com/" hreflang="en" />
+  <meta name="twitter:image" content="https://bolodb.dev/og-image.svg" />
+  <link rel="canonical" href="https://bolodb.dev/" />
+  <link rel="alternate" href="https://bolodb.dev/" hreflang="x-default" />
+  <link rel="alternate" href="https://bolodb.dev/" hreflang="en" />
   <script type="application/ld+json">
     {JSON.stringify({
       "@context": "https://schema.org",
       "@graph": [
         {
           "@type": "Organization",
-          "@id": "https://bolodb.com/#organization",
+          "@id": "https://bolodb.dev/#organization",
           "name": "BoloDB",
-          "url": "https://bolodb.com/",
-          "logo": "https://bolodb.com/favicon.svg",
+          "url": "https://bolodb.dev/",
+          "logo": "https://bolodb.dev/favicon.svg",
           "description": "Talk to your database in plain English. Get instant verified answers powered by AI.",
           "sameAs": ["https://github.com/HAAHIT/bolodb"]
         },
         {
           "@type": "WebApplication",
-          "@id": "https://bolodb.com/#webapplication",
+          "@id": "https://bolodb.dev/#webapplication",
           "name": "BoloDB",
-          "url": "https://bolodb.com/",
+          "url": "https://bolodb.dev/",
           "applicationCategory": "Database Application",
           "operatingSystem": "Web",
           "browserRequirements": "Requires JavaScript",
@@ -143,11 +143,11 @@
             "price": "0",
             "priceCurrency": "USD"
           },
-          "author": { "@id": "https://bolodb.com/#organization" }
+          "author": { "@id": "https://bolodb.dev/#organization" }
         },
         {
           "@type": "FAQPage",
-          "@id": "https://bolodb.com/#faq",
+          "@id": "https://bolodb.dev/#faq",
           "mainEntity": [
             {
               "@type": "Question",

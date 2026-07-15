@@ -22,5 +22,5 @@
   <text x="170" y="477" font-family="system-ui,sans-serif" font-size="20" font-weight="700" fill="#fff" text-anchor="middle">Start for free</text>
   <text x="820" y="570" font-family="system-ui,sans-serif" font-size="18" font-weight="600" fill="#56585c">BoloDB — Ask your data. Trust the answer.</text>
   <rect x="1060" y="550" width="92" height="32" rx="8" fill="#4da6ff" opacity="0.15"/>
-  <text x="1106" y="571" font-family="system-ui,sans-serif" font-size="14" font-weight="700" fill="#4da6ff" text-anchor="middle">bolodb.com</text>
+  <text x="1106" y="571" font-family="system-ui,sans-serif" font-size="14" font-weight="700" fill="#4da6ff" text-anchor="middle">bolodb.dev</text>
 </svg>

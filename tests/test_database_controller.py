@@ -35,8 +35,6 @@ def test_connect_uses_user_scoped_connect_and_result_metadata(monkeypatch):
             }
 
     saved = {}
-    monkeypatch.setattr(database_ctrl.cfgmod, "save_config", lambda cfg: None)
-
     async def fake_save(**kwargs):
         saved.update(kwargs)
 
