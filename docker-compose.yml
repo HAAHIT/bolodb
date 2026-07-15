@@ -23,11 +23,13 @@ services:
     environment:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - DATABASE_URL=${DATABASE_URL:? Database URL must be set}
       - PYTHONUNBUFFERED=1
       - RUNNING_IN_DOCKER=true
       - OLLAMA_URL=http://host.docker.internal:11434
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -48,6 +50,8 @@ services:
       - BACKEND_URL=http://backend:4321
       - PUBLIC_POSTHOG_PROJECT_TOKEN=${PUBLIC_POSTHOG_PROJECT_TOKEN}
       - PUBLIC_POSTHOG_HOST=${PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}
+      - VITE_SUPABASE_URL=${SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
     depends_on:
       backend:
         condition: service_healthy

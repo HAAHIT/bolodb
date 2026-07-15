@@ -19,6 +19,22 @@ def get_cookie_secure():
     return os.getenv("COOKIE_SECURE", "false").lower() == "true"
 
 
-def get_google_client_id():
-    """Return the Google OAuth client ID. Returns None if not configured."""
-    return os.getenv("GOOGLE_CLIENT_ID") or None
+def get_supabase_url():
+    """Return the Supabase project URL. Returns None if not configured."""
+    return os.getenv("SUPABASE_URL") or None
+
+
+def get_supabase_anon_key():
+    """Return the Supabase anonymous key. Returns None if not configured."""
+    return os.getenv("SUPABASE_ANON_KEY") or None
+
+
+def get_supabase_jwt_secret():
+    """Return the Supabase JWT secret for verifying tokens. Raises RuntimeError if not configured."""
+    secret = os.getenv("SUPABASE_JWT_SECRET")
+    if not secret:
+        raise RuntimeError(
+            "SUPABASE_JWT_SECRET environment variable is required for Supabase auth. "
+            "Find it in your Supabase dashboard under Settings > API > JWT Secret."
+        )
+    return secret
