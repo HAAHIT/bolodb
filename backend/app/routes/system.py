@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from backend.app.dependencies import (
     get_current_user,
     get_db,
@@ -27,7 +28,16 @@ async def state(
 
 @router.get("/api/health")
 async def health():
-    return await ctrl.get_health()
+    pg_status = "connected"
+    try:
+        from backend.app.pgdatabase import get_engine
+
+        engine = get_engine()
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except Exception:
+        pg_status = "disconnected"
+    return await ctrl.get_health(pg_status)
 
 
 @router.get("/api/config/public")

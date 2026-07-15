@@ -45,6 +45,67 @@ def sanitize_url(url):
     return url
 
 
+def _sanitize_db_error(err_msg: str) -> str:
+    """Strip driver-specific details (hostnames, ports, connection strings) from
+    database error messages before returning them to the client."""
+    import re
+
+    msg = str(err_msg)
+    msg = re.sub(r"host(?:name)?[=:]\s*\S+", "host=***", msg, flags=re.IGNORECASE)
+    msg = re.sub(r"port[=:]\s*\d+", "port=***", msg, flags=re.IGNORECASE)
+    msg = re.sub(r"password[=:]\s*\S+", "password=***", msg, flags=re.IGNORECASE)
+    msg = re.sub(r"dbname[=:]\s*\S+", "dbname=***", msg, flags=re.IGNORECASE)
+    msg = re.sub(r"database[=:]\s*\S+", "database=***", msg, flags=re.IGNORECASE)
+    msg = re.sub(r"postgresql://\S+", "postgresql://***", msg)
+    msg = re.sub(r"mysql://\S+", "mysql://***", msg)
+    msg = re.sub(r"mssql://\S+", "mssql://***", msg)
+    msg = re.sub(r"sqlite:///?\S+", "sqlite://***", msg)
+    return msg
+
+
+_ALLOWED_SCHEMES = {"postgresql", "postgres", "mysql", "mssql", "sqlite"}
+_BLOCKED_HOSTS = {
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "169.254.169.254",
+    "metadata.google.internal",
+    "instance-data",
+    "100.100.100.200",
+}
+
+
+def _validate_db_url(url: str) -> str:
+    """Validate a database URL to prevent SSRF attacks.
+
+    Checks:
+    1. Scheme must be an allowed SQL dialect (postgresql, mysql, mssql, sqlite)
+    2. Hostname must not be a blocked internal/metadata address
+    3. No file:// or other non-SQL schemes
+
+    Returns the URL if valid, raises ValueError otherwise.
+    """
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    scheme = (parsed.scheme or "").split("+")[0].lower()
+
+    if scheme not in _ALLOWED_SCHEMES:
+        raise ValueError(
+            f"Unsupported database scheme '{scheme}'. "
+            f"Allowed: {', '.join(sorted(_ALLOWED_SCHEMES))}"
+        )
+
+    if scheme != "sqlite":
+        hostname = (parsed.hostname or "").lower()
+        if hostname in _BLOCKED_HOSTS:
+            raise ValueError(f"Connection to '{hostname}' is not allowed")
+        if hostname.startswith("169.254.") or hostname.startswith("100.100."):
+            raise ValueError("Connection to metadata endpoints is not allowed")
+
+    return url
+
+
 def db_id_for(url):
     return hashlib.sha256(sanitize_url(url).encode()).hexdigest()[:16]
 
@@ -78,6 +139,11 @@ class DatabaseManager:
     def connect(self, user_id, url):
         import os
 
+        try:
+            url = _validate_db_url(url)
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}
+
         if os.environ.get("RUNNING_IN_DOCKER") == "true":
             if "localhost" in url or "127.0.0.1" in url:
                 url = url.replace("localhost", "host.docker.internal").replace(
@@ -108,7 +174,7 @@ class DatabaseManager:
                 "url": sanitize_url(url),
             }
         except Exception as e:
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": _sanitize_db_error(e)}
 
     def _q(self, user_id, n):
         c = self._get(user_id)
@@ -416,7 +482,9 @@ class DatabaseManager:
                 return {"error": violation, "sql": cleaned}
         try:
             with c["engine"].connect() as conn:
-                res = conn.execute(text(cleaned))
+                res = conn.execute(
+                    text(cleaned).execution_options(timeout=30)
+                )
                 cols = list(res.keys())
                 raw = res.fetchmany(self.max_rows + 1)
                 truncated = len(raw) > self.max_rows
@@ -434,7 +502,7 @@ class DatabaseManager:
                     "sql": cleaned,
                 }
         except SQLAlchemyError as e:
-            return {"error": str(e), "sql": cleaned}
+            return {"error": _sanitize_db_error(e), "sql": cleaned}
 
     def get_db_id(self, user_id):
         return self._get(user_id)["db_id"]

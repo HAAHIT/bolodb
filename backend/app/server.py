@@ -1,11 +1,17 @@
 """FastAPI application."""
 
 import logging
+import os
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from backend.app import config as cfgmod
 from backend.app.database import DatabaseManager
@@ -24,6 +30,19 @@ from backend.app.routes.catalog import router as catalog_router
 from backend.app.routes.conversations import router as conversations_router
 
 logger = logging.getLogger(__name__)
+
+MAX_BODY_SIZE = 1 * 1024 * 1024  # 1MB
+
+
+class BodyLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > MAX_BODY_SIZE:
+            return Response(
+                content="Request body too large",
+                status_code=413,
+            )
+        return await call_next(request)
 
 
 @asynccontextmanager
@@ -58,15 +77,22 @@ def create_app(initial_db_url="", readonly=True):
     kb = KnowledgeBase(cfgmod.KB_FILE)
     session_log = SessionLog(cfgmod.CONFIG_DIR)
 
+    limiter = Limiter(key_func=get_remote_address)
     app = FastAPI(title="BoloDB", version="2.0.0", lifespan=lifespan)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+    cors_origins = os.environ.get(
+        "CORS_ORIGINS", "http://localhost:5173,http://localhost"
+    ).split(",")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://localhost"],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(BodyLimitMiddleware)
 
     app.state.cfg = cfg
     app.state.providers = providers

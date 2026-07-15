@@ -5,8 +5,12 @@ import time
 import logging
 from pathlib import Path
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 
 logger = logging.getLogger(__name__)
+
+MAX_BYTES = 10 * 1024 * 1024  # 10MB
+BACKUP_COUNT = 5
 
 
 class SessionLog:
@@ -15,6 +19,15 @@ class SessionLog:
         self.dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         self.file = self.dir / f"session-{stamp}.jsonl"
+        self._setup_rotating_handler()
+
+    def _setup_rotating_handler(self):
+        self._handler = RotatingFileHandler(
+            str(self.file),
+            maxBytes=MAX_BYTES,
+            backupCount=BACKUP_COUNT,
+            encoding="utf-8",
+        )
 
     def _append(self, record):
         record.update(
@@ -24,8 +37,13 @@ class SessionLog:
             }
         )
         try:
-            with open(self.file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(record, default=str) + "\n")
+            line = json.dumps(record, default=str) + "\n"
+            self._handler.stream = open(self.file, "a", encoding="utf-8")
+            self._handler.emit(logging.LogRecord(
+                name=__name__, level=logging.INFO, pathname="", lineno=0,
+                msg=line, args=(), exc_info=None
+            ))
+            self._handler.stream.close()
         except Exception as e:
             logger.error("Failed to append to session log: %s", e)
 

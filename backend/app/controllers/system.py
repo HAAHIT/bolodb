@@ -21,8 +21,8 @@ async def get_state(user_id, db, cfg, kb):
     return s
 
 
-async def get_health():
-    return {"status": "ok"}
+async def get_health(pg_status="unknown"):
+    return {"status": "ok", "postgres": pg_status}
 
 
 async def update_config(user_id, cfg, providers, req_data):

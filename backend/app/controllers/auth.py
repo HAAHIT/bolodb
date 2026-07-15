@@ -85,7 +85,7 @@ def create_jwt(user_id, role):
 
 async def signup(user: UserSignup):
     if await get_user_by_email(user.email) is not None:
-        raise HTTPException(status_code=400, detail="Email already Registered")
+        raise HTTPException(status_code=400, detail="Could not create account")
     encoded_pass = user.password.encode("utf-8")
     salt = bcrypt.gensalt()
     hashed_pw = bcrypt.hashpw(encoded_pass, salt)
@@ -94,8 +94,7 @@ async def signup(user: UserSignup):
     try:
         await create_user(user_in_db)
     except UserAlreadyExistsError:
-        # Concurrent signup lost the race against the unique constraint.
-        raise HTTPException(status_code=400, detail="Email already Registered")
+        raise HTTPException(status_code=400, detail="Could not create account")
     return True
 
 
@@ -117,7 +116,9 @@ async def google_login(id_token_str, client_id):
         log.warning("Google ID token verification failed: %s", e)
         raise HTTPException(status_code=401, detail="Invalid Google token")
 
-    google_id = user_info["sub"]
+    google_id = user_info.get("sub")
+    if not google_id:
+        raise HTTPException(status_code=400, detail="Invalid Google token")
     email = user_info.get("email", "")
     if not email:
         raise HTTPException(status_code=400, detail="Google account has no email")
@@ -156,6 +157,11 @@ async def change_password(user_id, old_password, new_password):
     user_details = await get_user_by_id(user_id)
     if user_details is None:
         raise HTTPException(status_code=404, detail="User not found")
+    if not user_details.get("hashed_pass"):
+        raise HTTPException(
+            status_code=400,
+            detail="Google accounts cannot change password here",
+        )
     old_pass_enc = old_password.encode("utf-8")
     new_pass_enc = new_password.encode("utf-8")
     if bcrypt.checkpw(old_pass_enc, user_details["hashed_pass"].encode("utf-8")):
