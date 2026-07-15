@@ -1,7 +1,7 @@
 import json
 import logging
 from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from backend.app.dependencies import (
     get_current_user,
     get_db,
@@ -36,7 +36,7 @@ async def query(
     cfg=Depends(get_cfg),
     providers=Depends(get_providers),
     session_log=Depends(get_session_log),
-):
+) -> dict:
     user_id = user_token["user_id"]
     out = await ctrl.run_query(user_id, db, kb, cfg, providers, session_log, req)
 
@@ -74,7 +74,7 @@ async def query_stream(
     cfg=Depends(get_cfg),
     providers=Depends(get_providers),
     session_log=Depends(get_session_log),
-):
+) -> StreamingResponse:
     user_id = user_token["user_id"]
     stream = ctrl.run_query_stream(user_id, db, kb, cfg, providers, session_log, req)
 
@@ -95,7 +95,7 @@ async def feedback(
     db=Depends(get_db),
     kb=Depends(get_kb),
     session_log=Depends(get_session_log),
-):
+) -> dict:
     user_id = user_token["user_id"]
     return await ctrl.feedback(user_id, db, kb, session_log, req)
 
@@ -106,7 +106,7 @@ async def verify(
     user_token=Depends(get_current_user),
     db=Depends(get_db),
     kb=Depends(get_kb),
-):
+) -> dict:
     user_id = user_token["user_id"]
     return await ctrl.verify(user_id, db, kb, req)
 
@@ -114,7 +114,7 @@ async def verify(
 @router.post("/api/execute")
 async def execute(
     req: RawSQLReq, user_token=Depends(get_current_user), db=Depends(get_db)
-):
+) -> dict:
     user_id = user_token["user_id"]
     return await ctrl.execute(user_id, db, req)
 
@@ -125,6 +125,6 @@ async def explain(
     user_token=Depends(get_current_user),
     db=Depends(get_db),
     providers=Depends(get_providers),
-):
+) -> dict:
     user_id = user_token["user_id"]
     return await ctrl.explain(user_id, db, providers, req)

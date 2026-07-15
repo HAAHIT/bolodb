@@ -1,0 +1,71 @@
+"""PostgreSQL application state: users, conversations, history, connections."""
+
+from backend.app.pgdatabase.engine import get_engine, dispose_db, async_session
+from backend.app.pgdatabase.models import Base, User, Conversation, QueryHistory, RecentConnection
+from backend.app.pgdatabase.users import (
+    get_user_by_email,
+    get_user_by_google_id,
+    get_user_by_id,
+    create_user,
+    update_user,
+    UserAlreadyExistsError,
+)
+from backend.app.pgdatabase.history import (
+    save_query,
+    get_query_history,
+    get_query_stats,
+    delete_history_entry,
+    clear_history,
+)
+from backend.app.pgdatabase.connections import (
+    save_recent_connection,
+    get_recent_connections,
+    delete_recent_connection,
+    get_recent_connection_by_db_id,
+)
+from backend.app.pgdatabase.conversations import (
+    create_conversation,
+    conversation_owned_by,
+    get_conversations,
+    get_conversation,
+    rename_conversation,
+    touch_conversation,
+    delete_conversation,
+    clear_conversations,
+)
+from backend.app.pgdatabase.serialization import serialize_doc
+
+__all__ = [
+    "get_engine",
+    "dispose_db",
+    "async_session",
+    "Base",
+    "User",
+    "Conversation",
+    "QueryHistory",
+    "RecentConnection",
+    "get_user_by_email",
+    "get_user_by_google_id",
+    "get_user_by_id",
+    "create_user",
+    "update_user",
+    "UserAlreadyExistsError",
+    "save_query",
+    "get_query_history",
+    "get_query_stats",
+    "delete_history_entry",
+    "clear_history",
+    "save_recent_connection",
+    "get_recent_connections",
+    "delete_recent_connection",
+    "get_recent_connection_by_db_id",
+    "create_conversation",
+    "conversation_owned_by",
+    "get_conversations",
+    "get_conversation",
+    "rename_conversation",
+    "touch_conversation",
+    "delete_conversation",
+    "clear_conversations",
+    "serialize_doc",
+]

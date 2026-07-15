@@ -10,10 +10,11 @@ This document outlines the guidelines and procedures for contributing to BoloDB.
 
 BoloDB is built using a modern containerized stack designed for ease of local deployment and scalability:
 - **Backend:** FastAPI (Python 3.10+) utilizing SQLAlchemy for database connectivity, and `sqlglot` for secure AST-based read-only validation.
-- **Frontend:** A SvelteKit application utilizing TypeScript and Tailwind CSS (or CSS variables) for a polished, responsive user interface.
-- **Database / Knowledge Base:** MongoDB container storing user settings, verified queries, session history, and platform glossary.
+- **Frontend:** A SvelteKit application utilizing TypeScript and Tailwind CSS for a polished, responsive user interface.
+- **Database:** PostgreSQL container storing user accounts, query history, conversations, and recent connections.
+- **Knowledge Base:** Per-user SQLite database storing verified queries, glossary, and trust level.
 - **Reverse Proxy:** Nginx configured to route traffic seamlessly between the frontend and backend services while handling proxy configurations.
-- **LLM Connectors:** Support for local Ollama instances and APIs (Anthropic, OpenAI, Groq).
+- **LLM Connectors:** Support for Google Gemini API.
 
 ---
 
@@ -22,7 +23,12 @@ BoloDB is built using a modern containerized stack designed for ease of local de
 ```text
 bolodb/
 ├── backend/
-│   ├── app/              # FastAPI application core logic, database managers, LLM logic
+│   ├── app/              # FastAPI application core logic
+│   │   ├── pgdatabase/   # PostgreSQL models, CRUD operations (users, conversations, history, connections)
+│   │   ├── routes/       # HTTP route handlers
+│   │   ├── controllers/  # Business logic
+│   │   ├── models/       # Pydantic request/response models
+│   │   └── i18n/         # Internationalization
 │   ├── main.py           # FastAPI server entry point
 │   ├── requirements.txt  # Core + dev Python dependencies
 │   ├── sample_data.py    # Helper to seed a dummy SQLite database (TechStore)
@@ -37,7 +43,7 @@ bolodb/
 │   ├── default.conf      # Nginx routing and proxy configuration
 │   └── DOCKERFILE        # Nginx container build instructions
 ├── tests/                # Pytest test suite for backend logic
-├── docker-compose.yml    # Orchestrates the multi-container environment (Frontend, Backend, Nginx, MongoDB)
+├── docker-compose.yml    # Orchestrates the multi-container environment (Frontend, Backend, Nginx, PostgreSQL)
 └── LICENSE               # MIT License
 ```
 
@@ -49,7 +55,7 @@ The easiest and recommended way to run BoloDB during development is using Docker
 
 ### 1. Prerequisites
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine installed and running.
-- (Optional) [Ollama](https://ollama.ai) installed locally if you want to test with a fully local model. Pull a model: `ollama pull llama3.2`.
+- Python 3.10+ (for running tests locally).
 
 ### 2. Run the Application via Docker (Recommended)
 
@@ -57,7 +63,7 @@ To start the full stack:
 ```bash
 docker compose up --build
 ```
-This will start MongoDB, the FastAPI Backend, the SvelteKit Frontend, and Nginx. The application will be accessible at `http://localhost:5173`.
+This will start PostgreSQL, the FastAPI Backend, the SvelteKit Frontend, and Nginx. The application will be accessible at `http://localhost:5173`.
 
 ### 3. Running Services Locally (Without Docker)
 
@@ -71,7 +77,7 @@ source .venv/bin/activate  # Or .venv\Scripts\activate on Windows
 pip install -r requirements.txt
 python main.py
 ```
-*Note: Ensure you have a MongoDB instance running locally on `localhost:27017` or configure the connection string via environment variables, as the backend relies on MongoDB.*
+*Note: Ensure you have a PostgreSQL instance running locally or configure the `DATABASE_URL` environment variable.*
 
 #### Frontend Development
 ```bash
@@ -99,7 +105,7 @@ Ensure all tests pass before making a pull request.
 
 ### Core Backend (`backend/app/`)
 - **Read-Only Safety:** The AST-based read-only verification in `app/database.py` is BoloDB's primary defense line. If you modify database execution paths, verify that no write queries (`INSERT`, `UPDATE`, `DROP`, `SELECT INTO`, etc.) can be executed unless explicitly permitted via a bypass flag.
-- **LLM Compatibility:** Ensure prompts are concise and token-efficient. BoloDB supports smaller local models (e.g., Llama 3.2 3B). Test prompt changes against both small local models and larger cloud APIs.
+- **LLM Compatibility:** Ensure prompts are concise and token-efficient. Test prompt changes against the Gemini API.
 - **Typing:** Provide Python 3 type hints where possible to keep the codebase easy to read and maintain.
 - **Async Code:** The FastAPI backend relies on asynchronous operations. Avoid introducing blocking synchronous calls, especially in endpoints handling database or LLM interactions.
 
@@ -112,7 +118,7 @@ Ensure all tests pass before making a pull request.
 
 ## Pull Request Process
 
-1. **Create a branch:** Create a descriptive branch name from `main` (e.g., `feature/custom-db-timeout` or `bugfix/fix-postgres-schema`).
+1. **Create a branch:** Create a descriptive branch name from `master` (e.g., `feature/custom-db-timeout` or `bugfix/fix-postgres-schema`).
 2. **Write clean code:** Keep changes focused. Avoid large refactors unless discussed beforehand.
 3. **Verify tests:** Run `PYTHONPATH=./backend pytest tests/` and ensure they pass. Write new tests in `tests/` for new features or bug fixes.
 4. **Open a PR:** Describe your changes, why they are needed, and how they were tested.

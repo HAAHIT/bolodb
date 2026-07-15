@@ -56,7 +56,7 @@ async def lifespan(app):
     alembic_cfg.set_main_option(
         "script_location", str(Path(__file__).resolve().parents[1] / "alembic")
     )
-    from backend.app.pgdatabase import get_engine
+    from backend.app.pgdatabase import get_engine, dispose_db
 
     engine = get_engine()
     async with engine.begin() as lock_conn:

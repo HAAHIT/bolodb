@@ -37,8 +37,8 @@ controller (`backend/app/controllers/`) where the logic lives.
 | `routes/database.py` | `/api/connect`, `/api/connect-sample`, `/api/reconnect`, `/api/disconnect`, `/api/schema` | `controllers/database.py` |
 | `routes/onboard.py` | `/api/onboard/glossary`, `/api/onboard/starters`, `/api/onboard/save` | `controllers/onboard.py` |
 | `routes/auth.py` | signup/login/logout/refresh/me/change-password (JWT) | `controllers/auth.py` |
-| `routes/history.py` | `GET/DELETE /api/history` (per-user query history) | — (MongoDB via `mongodatabase.py`) |
-| `routes/connections.py` | `GET/DELETE /api/connections` (recent databases) | — |
+| `routes/history.py` | `GET/DELETE /api/history` (per-user query history) | `controllers/history.py` |
+| `routes/connections.py` | `GET/DELETE /api/connections` (recent databases) | `controllers/connections.py` |
 
 ### Support
 
@@ -47,7 +47,7 @@ controller (`backend/app/controllers/`) where the logic lives.
 | `backend/app/dependencies.py` | FastAPI dependency injection: current user from JWT, shared app-state objects. |
 | `backend/app/models/api.py` | Request body shapes (pydantic): `QueryReq`, `ConfigUpdate`, `ConnectReq`, ... |
 | `backend/app/models/user.py` | User model for auth. |
-| `backend/app/mongodatabase.py` | MongoDB persistence: user accounts, query history, recent connections. |
+| `backend/app/pgdatabase/` | PostgreSQL persistence: user accounts, query history, recent connections, conversations. |
 | `backend/app/logbook.py` | Append-only session log (`~/.bolodb/sessions/*.jsonl`) of every query + feedback. |
 
 ## Frontend (`frontend/src/`) — SvelteKit
@@ -90,7 +90,7 @@ Run them all: `pytest tests` from the repository root (install
 | Path | What it is |
 |---|---|
 | `benchmarks/` | The Spider-based evaluation of schema-linking recall and end-to-end accuracy (`benchmarks/README.md` explains how to run it). |
-| `docker-compose.yml`, `nginx/`, `*/DOCKERFILE*` | The Docker deployment: backend + frontend + nginx + MongoDB. |
+| `docker-compose.yml`, `nginx/`, `*/DOCKERFILE*` | The Docker deployment: backend + frontend + nginx + PostgreSQL. |
 | `data/` | Drop SQLite/DuckDB files here to use them from Docker (`/app/data/...`). |
 | `.github/workflows/` | CI (tests/lint), CodeQL, Gemini-powered PR review bots. |
 | `docs/` | These documents. |

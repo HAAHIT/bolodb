@@ -41,6 +41,10 @@ _MAX_COLUMN_POINTS = 4.0  # cap so very wide tables can't win on width alone
 _MAX_VALUE_POINTS = 4.0
 _FK_EXTRA_SLOTS = 4  # how many tables FK expansion may add beyond max_tables
 
+# Confidence thresholds for verified answer similarity matching
+CONFIDENCE_HIGH_THRESHOLD = 0.78
+CONFIDENCE_MEDIUM_THRESHOLD = 0.50
+
 
 def model_budget(model):
     """Prompt budget for the configured model.
@@ -361,9 +365,9 @@ def compute_confidence(retrieved, exec_result):
         return "low", "the generated query did not run - please rephrase", False
     top_sim = max((e.get("similarity", 0) for e in retrieved), default=0)
     rows = exec_result.get("rows", []) or []
-    if top_sim >= 0.78:
+    if top_sim >= CONFIDENCE_HIGH_THRESHOLD:
         return "high", "closely matches an answer you verified before", True
-    if top_sim >= 0.50:
+    if top_sim >= CONFIDENCE_MEDIUM_THRESHOLD:
         return "medium", "similar to an answer you verified before", True
     if len(rows) == 0:
         return "low", "no matching rows - the question may not match your data", False

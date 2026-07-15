@@ -8,6 +8,9 @@ from pathlib import Path
 
 from backend.app.utils import _tokens
 
+# Threshold for considering two questions as duplicates
+DUPLICATE_THRESHOLD = 0.92
+
 
 def _similarity(a, b, tb=None, b_lower=None):
     ta = _tokens(a)
@@ -84,7 +87,7 @@ class KnowledgeBase:
         tb = _tokens(question)
         b_lower = question.lower()
         for e in self.get_verified(db_id):
-            if _similarity(e["question"], question, tb, b_lower) > 0.92:
+            if _similarity(e["question"], question, tb, b_lower) > DUPLICATE_THRESHOLD:
                 return
         conn.execute(
             "INSERT INTO verified(db_id,question,sql,restatement,created_at) VALUES(?,?,?,?,?)",
