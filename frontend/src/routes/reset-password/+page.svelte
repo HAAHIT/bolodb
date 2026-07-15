@@ -1,17 +1,18 @@
 <script lang="ts">
   import { apiCall } from "$lib/api";
+  import { goto } from "$app/navigation";
+  import { page } from "$app/stores";
   import Logo from "$lib/components/ui/Logo.svelte";
   import Button from "$lib/components/ui/Button.svelte";
   import Spinner from "$lib/components/ui/Spinner.svelte";
-  import { goto } from "$app/navigation";
-  import posthog from "posthog-js";
 
-  let email = $state("");
   let password = $state("");
   let showPassword = $state(false);
   let loading = $state(false);
   let error = $state("");
-  let success = $state(false);
+  let done = $state(false);
+
+  const token = $derived($page.url.searchParams.get("token") || "");
 
   const passwordRules = [
     { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
@@ -19,66 +20,55 @@
     { label: "One lowercase letter (a-z)", test: (p: string) => /[a-z]/.test(p) },
     { label: "One number (0-9)", test: (p: string) => /[0-9]/.test(p) },
   ];
-
   const passwordChecks = $derived(passwordRules.map((r) => ({ label: r.label, met: r.test(password) })));
   const passwordValid = $derived(passwordChecks.every((c) => c.met));
-  const canSubmit = $derived(email.trim().length > 0 && passwordValid && !loading);
+  const canSubmit = $derived(!!token && passwordValid && !loading);
 
-  async function signup(e: Event) {
+  async function submit(e: Event) {
     e.preventDefault();
     if (!canSubmit) return;
     loading = true;
     error = "";
     try {
-      await apiCall("/api/auth/signup", { email, password });
-      posthog.identify(email, { email });
-      posthog.capture("user_signed_up", { method: "email" });
-      success = true;
-      setTimeout(() => goto("/login"), 2000);
+      await apiCall("/api/auth/reset-password", { token, new_password: password });
+      done = true;
+      setTimeout(() => goto("/login"), 2500);
     } catch (err: any) {
-      error = err.message || "Signup failed";
-      posthog.captureException(err);
+      error = err.message || "Reset failed. The link may have expired.";
     } finally {
       loading = false;
     }
   }
 </script>
 
+<svelte:head>
+  <title>Reset Password — BoloDB</title>
+</svelte:head>
+
 <div class="auth-page">
-  <div class="card rise auth-card" data-testid="signup-card">
+  <div class="card rise auth-card" data-testid="reset-password-card">
     <div class="auth-header">
       <div class="auth-logo-wrap"><Logo size={40} /></div>
-      <h1 class="auth-title">Create an account</h1>
-      <p class="auth-subtitle">Join BoloDB today — no credit card required</p>
+      <h1 class="auth-title">Set a new password</h1>
+      <p class="auth-subtitle">Choose a strong password to secure your account.</p>
     </div>
 
-    {#if success}
-      <div
-        role="status"
-        aria-live="polite"
-        class="auth-success"
-        data-testid="signup-success-message"
-      >
-        Account created successfully!<br />
-        Redirecting you to login…
+    {#if !token}
+      <div class="auth-error" role="alert" data-testid="reset-no-token">
+        This link is invalid or missing a reset token. Please request a new reset link.
+      </div>
+      <div class="auth-footer">
+        <a href="/forgot-password">Request a new link →</a>
+      </div>
+    {:else if done}
+      <div role="status" aria-live="polite" class="auth-success" data-testid="reset-success">
+        Password reset successfully.<br />
+        Redirecting you to sign in…
       </div>
     {:else}
-      <form onsubmit={signup} class="auth-form" data-testid="signup-form">
+      <form onsubmit={submit} class="auth-form" data-testid="reset-password-form">
         <div>
-          <label for="email" class="auth-label">Email</label>
-          <input
-            id="email"
-            type="email"
-            class="field"
-            bind:value={email}
-            placeholder="you@company.com"
-            data-testid="signup-email-input"
-            autocomplete="email"
-            required
-          />
-        </div>
-        <div>
-          <label for="password" class="auth-label">Password</label>
+          <label for="password" class="auth-label">New password</label>
           <div class="auth-field-wrap">
             <input
               id="password"
@@ -87,7 +77,7 @@
               bind:value={password}
               placeholder="••••••••"
               style="padding-right:42px"
-              data-testid="signup-password-input"
+              data-testid="reset-password-input"
               autocomplete="new-password"
               required
             />
@@ -121,7 +111,7 @@
         </ul>
 
         {#if error}
-          <div role="alert" aria-live="polite" class="auth-error" data-testid="signup-error-message">
+          <div role="alert" aria-live="polite" class="auth-error" data-testid="reset-error-message">
             {error}
           </div>
         {/if}
@@ -130,19 +120,14 @@
           kind="primary"
           class="btn-block"
           disabled={!canSubmit}
-          style="margin-top:4px"
-          data-testid="signup-submit-button"
+          data-testid="reset-submit-button"
         >
           {#snippet icon()}
             {#if loading}<Spinner />{/if}
           {/snippet}
-          {loading ? "Creating account…" : "Sign up"}
+          {loading ? "Resetting…" : "Reset password"}
         </Button>
       </form>
-
-      <div class="auth-footer">
-        Already have an account? <a href="/login" data-testid="signup-signin-link">Sign in</a>
-      </div>
     {/if}
   </div>
 </div>

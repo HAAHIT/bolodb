@@ -4,6 +4,7 @@
   import { motionPrefs } from "$lib/motion/motionPrefs";
   import { magnetic } from "$lib/actions/magnetic";
   import { trackCtaClick } from "$lib/marketing/analytics";
+  import { authModal } from "$lib/stores/authModal";
 
   let panelEl: HTMLElement;
 
@@ -40,14 +41,14 @@
         class="btn btn-primary btn-lg"
         use:magnetic
         data-testid="final-cta-start-button"
-        onclick={() => { trackCtaClick("final", "Start for free", "/signup"); goto("/signup"); }}
+        onclick={() => { trackCtaClick("final", "Start for free", "/signup"); authModal.show("signup"); }}
       >
         Start for free
       </button>
       <button 
         class="btn btn-ghost btn-lg" 
         data-testid="final-cta-sample-button"
-        onclick={() => { trackCtaClick("final", "Try with sample data", "/signup"); goto("/signup"); }}
+        onclick={() => { trackCtaClick("final", "Try with sample data", "/signup"); authModal.show("signup"); }}
       >
         Try with sample data
       </button>

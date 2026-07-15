@@ -3,6 +3,7 @@
   import { appState } from "$lib/appState.svelte";
   import { scrollTo } from "$lib/motion/lenis";
   import { trackCtaClick, trackThemeToggle } from "$lib/marketing/analytics";
+  import { authModal } from "$lib/stores/authModal";
   import Logo from "../components/ui/Logo.svelte";
 
   const navLinks = [
@@ -62,8 +63,8 @@
           </svg>
         {/if}
       </button>
-      <button class="btn btn-ghost btn-sm" data-testid="nav-login-button" onclick={() => { trackCtaClick("nav", "Log in", "/login"); goto("/login"); }}>Log in</button>
-      <button class="btn btn-primary btn-sm" data-testid="nav-signup-button" onclick={() => { trackCtaClick("nav", "Start free", "/signup"); goto("/signup"); }}>Start free</button>
+      <button class="btn btn-ghost btn-sm" data-testid="nav-login-button" onclick={() => { trackCtaClick("nav", "Log in", "/login"); authModal.show("login"); }}>Log in</button>
+      <button class="btn btn-primary btn-sm" data-testid="nav-signup-button" onclick={() => { trackCtaClick("nav", "Start free", "/signup"); authModal.show("signup"); }}>Start free</button>
     </div>
   </div>
 </nav>

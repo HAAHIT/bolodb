@@ -87,6 +87,13 @@ def create_jwt(user_id, role):
 
 
 async def signup(user: UserSignup):
+    # Real-time email verification (blocks invalid/unknown/disposable addresses)
+    from backend.app.services.email_verification import verify_email
+
+    verification = await verify_email(user.email)
+    if not verification.allowed:
+        raise HTTPException(status_code=400, detail=verification.reason)
+
     if await get_user_by_email(user.email) is not None:
         raise HTTPException(status_code=400, detail="Could not create account")
     encoded_pass = user.password.encode("utf-8")
@@ -222,3 +229,54 @@ async def change_password(user_id, old_password, new_password):
         )
         return True
     raise HTTPException(status_code=401, detail="Incorrect Password, Please try again")
+
+
+# ── Forgot / reset password ──────────────────────────────────────────────
+# We generate a short-lived JWT reset token (15 min) rather than storing tokens
+# server-side. For production, deliver the reset link via email (Resend/SendGrid);
+# in this preview env, the link is logged so it can be copied from the console.
+
+def create_reset_token(user_id: str) -> str:
+    data = {
+        "user_id": user_id,
+        "type": "password_reset",
+        "exp": datetime.now(UTC) + timedelta(minutes=15),
+    }
+    return jwt.encode(data, get_jwt_secret(), algorithm="HS256")
+
+
+async def request_password_reset(email: str, base_url: str = ""):
+    """Generate a reset link. Returns the same response regardless of whether
+    the email exists (prevents user enumeration). The link is logged and
+    (in prod) would be emailed."""
+    user = await get_user_by_email(email)
+    if user and user.get("hashed_pass"):
+        token = create_reset_token(str(user["_id"]))
+        link = f"{base_url.rstrip('/')}/reset-password?token={token}" if base_url else f"/reset-password?token={token}"
+        # TODO: Send this via email service (Resend/SendGrid). Logged for dev.
+        log.info("PASSWORD RESET LINK for %s: %s", email, link)
+    # Always return generic success to prevent user enumeration
+    return True
+
+
+async def reset_password(token: str, new_password: str):
+    validate_password_strength(new_password)
+    try:
+        payload = jwt.decode(token, get_jwt_secret(), algorithms=["HS256"])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=400, detail="Reset link expired. Please request a new one.")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=400, detail="Invalid reset link.")
+
+    if payload.get("type") != "password_reset":
+        raise HTTPException(status_code=400, detail="Invalid reset link.")
+
+    user_id = payload.get("user_id")
+    user = await get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid reset link.")
+
+    salt = bcrypt.gensalt()
+    new_hashed = bcrypt.hashpw(new_password.encode("utf-8"), salt).decode("utf-8")
+    await update_user(user_id, hashed_pass=new_hashed)
+    return True

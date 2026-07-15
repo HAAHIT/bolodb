@@ -1,6 +1,7 @@
 <script lang="ts">
   import { appState } from '$lib/appState.svelte';
   import AskScreen from '$lib/components/AskScreen.svelte';
+  import ProductTour from '$lib/components/ProductTour.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
 
@@ -39,5 +40,6 @@
       onDisconnect={() => appState.disconnect()}
       onActiveConversationChange={(id) => appState.activeConversationId = id}
     />
+    <ProductTour />
   {/if}
 </div>

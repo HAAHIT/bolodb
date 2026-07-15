@@ -6,6 +6,7 @@
   import { motionPrefs } from "$lib/motion/motionPrefs";
   import { scrollTo } from "$lib/motion/lenis";
   import { trackCtaClick } from "$lib/marketing/analytics";
+  import { authModal } from "$lib/stores/authModal";
 
   let heroEl: HTMLElement;
   let h1Line1: HTMLElement;
@@ -116,7 +117,7 @@
         class="btn btn-primary btn-lg"
         use:magnetic
         data-testid="hero-start-free-button"
-        onclick={() => { trackCtaClick("hero", "Start for free", "/signup"); goto("/signup"); }}
+        onclick={() => { trackCtaClick("hero", "Start for free", "/signup"); authModal.show("signup"); }}
       >
         {$LL.landing.startForFree()}
       </button>

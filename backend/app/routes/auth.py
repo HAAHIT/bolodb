@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Cookie, HTTPException
+from fastapi import APIRouter, Depends, Cookie, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from backend.app.models.user import UserSignup, UserLogin, SupabaseLogin
@@ -12,6 +12,15 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 class ChangePasswordReq(BaseModel):
     old_password: str
+    new_password: str
+
+
+class ForgotPasswordReq(BaseModel):
+    email: str
+
+
+class ResetPasswordReq(BaseModel):
+    token: str
     new_password: str
 
 
@@ -124,3 +133,19 @@ async def change_password(
         user_token["user_id"], req.old_password, req.new_password
     )
     return JSONResponse({"message": "Password changed successfully"})
+
+
+@router.post("/forgot-password")
+async def forgot_password(req: ForgotPasswordReq, request: Request):
+    """Request a password reset link. Always returns success to prevent user enumeration."""
+    base_url = str(request.base_url).rstrip("/")
+    await backend.app.controllers.auth.request_password_reset(req.email, base_url=base_url)
+    return JSONResponse(
+        {"message": "If an account exists for that email, we've sent reset instructions."}
+    )
+
+
+@router.post("/reset-password")
+async def reset_password(req: ResetPasswordReq):
+    await backend.app.controllers.auth.reset_password(req.token, req.new_password)
+    return JSONResponse({"message": "Password reset successfully"})
