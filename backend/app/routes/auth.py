@@ -26,6 +26,18 @@ class ResetPasswordReq(BaseModel):
 
 @router.post("/refresh")
 async def refresh_jwt(refresh_token: str = Cookie(None)):
+    """
+    Refreshes the access token using a valid refresh token.
+    
+    Parameters:
+        refresh_token (str): Refresh token used to authenticate the session.
+    
+    Returns:
+        JSONResponse: Response containing a newly issued access token cookie.
+    
+    Raises:
+        HTTPException: If the refresh token is missing, expired, or invalid.
+    """
     if refresh_token is None:
         raise HTTPException(status_code=401, detail="Access Denied")
     try:
@@ -129,6 +141,15 @@ async def change_password(
     req: ChangePasswordReq,
     user_token=Depends(get_current_user),
 ):
+    """Change the authenticated user's password.
+    
+    Parameters:
+        req (ChangePasswordReq): The current and replacement passwords.
+        user_token: Authentication data for the current user.
+    
+    Returns:
+        JSONResponse: A success message confirming the password change.
+    """
     await backend.app.controllers.auth.change_password(
         user_token["user_id"], req.old_password, req.new_password
     )
@@ -151,5 +172,14 @@ async def forgot_password(req: ForgotPasswordReq, request: Request):
 
 @router.post("/reset-password")
 async def reset_password(req: ResetPasswordReq):
+    """
+    Reset a user's password using a password-reset token.
+    
+    Parameters:
+        req (ResetPasswordReq): The reset token and new password.
+    
+    Returns:
+        JSONResponse: A success message confirming the password reset.
+    """
     await backend.app.controllers.auth.reset_password(req.token, req.new_password)
     return JSONResponse({"message": "Password reset successfully"})

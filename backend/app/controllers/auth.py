@@ -88,6 +88,15 @@ def create_jwt(user_id, role):
 
 async def signup(user: UserSignup):
     # Real-time email verification (blocks invalid/unknown/disposable addresses)
+    """
+    Create a user account after verifying the email address.
+    
+    Parameters:
+    	user (UserSignup): The signup details, including email and password.
+    
+    Returns:
+    	bool: `True` when the account is created successfully.
+    """
     from backend.app.services.email_verification import verify_email
 
     verification = await verify_email(user.email)
@@ -208,6 +217,17 @@ async def supabase_google_login(access_token: str):
 
 
 async def change_password(user_id, old_password, new_password):
+    """
+    Change the password for a locally authenticated user.
+    
+    Parameters:
+    	user_id: Identifier of the user whose password is being changed.
+    	old_password: The user's current password.
+    	new_password: The replacement password.
+    
+    Returns:
+    	bool: `True` when the password is changed successfully.
+    """
     validate_password_strength(new_password)
     user_details = await get_user_by_id(user_id)
     if user_details is None:
@@ -238,6 +258,15 @@ async def change_password(user_id, old_password, new_password):
 
 
 def create_reset_token(user_id: str) -> str:
+    """
+    Create a short-lived token for resetting a user's password.
+    
+    Parameters:
+    	user_id (str): Identifier of the user whose password will be reset.
+    
+    Returns:
+    	str: A password reset token that expires after 15 minutes.
+    """
     data = {
         "user_id": user_id,
         "type": "password_reset",
@@ -247,9 +276,16 @@ def create_reset_token(user_id: str) -> str:
 
 
 async def request_password_reset(email: str, base_url: str = ""):
-    """Generate a reset link. Returns the same response regardless of whether
-    the email exists (prevents user enumeration). The link is logged and
-    (in prod) would be emailed."""
+    """
+    Request a password reset without revealing whether the email belongs to an eligible account.
+    
+    Parameters:
+        email (str): Email address associated with the account.
+        base_url (str): Optional base URL used to construct the reset link.
+    
+    Returns:
+        bool: `True` in all cases.
+    """
     user = await get_user_by_email(email)
     if user and user.get("hashed_pass"):
         token = create_reset_token(str(user["_id"]))
@@ -265,6 +301,16 @@ async def request_password_reset(email: str, base_url: str = ""):
 
 
 async def reset_password(token: str, new_password: str):
+    """
+    Reset a user's password using a valid password-reset token.
+    
+    Parameters:
+        token (str): Password-reset token containing the target user identifier.
+        new_password (str): Replacement password that meets the required strength criteria.
+    
+    Returns:
+        bool: `True` when the password is successfully updated.
+    """
     validate_password_strength(new_password)
     try:
         payload = jwt.decode(token, get_jwt_secret(), algorithms=["HS256"])

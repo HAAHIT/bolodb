@@ -20,6 +20,12 @@ TIMEOUT_SECONDS = 8.0
 
 
 def _get_api_key() -> Optional[str]:
+    """
+    Retrieve the MyEmailVerifier API key from the environment.
+    
+    Returns:
+    	str: The configured API key, or `None` when it is not set.
+    """
     return os.environ.get("MYEMAILVERIFIER_API_KEY")
 
 
@@ -35,6 +41,17 @@ class EmailVerificationOutcome:
         catch_all: bool = False,
         skipped: bool = False,
     ):
+        """
+        Initialize an email verification outcome.
+        
+        Parameters:
+            allowed (bool): Whether the email is permitted.
+            status (str): Normalized verification status.
+            reason (str): Human-readable explanation for the outcome.
+            disposable (bool): Whether the email domain is disposable.
+            catch_all (bool): Whether the address belongs to a catch-all domain.
+            skipped (bool): Whether verification was skipped.
+        """
         self.allowed = allowed
         self.status = status
         self.reason = reason
@@ -44,13 +61,16 @@ class EmailVerificationOutcome:
 
 
 async def verify_email(email: str) -> EmailVerificationOutcome:
-    """Call MyEmailVerifier for real-time email verification.
-
-    Business rules:
-      - Block: Status in {Invalid, Unknown} OR Disposable_Domain=True
-      - Allow: Status=Valid OR catch_all=True
-      - On network/service error: allow (fail-open) so signup isn't blocked
-        by a transient issue — logged for observability.
+    """
+    Verify an email address through MyEmailVerifier and determine whether signup is allowed.
+    
+    Parameters:
+        email (str): Email address to verify.
+    
+    Returns:
+        EmailVerificationOutcome: Verification result, including the decision, normalized status,
+            diagnostic reason, service flags, and whether verification was skipped. Service
+            configuration or request failures allow signup and mark the result as skipped.
     """
     api_key = _get_api_key()
     if not api_key:
@@ -120,6 +140,15 @@ async def verify_email(email: str) -> EmailVerificationOutcome:
 
 
 def _to_bool(v) -> bool:
+    """
+    Convert a value to a boolean using recognized string representations.
+    
+    Parameters:
+        v: The value to convert.
+    
+    Returns:
+        bool: `True` for boolean `True`, strings representing true, or truthy values; `False` otherwise.
+    """
     if isinstance(v, bool):
         return v
     if isinstance(v, str):

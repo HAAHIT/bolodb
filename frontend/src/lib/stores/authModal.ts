@@ -7,6 +7,11 @@ interface AuthModalState {
   mode: AuthMode;
 }
 
+/**
+ * Creates a store for controlling the authentication modal.
+ *
+ * @returns A store with subscription, show, and hide controls for the modal state.
+ */
 function createAuthModalStore() {
   const { subscribe, set } = writable<AuthModalState>({
     open: false,
