@@ -8,7 +8,10 @@ interface AuthModalState {
 }
 
 function createAuthModalStore() {
-  const { subscribe, set } = writable<AuthModalState>({ open: false, mode: "signup" });
+  const { subscribe, set } = writable<AuthModalState>({
+    open: false,
+    mode: "signup",
+  });
   return {
     subscribe,
     show(mode: AuthMode) {

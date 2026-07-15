@@ -45,8 +45,8 @@
       >
         Start for free
       </button>
-      <button 
-        class="btn btn-ghost btn-lg" 
+      <button
+        class="btn btn-ghost btn-lg"
         data-testid="final-cta-sample-button"
         onclick={() => { trackCtaClick("final", "Try with sample data", "/signup"); authModal.show("signup"); }}
       >

@@ -236,6 +236,7 @@ async def change_password(user_id, old_password, new_password):
 # server-side. For production, deliver the reset link via email (Resend/SendGrid);
 # in this preview env, the link is logged so it can be copied from the console.
 
+
 def create_reset_token(user_id: str) -> str:
     data = {
         "user_id": user_id,
@@ -252,7 +253,11 @@ async def request_password_reset(email: str, base_url: str = ""):
     user = await get_user_by_email(email)
     if user and user.get("hashed_pass"):
         token = create_reset_token(str(user["_id"]))
-        link = f"{base_url.rstrip('/')}/reset-password?token={token}" if base_url else f"/reset-password?token={token}"
+        link = (
+            f"{base_url.rstrip('/')}/reset-password?token={token}"
+            if base_url
+            else f"/reset-password?token={token}"
+        )
         # TODO: Send this via email service (Resend/SendGrid). Logged for dev.
         log.info("PASSWORD RESET LINK for %s: %s", email, link)
     # Always return generic success to prevent user enumeration
@@ -264,7 +269,9 @@ async def reset_password(token: str, new_password: str):
     try:
         payload = jwt.decode(token, get_jwt_secret(), algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=400, detail="Reset link expired. Please request a new one.")
+        raise HTTPException(
+            status_code=400, detail="Reset link expired. Please request a new one."
+        )
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=400, detail="Invalid reset link.")
 

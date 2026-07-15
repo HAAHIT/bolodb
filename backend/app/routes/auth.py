@@ -139,9 +139,13 @@ async def change_password(
 async def forgot_password(req: ForgotPasswordReq, request: Request):
     """Request a password reset link. Always returns success to prevent user enumeration."""
     base_url = str(request.base_url).rstrip("/")
-    await backend.app.controllers.auth.request_password_reset(req.email, base_url=base_url)
+    await backend.app.controllers.auth.request_password_reset(
+        req.email, base_url=base_url
+    )
     return JSONResponse(
-        {"message": "If an account exists for that email, we've sent reset instructions."}
+        {
+            "message": "If an account exists for that email, we've sent reset instructions."
+        }
     )
 
 
