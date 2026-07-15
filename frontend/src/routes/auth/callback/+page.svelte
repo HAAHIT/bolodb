@@ -10,10 +10,13 @@
     try {
       const hash = window.location.hash;
       const params = new URLSearchParams(hash.substring(1));
-      const accessToken = params.get("access_token");
 
+      const errorParam = params.get("error");
+      const errorDescription = params.get("error_description");
+      const accessToken = params.get("access_token");
       if (!accessToken) {
-        error = "No access token received from Supabase";
+        error =
+          errorDescription || errorParam || "No access token received from Supabase";
         processing = false;
         return;
       }
@@ -39,10 +42,6 @@
       <a
         href="/"
         style="color:#2563EB;text-decoration:underline;cursor:pointer"
-        onclick={(e) => {
-          e.preventDefault();
-          goto("/");
-        }}
       >
         Back to login
       </a>

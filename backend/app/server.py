@@ -37,11 +37,19 @@ MAX_BODY_SIZE = 1 * 1024 * 1024  # 1MB
 class BodyLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         content_length = request.headers.get("content-length")
-        if content_length and int(content_length) > MAX_BODY_SIZE:
-            return Response(
-                content="Request body too large",
-                status_code=413,
-            )
+        if content_length:
+            try:
+                size = int(content_length)
+            except (ValueError, TypeError):
+                return Response(
+                    content="Invalid Content-Length",
+                    status_code=400,
+                )
+            if size > MAX_BODY_SIZE:
+                return Response(
+                    content="Request body too large",
+                    status_code=413,
+                )
         return await call_next(request)
 
 

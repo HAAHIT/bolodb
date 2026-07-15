@@ -6,7 +6,7 @@ import os
 from typing import Optional
 
 from cryptography.fernet import Fernet, InvalidToken
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from backend.app.pgdatabase.engine import async_session
@@ -68,11 +68,11 @@ def _build_recent_connection_cipher():
             pass
         key = base64.urlsafe_b64encode(hashlib.sha256(new_secret.encode()).digest())
     else:
-        jwt_secret = os.getenv("JWT_SECRET")
-        if jwt_secret:
-            key = base64.urlsafe_b64encode(hashlib.sha256(jwt_secret.encode()).digest())
-        else:
-            key = base64.urlsafe_b64encode(os.urandom(32))
+        raise RuntimeError(
+            "No encryption key configured for recent connections. Set "
+            "RECENT_CONNECTIONS_KEY or RECENT_CONNECTIONS_MASTER_KEY (or "
+            "both) in the environment, or set JWT_SECRET for migration."
+        )
     return Fernet(key)
 
 
@@ -137,6 +137,7 @@ async def save_recent_connection(
                         display_url=display_url,
                         dialect=dialect,
                         table_count=table_count,
+                        connected_at=func.now(),
                     ),
                 )
             )

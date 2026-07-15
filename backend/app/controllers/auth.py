@@ -18,10 +18,25 @@ from backend.app.pgdatabase import (
     UserAlreadyExistsError,
 )
 import jwt
+from jwt import PyJWKClient
 from datetime import datetime, timedelta, UTC
-from backend.app.secrets import get_jwt_secret, get_supabase_jwt_secret
+from fastapi.concurrency import run_in_threadpool
+from backend.app.secrets import get_jwt_secret, get_supabase_jwt_secret, get_supabase_url
 
 log = logging.getLogger(__name__)
+
+_JWKS_CLIENT: PyJWKClient | None = None
+
+
+def _get_jwks_client():
+    global _JWKS_CLIENT
+    if _JWKS_CLIENT is None:
+        supabase_url = get_supabase_url()
+        if not supabase_url:
+            raise HTTPException(status_code=500, detail="Supabase URL not configured")
+        jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
+        _JWKS_CLIENT = PyJWKClient(jwks_url, cache_keys=True)
+    return _JWKS_CLIENT
 
 
 async def get_me(user_id):
@@ -98,17 +113,11 @@ async def supabase_google_login(access_token: str):
 
     try:
         if alg == "ES256":
-            from jwt import PyJWKClient
-            from backend.app.secrets import get_supabase_url
+            jwks_client = _get_jwks_client()
 
-            supabase_url = get_supabase_url()
-            if not supabase_url:
-                raise HTTPException(
-                    status_code=500, detail="Supabase URL not configured"
-                )
-            jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
-            jwks_client = PyJWKClient(jwks_url, cache_keys=True)
-            signing_key = jwks_client.get_signing_key_from_jwt(access_token)
+            signing_key = await run_in_threadpool(
+                jwks_client.get_signing_key_from_jwt, access_token
+            )
             payload = jwt.decode(
                 access_token,
                 signing_key.key,
@@ -143,15 +152,27 @@ async def supabase_google_login(access_token: str):
     if not email:
         raise HTTPException(status_code=400, detail="Supabase account has no email")
 
-    # 3-step lookup: by supabase_id → by email → create new
+    # Only link an existing email account when the provider is confirmed Google
+    # and the email is verified — prevents account takeover via unverified email.
+    app_metadata = payload.get("app_metadata", {})
+    user_metadata = payload.get("user_metadata", {})
+    provider = app_metadata.get("provider", "")
+    email_verified = user_metadata.get("email_verified", False)
+
+    # 3-step lookup: by supabase_id → by email (if safe to link) → create new
     existing = await get_user_by_supabase_id(supabase_id)
     if existing:
         return create_jwt(str(existing["_id"]), existing["role"])
 
-    existing_by_email = await get_user_by_email(email)
-    if existing_by_email:
-        await update_user(existing_by_email["_id"], supabase_id=supabase_id)
-        return create_jwt(str(existing_by_email["_id"]), existing_by_email["role"])
+    if provider == "google" and email_verified is True:
+        existing_by_email = await get_user_by_email(email)
+        if existing_by_email:
+            await update_user(
+                existing_by_email["_id"], supabase_id=supabase_id
+            )
+            return create_jwt(
+                str(existing_by_email["_id"]), existing_by_email["role"]
+            )
 
     user_in_db = UserInDB(email=email, role=Role.user, supabase_id=supabase_id)
     try:

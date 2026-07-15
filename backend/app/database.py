@@ -1,6 +1,7 @@
 """Database connection, schema introspection (guarded), read-only execution."""
 
 import hashlib
+import ipaddress
 import re
 import logging
 import sqlglot
@@ -57,6 +58,7 @@ def _sanitize_db_error(err_msg: str) -> str:
     msg = re.sub(r"dbname[=:]\s*\S+", "dbname=***", msg, flags=re.IGNORECASE)
     msg = re.sub(r"database[=:]\s*\S+", "database=***", msg, flags=re.IGNORECASE)
     msg = re.sub(r"postgresql://\S+", "postgresql://***", msg)
+    msg = re.sub(r"postgres://\S+", "postgres://***", msg)
     msg = re.sub(r"mysql://\S+", "mysql://***", msg)
     msg = re.sub(r"mssql://\S+", "mssql://***", msg)
     msg = re.sub(r"sqlite:///?\S+", "sqlite://***", msg)
@@ -102,6 +104,12 @@ def _validate_db_url(url: str) -> str:
             raise ValueError(f"Connection to '{hostname}' is not allowed")
         if hostname.startswith("169.254.") or hostname.startswith("100.100."):
             raise ValueError("Connection to metadata endpoints is not allowed")
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if ip.is_loopback:
+                raise ValueError(f"Connection to loopback address '{hostname}' is not allowed")
+        except ValueError:
+            pass
 
     return url
 
@@ -139,16 +147,16 @@ class DatabaseManager:
     def connect(self, user_id, url):
         import os
 
-        try:
-            url = _validate_db_url(url)
-        except ValueError as e:
-            return {"ok": False, "error": str(e)}
-
         if os.environ.get("RUNNING_IN_DOCKER") == "true":
             if "localhost" in url or "127.0.0.1" in url:
                 url = url.replace("localhost", "host.docker.internal").replace(
                     "127.0.0.1", "host.docker.internal"
                 )
+
+        try:
+            url = _validate_db_url(url)
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}
 
         try:
             engine = create_engine(url)

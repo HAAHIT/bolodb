@@ -37,7 +37,10 @@ async def health():
             await conn.execute(text("SELECT 1"))
     except Exception:
         pg_status = "disconnected"
-    return await ctrl.get_health(pg_status)
+    result = await ctrl.get_health(pg_status)
+    if pg_status == "disconnected":
+        return JSONResponse(content=result, status_code=503)
+    return JSONResponse(content=result)
 
 
 @router.get("/api/config/public")
