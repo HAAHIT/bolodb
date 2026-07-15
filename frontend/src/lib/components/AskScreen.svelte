@@ -481,6 +481,7 @@
   <Sidebar
     {engine}
     {modelName}
+    {apiKeySet}
     {verifiedCount}
     onSettings={() => (settingsOpen = true)}
     schema={realSchema}
