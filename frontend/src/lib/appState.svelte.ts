@@ -7,6 +7,7 @@ import { browser } from "$app/environment";
 class AppState {
   engine = $state("gemini");
   modelName = $state("");
+  apiKeySet = $state(false);
   verifiedCount = $state(0);
   toast = $state<Toast | null>(null);
   realSchema = $state<SchemaTable[] | null>(null);
@@ -44,6 +45,7 @@ class AppState {
       if (s.connected) {
         this.engine = s.config?.provider || "gemini";
         this.modelName = s.config?.model || "";
+        this.apiKeySet = !!s.config?.api_keys_set?.gemini;
         this.verifiedCount = s.trust?.verified || 0;
         this.dbInfo = s.database || null;
         this.starters = s.starters || [];
@@ -53,7 +55,9 @@ class AppState {
         } catch {}
         this.isLoaded = true;
         if (redirect) {
-          if (this.dbInfo?.has_knowledge) {
+          if (!this.apiKeySet) {
+            goto("/connect");
+          } else if (this.dbInfo?.has_knowledge) {
             goto("/chat");
           } else {
             goto("/onboard");
@@ -97,10 +101,15 @@ class AppState {
     }
     this.dbInfo = null;
     this.realSchema = null;
+    this.apiKeySet = false;
     this.verifiedCount = 0;
     this.starters = [];
     this.activeConversationId = null;
     goto("/login");
+  }
+
+  async setApiKeyStatus(isSet: boolean) {
+    this.apiKeySet = isSet;
   }
 
   async setConnect(isSample: boolean, res: DbInfo) {
