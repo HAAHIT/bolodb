@@ -13,30 +13,16 @@ from backend.app.pgdatabase import (
     create_user,
     get_user_by_email,
     get_user_by_google_id,
+    get_user_by_supabase_id,
     get_user_by_id,
     update_user,
     UserAlreadyExistsError,
 )
 import jwt
 from datetime import datetime, timedelta, UTC
-from fastapi.concurrency import run_in_threadpool
-from backend.app.secrets import get_jwt_secret
+from backend.app.secrets import get_jwt_secret, get_supabase_jwt_secret
 
 log = logging.getLogger(__name__)
-
-
-_JWKS_CLIENT = None
-
-
-def _get_jwks_client():
-    global _JWKS_CLIENT
-    if _JWKS_CLIENT is None:
-        from jwt import PyJWKClient
-
-        _JWKS_CLIENT = PyJWKClient(
-            "https://www.googleapis.com/oauth2/v3/certs", cache_keys=True
-        )
-    return _JWKS_CLIENT
 
 
 async def get_me(user_id):
@@ -51,8 +37,7 @@ async def login(email: EmailStr, password: str):
     user_details = await get_user_by_email(email)
     if user_details is None:
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    # Google-only accounts have no password hash; reject cleanly instead of
-    # letting bcrypt raise on an empty salt (which would surface as a 500).
+    # Accounts without a password hash (Google/Supabase-only) cannot log in via password.
     if not user_details.get("hashed_pass"):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     user_bytes = password.encode()
@@ -98,54 +83,49 @@ async def signup(user: UserSignup):
     return True
 
 
-async def google_login(id_token_str, client_id):
-    """Verify a Google ID token and return JWT tokens for the user."""
+async def supabase_google_login(access_token: str):
+    """Verify a Supabase access token and return BoloDB JWT tokens.
+
+    Supabase JWTs use HS256 signed with the project's JWT_SECRET.
+    The 'sub' claim is the Supabase user UUID, 'email' is the user's email.
+    """
+    jwt_secret = get_supabase_jwt_secret()
     try:
-        jwks_client = _get_jwks_client()
-        signing_key = await run_in_threadpool(
-            jwks_client.get_signing_key_from_jwt, id_token_str
+        payload = jwt.decode(
+            access_token,
+            jwt_secret,
+            algorithms=["HS256"],
+            audience="authenticated",
         )
-        user_info = jwt.decode(
-            id_token_str,
-            signing_key.key,
-            algorithms=["RS256"],
-            audience=client_id,
-            issuer=["https://accounts.google.com", "accounts.google.com"],
-        )
-    except Exception as e:
-        log.warning("Google ID token verification failed: %s", e)
-        raise HTTPException(status_code=401, detail="Invalid Google token")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Supabase token has expired")
+    except jwt.InvalidTokenError as e:
+        log.warning("Supabase token verification failed: %s", e)
+        raise HTTPException(status_code=401, detail="Invalid Supabase token")
 
-    google_id = user_info.get("sub")
-    if not google_id:
-        raise HTTPException(status_code=400, detail="Invalid Google token")
-    email = user_info.get("email", "")
+    supabase_id = payload.get("sub")
+    if not supabase_id:
+        raise HTTPException(status_code=400, detail="Invalid Supabase token")
+
+    email = payload.get("email", "")
     if not email:
-        raise HTTPException(status_code=400, detail="Google account has no email")
+        raise HTTPException(status_code=400, detail="Supabase account has no email")
 
-    if user_info.get("email_verified", False) not in (True, "true", "True"):
-        raise HTTPException(status_code=401, detail="Google email is not verified")
-
-    existing = await get_user_by_google_id(google_id)
+    # 3-step lookup: by supabase_id → by email → create new
+    existing = await get_user_by_supabase_id(supabase_id)
     if existing:
         return create_jwt(str(existing["_id"]), existing["role"])
 
     existing_by_email = await get_user_by_email(email)
     if existing_by_email:
-        await update_user(
-            existing_by_email["_id"],
-            google_id=google_id,
-        )
+        await update_user(existing_by_email["_id"], supabase_id=supabase_id)
         return create_jwt(str(existing_by_email["_id"]), existing_by_email["role"])
 
-    user_in_db = UserInDB(email=email, role=Role.user, google_id=google_id)
+    user_in_db = UserInDB(email=email, role=Role.user, supabase_id=supabase_id)
     try:
         uid = await create_user(user_in_db)
     except UserAlreadyExistsError:
-        # A concurrent login created this account first — look it up and sign in.
-        existing = await get_user_by_google_id(google_id) or await get_user_by_email(
-            email
-        )
+        existing = await get_user_by_supabase_id(supabase_id) or await get_user_by_email(email)
         if existing:
             return create_jwt(str(existing["_id"]), existing["role"])
         raise HTTPException(status_code=409, detail="Account already exists")
@@ -160,7 +140,7 @@ async def change_password(user_id, old_password, new_password):
     if not user_details.get("hashed_pass"):
         raise HTTPException(
             status_code=400,
-            detail="Google accounts cannot change password here",
+            detail="Social login accounts cannot change password here",
         )
     old_pass_enc = old_password.encode("utf-8")
     new_pass_enc = new_password.encode("utf-8")

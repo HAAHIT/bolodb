@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Request, Depends, Cookie, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from backend.app.models.user import UserSignup, UserLogin, GoogleLogin
+from backend.app.models.user import UserSignup, UserLogin, SupabaseLogin
 import backend.app.controllers.auth
 from backend.app.dependencies import get_current_user
-from backend.app.secrets import get_jwt_secret, get_cookie_secure, get_google_client_id
+from backend.app.secrets import get_jwt_secret, get_cookie_secure
 import jwt
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -80,17 +80,12 @@ async def signup(user_data: UserSignup):
     return JSONResponse({"message": "Signup Successful"}, status_code=201)
 
 
-@router.post("/google")
-async def google_auth(google_data: GoogleLogin):
-    client_id = get_google_client_id()
-    if not client_id:
-        raise HTTPException(status_code=500, detail="Google sign-in is not configured")
-    if google_data.client_id != client_id:
-        raise HTTPException(status_code=400, detail="Client ID mismatch")
-    tokens = await backend.app.controllers.auth.google_login(
-        google_data.id_token, google_data.client_id
+@router.post("/supabase-google")
+async def supabase_google_auth(supabase_data: SupabaseLogin):
+    tokens = await backend.app.controllers.auth.supabase_google_login(
+        supabase_data.access_token
     )
-    response = JSONResponse({"message": "Google sign-in successful"})
+    response = JSONResponse({"message": "Supabase Google sign-in successful"})
     secure = get_cookie_secure()
     response.set_cookie(
         key="access_token",

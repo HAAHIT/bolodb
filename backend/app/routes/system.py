@@ -9,7 +9,6 @@ from backend.app.dependencies import (
     get_providers,
 )
 from backend.app.models.api import ConfigUpdate
-from backend.app.secrets import get_google_client_id
 import backend.app.controllers.system as ctrl
 
 router = APIRouter()
@@ -38,15 +37,6 @@ async def health():
     except Exception:
         pg_status = "disconnected"
     return await ctrl.get_health(pg_status)
-
-
-@router.get("/api/config/public")
-async def public_config():
-    return JSONResponse(
-        {
-            "google_client_id": get_google_client_id(),
-        }
-    )
 
 
 @router.post("/api/config")
