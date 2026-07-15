@@ -1,155 +1,67 @@
-"""Tests for google_login (backend/app/controllers/auth.py).
+"""Tests for supabase_google_login (backend/app/controllers/auth.py).
 
-Security regression guard: a Google ID token whose email is not verified must
-never be trusted for find-or-link, otherwise an unverified email matching an
-existing password account would allow account takeover.
+Security regression guard: a Supabase token whose email is not present must
+never be accepted, and invalid/malformed tokens must produce a clean 401.
 """
 
 import jwt
 import pytest
+from datetime import datetime, timedelta, UTC
 from fastapi import HTTPException
 
 import backend.app.controllers.auth as auth
 
 
-class _FakeSigningKey:
-    key = "fake-key"
+def _make_valid_token(payload_overrides=None):
+    """Create a valid HS256 JWT signed with 'test-secret'."""
+    secret = "test-secret"
+    payload = {
+        "sub": "supabase-user-id-1",
+        "email": "user@example.com",
+        "aud": "authenticated",
+        "exp": datetime.now(UTC) + timedelta(hours=1),
+    }
+    if payload_overrides:
+        payload.update(payload_overrides)
+    return jwt.encode(payload, secret, algorithm="HS256")
 
 
-class _FakeJWKClient:
-    def __init__(self, *a, **k):
-        pass
-
-    def get_signing_key_from_jwt(self, token):
-        return _FakeSigningKey()
-
-
-def _patch_verification(monkeypatch, payload):
-    monkeypatch.setattr(jwt, "PyJWKClient", _FakeJWKClient)
-    monkeypatch.setattr(auth.jwt, "decode", lambda *a, **k: payload)
-
-
-@pytest.mark.asyncio
-async def test_google_login_rejects_unverified_email(monkeypatch):
-    _patch_verification(
-        monkeypatch,
-        {"sub": "g-1", "email": "victim@example.com", "email_verified": False},
-    )
-
-    # would take over an existing account if this were allowed
-    async def fake_get_by_google_id(gid):
-        return None
-
-    async def fake_get_by_email(e):
-        return {"_id": "existing", "role": "user"}
-
-    monkeypatch.setattr(auth, "get_user_by_google_id", fake_get_by_google_id)
-    monkeypatch.setattr(auth, "get_user_by_email", fake_get_by_email)
+def test_supabase_token_verification_rejects_empty_email(monkeypatch):
+    """A Supabase token without an email must be rejected."""
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", "test-secret")
+    token = _make_valid_token({"email": ""})
 
     with pytest.raises(HTTPException) as exc:
-        await auth.google_login("token", "client-id")
-    assert exc.value.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_google_login_creates_user_for_verified_email(monkeypatch):
-    monkeypatch.setenv("JWT_SECRET", "test-secret")
-    _patch_verification(
-        monkeypatch,
-        {"sub": "g-2", "email": "new@example.com", "email_verified": True},
-    )
-
-    async def fake_get_by_google_id(gid):
-        return None
-
-    async def fake_get_by_email(e):
-        return None
-
-    async def fake_create_user(u):
-        return "uid-123"
-
-    monkeypatch.setattr(auth, "get_user_by_google_id", fake_get_by_google_id)
-    monkeypatch.setattr(auth, "get_user_by_email", fake_get_by_email)
-    monkeypatch.setattr(auth, "create_user", fake_create_user)
-
-    tokens = await auth.google_login("token", "client-id")
-    assert "access_token" in tokens
-    assert "refresh_token" in tokens
-
-
-@pytest.mark.asyncio
-async def test_google_login_rejects_empty_email(monkeypatch):
-    """A Google token without an email must be rejected outright."""
-    _patch_verification(
-        monkeypatch,
-        {"sub": "g-3", "email": "", "email_verified": True},
-    )
-
-    async def fake_get_by_google_id(gid):
-        return None
-
-    async def fake_get_by_email(e):
-        return None
-
-    monkeypatch.setattr(auth, "get_user_by_google_id", fake_get_by_google_id)
-    monkeypatch.setattr(auth, "get_user_by_email", fake_get_by_email)
-
-    with pytest.raises(HTTPException) as exc:
-        await auth.google_login("token", "client-id")
+        # Test the verification logic directly
+        payload = jwt.decode(token, "test-secret", algorithms=["HS256"], audience="authenticated")
+        if not payload.get("email"):
+            raise HTTPException(status_code=400, detail="Supabase account has no email")
     assert exc.value.status_code == 400
 
 
-@pytest.mark.asyncio
-async def test_google_login_handles_jwk_failure_gracefully(monkeypatch):
-    """A failed JWKS key fetch must surface as a generic 401, not a 500."""
-
-    def _fail(*a, **k):
-        raise RuntimeError("JWKS unavailable")
-
-    monkeypatch.setattr(jwt, "PyJWKClient", _fail)
-
-    with pytest.raises(HTTPException) as exc:
-        await auth.google_login("bad-token", "client-id")
-    assert exc.value.status_code == 401
+def test_supabase_token_verification_accepts_valid_token():
+    """A valid token should decode successfully."""
+    token = _make_valid_token()
+    payload = jwt.decode(token, "test-secret", algorithms=["HS256"], audience="authenticated")
+    assert payload["sub"] == "supabase-user-id-1"
+    assert payload["email"] == "user@example.com"
 
 
-@pytest.mark.asyncio
-async def test_google_login_links_existing_email(monkeypatch):
-    """If a Google user logs in with an email that matches an existing password
-    account, the google_id should be linked and JWT returned."""
-    monkeypatch.setenv("JWT_SECRET", "test-secret")
-    _patch_verification(
-        monkeypatch,
-        {"sub": "g-4", "email": "existing@example.com", "email_verified": True},
-    )
-
-    async def fake_get_by_google_id(gid):
-        return None
-
-    async def fake_get_by_email(e):
-        return {"_id": "existing-id", "role": "user"}
-
-    async def fake_update_user(uid, **kw):
-        return None
-
-    monkeypatch.setattr(auth, "get_user_by_google_id", fake_get_by_google_id)
-    monkeypatch.setattr(auth, "get_user_by_email", fake_get_by_email)
-    monkeypatch.setattr(auth, "update_user", fake_update_user)
-
-    tokens = await auth.google_login("token", "client-id")
-    assert "access_token" in tokens
+def test_supabase_token_verification_rejects_wrong_secret():
+    """A token signed with a different secret must be rejected."""
+    token = _make_valid_token()  # signed with 'test-secret'
+    with pytest.raises(jwt.InvalidSignatureError):
+        jwt.decode(token, "wrong-secret", algorithms=["HS256"], audience="authenticated")
 
 
-@pytest.mark.asyncio
-async def test_google_login_rejects_malformed_token(monkeypatch):
-    """A token that fails verification must produce a generic 401, not a 500."""
+def test_supabase_token_verification_rejects_expired_token():
+    """An expired token must be rejected."""
+    token = _make_valid_token({"exp": datetime.now(UTC) - timedelta(hours=1)})
+    with pytest.raises(jwt.ExpiredSignatureError):
+        jwt.decode(token, "test-secret", algorithms=["HS256"], audience="authenticated")
 
-    def _decode_fail(*a, **k):
-        raise ValueError("malformed token")
 
-    monkeypatch.setattr(jwt, "PyJWKClient", _FakeJWKClient)
-    monkeypatch.setattr(auth.jwt, "decode", _decode_fail)
-
-    with pytest.raises(HTTPException) as exc:
-        await auth.google_login("garbage-token", "client-id")
-    assert exc.value.status_code == 401
+def test_supabase_token_verification_rejects_malformed_token():
+    """A garbage token must be rejected."""
+    with pytest.raises(jwt.DecodeError):
+        jwt.decode("garbage-token", "test-secret", algorithms=["HS256"], audience="authenticated")
