@@ -13,6 +13,8 @@
   $effect(() => {
     if (appState.isLoaded && !appState.dbInfo) {
       goto('/connect');
+    } else if (appState.isLoaded && !appState.apiKeySet) {
+      goto('/connect');
     }
   });
 </script>
@@ -22,10 +24,11 @@
 </svelte:head>
 
 <div class="app-shell">
-  {#if appState.isLoaded && appState.dbInfo}
+  {#if appState.isLoaded && appState.dbInfo && appState.apiKeySet}
     <AskScreen
       engine={appState.engine}
       modelName={appState.modelName}
+      apiKeySet={appState.apiKeySet}
       setModelName={(m) => appState.modelName = m}
       verifiedCount={appState.verifiedCount}
       onVerify={(apiCount) => appState.verify(apiCount)}
