@@ -238,7 +238,7 @@ class DatabaseManager:
                             "SELECT relname, reltuples FROM pg_class WHERE relkind IN ('r','p')"
                         )
                     )
-                    bulk_counts = {row[0]: int(row[1]) for row in r}
+                    bulk_counts = {row[0]: max(0, int(row[1])) for row in r}
                 elif c["dialect"] == "mysql":
                     r = conn.execute(
                         text(
