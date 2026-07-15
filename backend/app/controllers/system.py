@@ -1,4 +1,11 @@
+import os
+
 from backend.app import config as cfgmod
+from backend.app.secrets import (
+    get_jwt_secret,
+    get_supabase_url,
+    get_supabase_anon_key,
+)
 
 
 async def get_state(user_id, db, cfg, kb):
@@ -9,7 +16,7 @@ async def get_state(user_id, db, cfg, kb):
         s["database"] = {
             "url": db.get_info(user_id)["url"],
             "dialect": db.get_dialect(user_id),
-            "db_id": db.get_db_id(user_id),
+            "db_id": db.get_info(user_id)["db_id"],
             "tables": db.get_info(user_id)["tables"],
             "has_knowledge": kb.count_verified(db.get_db_id(user_id)) > 0,
         }
@@ -22,7 +29,37 @@ async def get_state(user_id, db, cfg, kb):
 
 
 async def get_health(pg_status="unknown"):
-    return {"status": "ok", "postgres": pg_status}
+    env_checks = {
+        "JWT_SECRET": bool(get_jwt_secret()) if os.getenv("JWT_SECRET") else False,
+        "SUPABASE_URL": bool(get_supabase_url()),
+        "SUPABASE_ANON_KEY": bool(get_supabase_anon_key()),
+        "SUPABASE_JWT_SECRET": bool(os.getenv("SUPABASE_JWT_SECRET")),
+        "DATABASE_URL": bool(os.getenv("DATABASE_URL")),
+        "COOKIE_SECURE": os.getenv("COOKIE_SECURE", "false"),
+        "CORS_ORIGINS": os.getenv("CORS_ORIGINS", "(not set, using defaults)"),
+    }
+
+    jwks_status = "unchecked"
+    supabase_url = get_supabase_url()
+    if supabase_url:
+        try:
+            import httpx
+
+            jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
+            resp = await httpx.AsyncClient(timeout=5).get(jwks_url)
+            if resp.status_code == 200:
+                jwks_status = "reachable"
+            else:
+                jwks_status = f"unexpected_status:{resp.status_code}"
+        except Exception as e:
+            jwks_status = f"unreachable:{e.__class__.__name__}"
+
+    return {
+        "status": "ok" if pg_status == "connected" else "degraded",
+        "postgres": pg_status,
+        "env": env_checks,
+        "supabase_jwks": jwks_status,
+    }
 
 
 async def update_config(user_id, cfg, providers, req_data):

@@ -19,10 +19,20 @@ server {
         proxy_read_timeout 86400s;
     }
 
+    location ~ /__data\.json {
+        try_files $uri @empty_data;
+    }
+
+    location @empty_data {
+        add_header Content-Type application/json;
+        return 200 '{"type":"data","nodes":[null,null,null]}';
+    }
+
     location / {
         # /index.html is the prerendered marketing homepage; client-only
         # routes (dashboard, chat, etc.) fall back to the SPA shell in
         # 200.html instead, so they don't get served homepage markup.
-        try_files $uri $uri/ /200.html;
+        # $uri.html catches flat-file routes (adapter-static default).
+        try_files $uri $uri.html $uri/ /200.html;
     }
 }

@@ -3,7 +3,7 @@ import { setLocale } from "$lib/i18n/i18n-svelte";
 import type { LayoutLoad } from "./$types";
 
 export const load: LayoutLoad = async ({ data }) => {
-  const locale = data.locale;
+  const locale = data?.locale || "en";
   loadLocale(locale);
   setLocale(locale);
   return data;

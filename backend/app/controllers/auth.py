@@ -129,7 +129,13 @@ async def supabase_google_login(access_token: str):
                 audience="authenticated",
             )
         elif alg == "HS256":
-            jwt_secret = get_supabase_jwt_secret()
+            try:
+                jwt_secret = get_supabase_jwt_secret()
+            except RuntimeError:
+                raise HTTPException(
+                    status_code=500,
+                    detail="SUPABASE_JWT_SECRET is not configured on the server",
+                )
             payload = jwt.decode(
                 access_token,
                 jwt_secret,
@@ -148,43 +154,50 @@ async def supabase_google_login(access_token: str):
         log.warning("Supabase token verification failed: %s", e)
         raise HTTPException(status_code=401, detail="Invalid Supabase token")
 
-    supabase_id = payload.get("sub")
-    if not supabase_id:
-        raise HTTPException(status_code=400, detail="Invalid Supabase token")
-
-    email = payload.get("email", "")
-    if not email:
-        raise HTTPException(status_code=400, detail="Supabase account has no email")
-
-    # Only link an existing email account when the provider is confirmed Google
-    # and the email is verified — prevents account takeover via unverified email.
-    app_metadata = payload.get("app_metadata", {})
-    user_metadata = payload.get("user_metadata", {})
-    provider = app_metadata.get("provider", "")
-    email_verified = user_metadata.get("email_verified", False)
-
-    # 3-step lookup: by supabase_id → by email (if safe to link) → create new
-    existing = await get_user_by_supabase_id(supabase_id)
-    if existing:
-        return create_jwt(str(existing["_id"]), existing["role"])
-
-    if provider == "google" and email_verified is True:
-        existing_by_email = await get_user_by_email(email)
-        if existing_by_email:
-            await update_user(existing_by_email["_id"], supabase_id=supabase_id)
-            return create_jwt(str(existing_by_email["_id"]), existing_by_email["role"])
-
-    user_in_db = UserInDB(email=email, role=Role.user, supabase_id=supabase_id)
     try:
-        uid = await create_user(user_in_db)
-    except UserAlreadyExistsError:
-        existing = await get_user_by_supabase_id(
-            supabase_id
-        ) or await get_user_by_email(email)
+        supabase_id = payload.get("sub")
+        if not supabase_id:
+            raise HTTPException(status_code=400, detail="Invalid Supabase token")
+
+        email = payload.get("email", "")
+        if not email:
+            raise HTTPException(status_code=400, detail="Supabase account has no email")
+
+        app_metadata = payload.get("app_metadata", {})
+        user_metadata = payload.get("user_metadata", {})
+        provider = app_metadata.get("provider", "")
+        email_verified = user_metadata.get("email_verified", False)
+
+        existing = await get_user_by_supabase_id(supabase_id)
         if existing:
             return create_jwt(str(existing["_id"]), existing["role"])
-        raise HTTPException(status_code=409, detail="Account already exists")
-    return create_jwt(uid, Role.user.value)
+
+        if provider == "google" and email_verified is True:
+            existing_by_email = await get_user_by_email(email)
+            if existing_by_email:
+                await update_user(existing_by_email["_id"], supabase_id=supabase_id)
+                return create_jwt(
+                    str(existing_by_email["_id"]), existing_by_email["role"]
+                )
+
+        user_in_db = UserInDB(email=email, role=Role.user, supabase_id=supabase_id)
+        try:
+            uid = await create_user(user_in_db)
+        except UserAlreadyExistsError:
+            existing = await get_user_by_supabase_id(
+                supabase_id
+            ) or await get_user_by_email(email)
+            if existing:
+                return create_jwt(str(existing["_id"]), existing["role"])
+            raise HTTPException(status_code=409, detail="Account already exists")
+        return create_jwt(uid, Role.user.value)
+    except HTTPException:
+        raise
+    except Exception:
+        log.exception("Supabase login failed after token verification")
+        raise HTTPException(
+            status_code=500, detail="Login failed due to an internal error"
+        )
 
 
 async def change_password(user_id, old_password, new_password):

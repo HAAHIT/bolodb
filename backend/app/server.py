@@ -2,6 +2,7 @@
 
 import logging
 import os
+import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -55,29 +56,41 @@ class BodyLimitMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app):
-    from alembic.config import Config
-    from alembic import command
-    from sqlalchemy import text
+    skip_lock = os.getenv("SKIP_DB_LOCK", "").lower() == "true"
 
-    alembic_ini = Path(__file__).resolve().parents[1] / "alembic.ini"
-    alembic_cfg = Config(str(alembic_ini))
-    alembic_cfg.set_main_option(
-        "script_location", str(Path(__file__).resolve().parents[1] / "alembic")
-    )
-    from backend.app.pgdatabase import get_engine, dispose_db
+    if not skip_lock:
+        from alembic.config import Config
+        from alembic import command
+        from sqlalchemy import text
 
-    engine = get_engine()
-    async with engine.begin() as lock_conn:
-        await lock_conn.execute(
-            text("SELECT pg_advisory_xact_lock(2305843009213693951)")
+        alembic_ini = Path(__file__).resolve().parents[1] / "alembic.ini"
+        alembic_cfg = Config(str(alembic_ini))
+        alembic_cfg.set_main_option(
+            "script_location", str(Path(__file__).resolve().parents[1] / "alembic")
         )
-        await run_in_threadpool(command.upgrade, alembic_cfg, "head")
+        from backend.app.pgdatabase import get_engine, dispose_db
+
+        engine = get_engine()
+        async with engine.begin() as lock_conn:
+            await lock_conn.execute(
+                text("SELECT pg_advisory_xact_lock(2305843009213693951)")
+            )
+            await run_in_threadpool(command.upgrade, alembic_cfg, "head")
+    else:
+        from backend.app.pgdatabase import dispose_db
+
     yield
 
     await dispose_db()
 
 
 def create_app(initial_db_url="", readonly=True):
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        stream=sys.stdout,
+    )
+
     cfg = cfgmod.load_config()
     providers = ProviderManager(cfg)
     db = DatabaseManager(readonly=readonly)

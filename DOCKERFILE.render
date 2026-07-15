@@ -50,4 +50,4 @@ RUN addgroup --system bolodb && adduser --system --home /home/bolodb --ingroup b
 
 EXPOSE 80
 
-CMD sh -c "nginx -g 'daemon off;' & exec python -m uvicorn backend.app.server:create_app --factory --host 0.0.0.0 --port 4321 --log-level warning"
+CMD sh -c "nginx -g 'daemon off;' & exec python -m uvicorn backend.app.server:create_app --factory --host 0.0.0.0 --port 4321 --log-level info"

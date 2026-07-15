@@ -35,10 +35,10 @@ async def health():
         engine = get_engine()
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
-    except Exception:
-        pg_status = "disconnected"
+    except Exception as e:
+        pg_status = f"disconnected:{e.__class__.__name__}"
     result = await ctrl.get_health(pg_status)
-    if pg_status == "disconnected":
+    if pg_status != "connected":
         return JSONResponse(content=result, status_code=503)
     return JSONResponse(content=result)
 
