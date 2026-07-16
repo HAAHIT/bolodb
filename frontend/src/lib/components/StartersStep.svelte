@@ -31,6 +31,7 @@
         .filter((_, i) => verdicts[i] === 'yes')
         .map(s => ({ question: s.q || s.question || '', sql: s.sql || '', restatement: s.restatement || '' }));
       await apiCall('/api/onboard/save', { glossary: glossary || [], starters: verified });
+      saving = false;
       onDone(verifiedCount);
     } catch (e: any) {
       saveErr = "Couldn't save your answers — check that the server is still running, then try again.";

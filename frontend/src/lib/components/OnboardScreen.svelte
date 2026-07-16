@@ -22,13 +22,19 @@
 
   async function loadOnboardData() {
     loadErr = '';
+    const errors: string[] = [];
     try {
-      const [g, s] = await Promise.all([
+      const [g, s] = await Promise.allSettled([
         apiCall('/api/onboard/glossary', {}),
         apiCall('/api/onboard/starters', {})
       ]);
-      realGlossary = g.glossary || [];
-      realStarters = s.starters || [];
+      realGlossary = g.status === 'fulfilled' ? (g.value.glossary || []) : defaultGlossary;
+      realStarters = s.status === 'fulfilled' ? (s.value.starters || []) : defaultStarters;
+      if (g.status === 'rejected') errors.push('glossary');
+      if (s.status === 'rejected') errors.push('starters');
+      if (errors.length) {
+        loadErr = `Failed to load ${errors.join(' and ')} — using built-in examples instead.`;
+      }
     } catch (e: any) {
       loadErr = e.message || "Couldn't reach the AI — using built-in examples instead.";
       realGlossary = defaultGlossary;
