@@ -121,11 +121,16 @@ def db_id_for(url):
 
 
 class DatabaseManager:
-    def __init__(self, readonly=True, sample_rows=3, max_rows=500):
+    def __init__(
+        self, readonly=True, sample_rows=3, max_rows=500, statement_timeout=30
+    ):
         self._connections = {}
         self.readonly = readonly
         self.sample_rows = sample_rows
         self.max_rows = max_rows
+        # Seconds a single statement may run before the database server aborts
+        # it. Enforced server-side per connection (see _apply_statement_timeout).
+        self.statement_timeout = statement_timeout
 
     def connected(self, user_id):
         return user_id in self._connections
@@ -239,6 +244,8 @@ class DatabaseManager:
             multi_fks = {}
 
         with c["engine"].connect() as conn:
+            # Enrichment (COUNT(*), DISTINCT) can be slow on large tables; bound it.
+            self._apply_statement_timeout(conn, c["dialect"])
             # Fetch approximate row counts from DB stats tables in one shot (postgres/mysql/mssql)
             bulk_counts = {}
             try:
@@ -483,6 +490,28 @@ class DatabaseManager:
             return "SELECT INTO is not allowed."
         return None
 
+    def _apply_statement_timeout(self, conn, dialect):
+        """Best-effort server-enforced per-statement timeout on ``conn``.
+
+        Postgres and MySQL both support a session-level statement timeout the
+        server enforces, which is the only reliable way to stop a runaway query
+        (a client-side cap can't cancel work already running on the server).
+        Dialects without one (sqlite, mssql) are left unbounded here — the row
+        fetch cap is the remaining backstop. Failures are swallowed so an
+        unsupported SET never blocks the actual query.
+        """
+        if not self.statement_timeout:
+            return
+        ms = int(self.statement_timeout * 1000)
+        try:
+            if dialect == "postgresql":
+                conn.execute(text(f"SET statement_timeout = {ms}"))
+            elif dialect == "mysql":
+                # Applies to read-only SELECTs, which is all we run.
+                conn.execute(text(f"SET SESSION MAX_EXECUTION_TIME = {ms}"))
+        except SQLAlchemyError as e:
+            logger.warning("Could not set statement timeout for %s: %s", dialect, e)
+
     def execute(self, user_id, sql):
         c = self._get(user_id)
         cleaned = sql.strip().rstrip(";").strip()
@@ -492,7 +521,8 @@ class DatabaseManager:
                 return {"error": violation, "sql": cleaned}
         try:
             with c["engine"].connect() as conn:
-                res = conn.execute(text(cleaned).execution_options(timeout=30))
+                self._apply_statement_timeout(conn, c["dialect"])
+                res = conn.execute(text(cleaned))
                 cols = list(res.keys())
                 raw = res.fetchmany(self.max_rows + 1)
                 truncated = len(raw) > self.max_rows
@@ -510,6 +540,15 @@ class DatabaseManager:
                     "sql": cleaned,
                 }
         except SQLAlchemyError as e:
+            low = str(e).lower()
+            if "statement timeout" in low or "maximum statement execution time" in low:
+                return {
+                    "error": (
+                        f"The query took longer than {self.statement_timeout}s and was "
+                        "cancelled. Try narrowing it (add a filter or a smaller range)."
+                    ),
+                    "sql": cleaned,
+                }
             return {"error": _sanitize_db_error(e), "sql": cleaned}
 
     def get_db_id(self, user_id):

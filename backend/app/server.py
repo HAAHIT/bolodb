@@ -8,8 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -19,6 +18,7 @@ from backend.app.database import DatabaseManager
 from backend.app.knowledge import KnowledgeBase
 from backend.app.logbook import SessionLog
 from backend.app.llm import ProviderManager
+from backend.app.ratelimit import limiter
 
 from backend.app.routes.auth import router as auth_router
 from backend.app.routes.system import router as system_router
@@ -91,13 +91,20 @@ def create_app(initial_db_url="", readonly=True):
         stream=sys.stdout,
     )
 
+    # IMPORTANT — single-process only. `cfg`, `providers`, `db`, `kb` and
+    # `session_log` are per-process in-memory state. `db` holds live database
+    # connections keyed by user_id, and `cfg` (including saved API keys) is
+    # loaded once and rewritten in place. Running more than one worker/replica
+    # (e.g. uvicorn --workers N, gunicorn, or multiple containers) means a user
+    # who connects on one worker gets "No database connected" on another, and
+    # concurrent config saves on different workers clobber config.json. Run this
+    # as a single process, or externalize this state before scaling out.
     cfg = cfgmod.load_config()
     providers = ProviderManager(cfg)
     db = DatabaseManager(readonly=readonly)
     kb = KnowledgeBase(cfgmod.KB_FILE)
     session_log = SessionLog(cfgmod.CONFIG_DIR)
 
-    limiter = Limiter(key_func=get_remote_address)
     app = FastAPI(title="BoloDB", version="2.0.0", lifespan=lifespan)
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -121,7 +128,14 @@ def create_app(initial_db_url="", readonly=True):
     app.state.session_log = session_log
 
     if initial_db_url:
-        db.connect(initial_db_url)
+        # Pre-connect is not supported by the multi-user server: database
+        # connections are keyed per authenticated user (db.connect(user_id, url)),
+        # and there is no user at startup. Previously this crashed with a
+        # TypeError; now it is a logged no-op. Connect from the UI instead.
+        logger.warning(
+            "initial_db_url/--db is ignored: connections are per-authenticated-user "
+            "in the server. Connect from the UI after signing in."
+        )
 
     app.include_router(auth_router)
     app.include_router(system_router)

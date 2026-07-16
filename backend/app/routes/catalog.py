@@ -1,9 +1,10 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Request, HTTPException
 
 from backend.app.dependencies import get_current_user, get_db, get_kb, get_providers
 from backend.app.models.api import CatalogPayload
+from backend.app.ratelimit import limiter
 import backend.app.controllers.catalog as ctrl
 
 log = logging.getLogger(__name__)
@@ -44,7 +45,9 @@ async def save_catalog(
 
 
 @router.post("/api/catalog/suggest")
+@limiter.limit("10/minute")
 async def suggest_catalog(
+    request: Request,
     user_token=Depends(get_current_user),
     db=Depends(get_db),
     providers=Depends(get_providers),
