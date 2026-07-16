@@ -2,11 +2,11 @@
   import { onMount } from "svelte";
   import { browser } from "$app/environment";
   import posthog from "posthog-js";
-  import type { DriveStep } from "driver.js";
+  import type { DriveStep, Driver } from "driver.js";
 
   const STORAGE_KEY = "bolodb_tour_completed_v1";
 
-  onMount(async () => {
+  onMount(() => {
     if (!browser) return;
     try {
       if (localStorage.getItem(STORAGE_KEY) === "1") return;
@@ -14,92 +14,106 @@
       return;
     }
 
-    // Wait for the chat UI to be fully rendered before starting tour
-    await new Promise((r) => setTimeout(r, 900));
+    let isMounted = true;
+    let d: Driver | undefined;
 
-    const { driver } = await import("driver.js");
-    await import("driver.js/dist/driver.css");
+    const initTour = async () => {
+      // Wait for the chat UI to be fully rendered before starting tour
+      await new Promise((r) => setTimeout(r, 900));
+      if (!isMounted) return;
 
-    const d = driver({
-      showProgress: true,
-      allowClose: true,
-      overlayColor: "rgba(0, 0, 0, 0.6)",
-      nextBtnText: "Next →",
-      prevBtnText: "← Back",
-      doneBtnText: "Got it",
-      onCloseClick: () => {
-        markDone();
-        d.destroy();
-      },
-      onDestroyed: () => {
-        markDone();
-      },
-      steps: ([
-        {
-          element: '[data-tour="ask-input"]',
-          popover: {
-            title: "Ask anything about your data 💬",
-            description:
-              "Type a question in plain English — like 'How many orders last month?' — and BoloDB will translate it to SQL for you.",
-            side: "top",
-            align: "center",
-          },
-        },
-        {
-          element: '[data-tour="starters"]',
-          popover: {
-            title: "Not sure where to start?",
-            description:
-              "Tap one of these AI-suggested starter questions we generated from your schema. They're a great way to see the depth of insight BoloDB can provide.",
-            side: "top",
-            align: "center",
-          },
-        },
-        {
-          element: '[data-tour="sql-view"]',
-          popover: {
-            title: "Every answer shows its SQL",
-            description:
-              "Toggle to view the generated SQL. Nothing is hidden — you can audit, copy, or edit any query.",
-            side: "left",
-            align: "center",
-          },
-        },
-        {
-          element: '[data-tour="confidence"]',
-          popover: {
-            title: "Confidence at a glance",
-            description:
-              "Every answer shows a confidence indicator (High / Medium / Low) so you know when to double-check.",
-            side: "left",
-            align: "center",
-          },
-        },
-        {
-          element: '[data-testid="profile-menu-button"]',
-          popover: {
-            title: "Your profile is here",
-            description:
-              "Manage your account, switch databases, or sign out from the profile menu.",
-            side: "bottom",
-            align: "end",
-          },
-        },
-      ] satisfies DriveStep[]).filter((s) => {
-        if (typeof document === "undefined") return true;
-        return typeof s.element === "string"
-          ? document.querySelector(s.element) !== null
-          : true;
-      }),
-    });
+      const { driver } = await import("driver.js");
+      await import("driver.js/dist/driver.css");
+      if (!isMounted) return;
 
-    posthog.capture("product_tour_started");
-    d.drive();
+      d = driver({
+        showProgress: true,
+        allowClose: true,
+        overlayColor: "rgba(0, 0, 0, 0.6)",
+        nextBtnText: "Next →",
+        prevBtnText: "← Back",
+        doneBtnText: "Got it",
+        onDestroyed: () => {
+          markDone();
+        },
+        steps: (
+          [
+            {
+              element: '[data-tour="ask-input"]',
+              popover: {
+                title: "Ask anything about your data 💬",
+                description:
+                  "Type a question in plain English — like 'How many orders last month?' — and BoloDB will translate it to SQL for you.",
+                side: "top",
+                align: "center",
+              },
+            },
+            {
+              element: '[data-tour="starters"]',
+              popover: {
+                title: "Not sure where to start?",
+                description:
+                  "Tap one of these AI-suggested starter questions we generated from your schema. They're a great way to see the depth of insight BoloDB can provide.",
+                side: "top",
+                align: "center",
+              },
+            },
+            {
+              element: '[data-tour="sql-view"]',
+              popover: {
+                title: "Every answer shows its SQL",
+                description:
+                  "Toggle to view the generated SQL. Nothing is hidden — you can audit, copy, or edit any query.",
+                side: "left",
+                align: "center",
+              },
+            },
+            {
+              element: '[data-tour="confidence"]',
+              popover: {
+                title: "Confidence at a glance",
+                description:
+                  "Every answer shows a confidence indicator (High / Medium / Low) so you know when to double-check.",
+                side: "left",
+                align: "center",
+              },
+            },
+            {
+              element: '[data-testid="profile-menu-button"]',
+              popover: {
+                title: "Your profile is here",
+                description:
+                  "Manage your account, switch databases, or sign out from the profile menu.",
+                side: "bottom",
+                align: "end",
+              },
+            },
+          ] satisfies DriveStep[]
+        ).filter((s) => {
+          if (typeof document === "undefined") return true;
+          return typeof s.element === "string"
+            ? document.querySelector(s.element) !== null
+            : true;
+        }),
+      });
+
+      posthog.capture("product_tour_started");
+      d.drive();
+    };
+
+    initTour();
+
+    return () => {
+      isMounted = false;
+      d?.destroy();
+    };
   });
 
   function markDone() {
     try {
       localStorage.setItem(STORAGE_KEY, "1");
+    } catch {}
+    try {
       posthog.capture("product_tour_completed");
     } catch {}
   }
@@ -112,8 +126,12 @@
     color: var(--ink, #16201b) !important;
     border: 1px solid var(--border, #e3e8e5) !important;
     border-radius: var(--radius, 14px) !important;
-    box-shadow: var(--shadow-lg, 0 24px 48px -16px rgba(0, 0, 0, 0.22)) !important;
-    font-family: var(--font-ui, "Hanken Grotesk"), system-ui, sans-serif !important;
+    box-shadow: var(
+      --shadow-lg,
+      0 24px 48px -16px rgba(0, 0, 0, 0.22)
+    ) !important;
+    font-family:
+      var(--font-ui, "Hanken Grotesk"), system-ui, sans-serif !important;
   }
   :global(.driver-popover-title) {
     color: var(--ink, #16201b) !important;

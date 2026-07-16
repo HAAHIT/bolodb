@@ -317,9 +317,10 @@ async def request_password_reset(email: str, base_url: str = ""):
             else f"/reset-password?token={token}"
         )
         # TODO: Deliver this via an email service (Resend/SendGrid) in production.
-        # Until then the link is logged so operators can retrieve it in dev/preview
-        # environments — without it the reset flow has no delivery channel at all.
-        log.info("Password reset link generated: %s", link)
+        # Until then the link is logged at DEBUG so operators can retrieve it in
+        # dev/preview (enable DEBUG logging) without leaking reset tokens into
+        # production logs, which typically run at INFO or above.
+        log.debug("Password reset link generated: %s", link)
     # Always return generic success to prevent user enumeration
     return True
 
@@ -370,7 +371,10 @@ async def reset_password(token: str, new_password: str):
             )
             .with_for_update()
         )
-        token_record = result.scalar_one_or_none()
+        # Core connection (conn.execute) yields column Rows, not ORM entities,
+        # so use one_or_none() to get a Row that supports .consumed/.expires_at
+        # attribute access. scalar_one_or_none() would return just the id column.
+        token_record = result.one_or_none()
 
         if not token_record:
             raise HTTPException(status_code=400, detail="Invalid reset link.")
