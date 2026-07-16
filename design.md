@@ -82,7 +82,7 @@
 
 ## Marketing Page Architecture
 
-```
+```text
 MarketingLayout
 ├── MarketingNav (floating pill, bottom)
 ├── Hero (left-biased 2-col)

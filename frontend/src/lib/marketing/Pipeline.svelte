@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { browser } from "$app/environment";
-  import { motionPrefs } from "$lib/motion/motionPrefs";
   import { reveal } from "$lib/actions/reveal";
 
   const steps = [
@@ -21,20 +19,9 @@
     },
   ];
 
-  let pipelineEl: HTMLElement;
-
-  $effect(() => {
-    if (!browser || !pipelineEl || motionPrefs.reduced) return;
-
-    const cards = pipelineEl.querySelectorAll<HTMLElement>(".pipeline-step");
-    cards.forEach((card) => {
-      card.style.opacity = "1";
-      card.style.transform = "none";
-    });
-  });
 </script>
 
-<section id="pipeline" bind:this={pipelineEl} class="pipeline-section">
+<section id="pipeline" class="pipeline-section">
   <h2 class="section-title">From question to trusted answer in three steps</h2>
 
   <div class="pipeline-desktop">

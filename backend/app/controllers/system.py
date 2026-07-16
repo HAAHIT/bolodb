@@ -93,5 +93,5 @@ async def update_config(user_id, cfg, providers, req_data):
         h = await providers.get(user_id).health_check()
     except Exception:
         log.exception("Health check failed after config update")
-        h = {"status": "error", "message": "Health check failed"}
+        h = {"ok": False, "error": "Health check failed", "models": []}
     return {"config": cfgmod.public_config(cfg, user_id), "health": h}

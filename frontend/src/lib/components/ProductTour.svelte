@@ -16,15 +16,55 @@
 
     let isMounted = true;
     let d: Driver | undefined;
+    let observer: MutationObserver | undefined;
 
     const initTour = async () => {
-      // Wait for the chat UI to be fully rendered before starting tour
       await new Promise((r) => setTimeout(r, 900));
       if (!isMounted) return;
 
       const { driver } = await import("driver.js");
       await import("driver.js/dist/driver.css");
       if (!isMounted) return;
+
+      const tourSteps = (
+        [
+          {
+            element: '[data-tour="ask-input"]',
+            popover: {
+              title: "Ask anything about your data 💬",
+              description:
+                "Type a question in plain English — like 'How many orders last month?' — and BoloDB will translate it to SQL for you.",
+              side: "top",
+              align: "center",
+            },
+          },
+          {
+            element: '[data-tour="starters"]',
+            popover: {
+              title: "Not sure where to start?",
+              description:
+                "Tap one of these AI-suggested starter questions we generated from your schema. They're a great way to see the depth of insight BoloDB can provide.",
+              side: "top",
+              align: "center",
+            },
+          },
+          {
+            element: '[data-testid="profile-menu-button"]',
+            popover: {
+              title: "Your profile is here",
+              description:
+                "Manage your account, switch databases, or sign out from the profile menu.",
+              side: "bottom",
+              align: "end",
+            },
+          },
+        ] satisfies DriveStep[]
+      ).filter((s) => {
+        if (typeof document === "undefined") return true;
+        return typeof s.element === "string"
+          ? document.querySelector(s.element) !== null
+          : true;
+      });
 
       d = driver({
         showProgress: true,
@@ -34,77 +74,107 @@
         prevBtnText: "← Back",
         doneBtnText: "Got it",
         onDestroyed: () => {
-          markDone();
+          if (!isMounted) return;
+          maybeStartResultTour(driver);
         },
-        steps: (
-          [
-            {
-              element: '[data-tour="ask-input"]',
-              popover: {
-                title: "Ask anything about your data 💬",
-                description:
-                  "Type a question in plain English — like 'How many orders last month?' — and BoloDB will translate it to SQL for you.",
-                side: "top",
-                align: "center",
-              },
-            },
-            {
-              element: '[data-tour="starters"]',
-              popover: {
-                title: "Not sure where to start?",
-                description:
-                  "Tap one of these AI-suggested starter questions we generated from your schema. They're a great way to see the depth of insight BoloDB can provide.",
-                side: "top",
-                align: "center",
-              },
-            },
-            {
-              element: '[data-tour="sql-view"]',
-              popover: {
-                title: "Every answer shows its SQL",
-                description:
-                  "Toggle to view the generated SQL. Nothing is hidden — you can audit, copy, or edit any query.",
-                side: "left",
-                align: "center",
-              },
-            },
-            {
-              element: '[data-tour="confidence"]',
-              popover: {
-                title: "Confidence at a glance",
-                description:
-                  "Every answer shows a confidence indicator (High / Medium / Low) so you know when to double-check.",
-                side: "left",
-                align: "center",
-              },
-            },
-            {
-              element: '[data-testid="profile-menu-button"]',
-              popover: {
-                title: "Your profile is here",
-                description:
-                  "Manage your account, switch databases, or sign out from the profile menu.",
-                side: "bottom",
-                align: "end",
-              },
-            },
-          ] satisfies DriveStep[]
-        ).filter((s) => {
-          if (typeof document === "undefined") return true;
-          return typeof s.element === "string"
-            ? document.querySelector(s.element) !== null
-            : true;
-        }),
+        steps: tourSteps,
       });
 
       posthog.capture("product_tour_started");
       d.drive();
     };
 
+    function resultTargetsExist(): boolean {
+      if (typeof document === "undefined") return false;
+      return (
+        document.querySelector('[data-tour="sql-view"]') !== null &&
+        document.querySelector('[data-tour="confidence"]') !== null
+      );
+    }
+
+    function maybeStartResultTour(driverFactory: typeof driver) {
+      if (resultTargetsExist()) {
+        startResultTour(driverFactory);
+      } else {
+        observer = new MutationObserver(() => {
+          if (!isMounted) {
+            observer?.disconnect();
+            return;
+          }
+          if (resultTargetsExist()) {
+            observer?.disconnect();
+            observer = undefined;
+            startResultTour(driverFactory);
+          }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        setTimeout(() => {
+          if (observer) {
+            observer.disconnect();
+            observer = undefined;
+          }
+        }, 30000);
+      }
+    }
+
+    function startResultTour(driverFactory: typeof driver) {
+      if (!isMounted) return;
+
+      const resultSteps = (
+        [
+          {
+            element: '[data-tour="sql-view"]',
+            popover: {
+              title: "Every answer shows its SQL",
+              description:
+                "Toggle to view the generated SQL. Nothing is hidden — you can audit, copy, or edit any query.",
+              side: "left",
+              align: "center",
+            },
+          },
+          {
+            element: '[data-tour="confidence"]',
+            popover: {
+              title: "Confidence at a glance",
+              description:
+                "Every answer shows a confidence indicator (High / Medium / Low) so you know when to double-check.",
+              side: "left",
+              align: "center",
+            },
+          },
+        ] satisfies DriveStep[]
+      ).filter((s) => {
+        if (typeof document === "undefined") return true;
+        return typeof s.element === "string"
+          ? document.querySelector(s.element) !== null
+          : true;
+      });
+
+      if (resultSteps.length === 0) {
+        markDone();
+        return;
+      }
+
+      d = driverFactory({
+        showProgress: true,
+        allowClose: true,
+        overlayColor: "rgba(0, 0, 0, 0.6)",
+        nextBtnText: "Next →",
+        prevBtnText: "← Back",
+        doneBtnText: "Got it",
+        onDestroyed: () => {
+          if (isMounted) markDone();
+        },
+        steps: resultSteps,
+      });
+      d.drive();
+    }
+
     initTour();
 
     return () => {
       isMounted = false;
+      observer?.disconnect();
       d?.destroy();
     };
   });

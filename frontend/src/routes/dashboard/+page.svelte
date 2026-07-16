@@ -22,15 +22,6 @@
     }
   });
 
-  let redirected = $state(false);
-
-  $effect(() => {
-    if (appState.isLoaded && !appState.dbInfo && !redirected) {
-      redirected = true;
-      goto('/connect');
-    }
-  });
-
   $effect(() => {
     if (appState.isLoaded && appState.dbInfo) {
       loadStats();
