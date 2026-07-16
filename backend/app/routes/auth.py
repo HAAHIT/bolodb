@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from backend.app.models.user import UserSignup, UserLogin, SupabaseLogin
 import backend.app.controllers.auth
 from backend.app.dependencies import get_current_user
+from backend.app.ratelimit import limiter
 from backend.app.secrets import get_jwt_secret, get_cookie_secure, get_frontend_url
 import jwt
 
@@ -81,7 +82,8 @@ async def me(user_token=Depends(get_current_user)):
 
 
 @router.post("/login")
-async def login(login_data: UserLogin):
+@limiter.limit("10/minute")
+async def login(request: Request, login_data: UserLogin):
     token = await backend.app.controllers.auth.login(
         login_data.email, login_data.password
     )
@@ -105,7 +107,8 @@ async def login(login_data: UserLogin):
 
 
 @router.post("/signup")
-async def signup(user_data: UserSignup):
+@limiter.limit("5/minute")
+async def signup(request: Request, user_data: UserSignup):
     result = await backend.app.controllers.auth.signup(user_data)
     return JSONResponse(
         {"message": "Check your email for verification code", "email": result["email"]},
@@ -114,7 +117,8 @@ async def signup(user_data: UserSignup):
 
 
 @router.post("/supabase-google")
-async def supabase_google_auth(supabase_data: SupabaseLogin):
+@limiter.limit("20/minute")
+async def supabase_google_auth(request: Request, supabase_data: SupabaseLogin):
     tokens = await backend.app.controllers.auth.supabase_google_login(
         supabase_data.access_token
     )

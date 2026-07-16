@@ -1,6 +1,6 @@
 import json
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import StreamingResponse
 from backend.app.dependencies import (
     get_current_user,
@@ -11,6 +11,7 @@ from backend.app.dependencies import (
     get_session_log,
 )
 from backend.app.models.api import QueryReq, FeedbackReq, VerifyReq, RawSQLReq
+from backend.app.ratelimit import limiter
 import backend.app.controllers.query as ctrl
 import backend.app.pgdatabase as mdb
 
@@ -28,7 +29,9 @@ async def _format_sse(stream):
 
 
 @router.post("/api/query")
+@limiter.limit("30/minute")
 async def query(
+    request: Request,
     req: QueryReq,
     user_token=Depends(get_current_user),
     db=Depends(get_db),
@@ -74,7 +77,9 @@ async def query(
 
 
 @router.post("/api/query/stream")
+@limiter.limit("30/minute")
 async def query_stream(
+    request: Request,
     req: QueryReq,
     user_token=Depends(get_current_user),
     db=Depends(get_db),
@@ -140,8 +145,12 @@ async def verify(
 
 
 @router.post("/api/execute")
+@limiter.limit("60/minute")
 async def execute(
-    req: RawSQLReq, user_token=Depends(get_current_user), db=Depends(get_db)
+    request: Request,
+    req: RawSQLReq,
+    user_token=Depends(get_current_user),
+    db=Depends(get_db),
 ) -> dict:
     try:
         user_id = user_token["user_id"]
@@ -154,7 +163,9 @@ async def execute(
 
 
 @router.post("/api/explain")
+@limiter.limit("30/minute")
 async def explain(
+    request: Request,
     req: RawSQLReq,
     user_token=Depends(get_current_user),
     db=Depends(get_db),
