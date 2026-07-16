@@ -32,8 +32,7 @@
 </script>
 
 <section id="trust" bind:this={sectionEl} class="trust-section">
-  <h2 class="section-label" bind:this={titleEl}>Trust Engine</h2>
-  <h3 class="section-title">Total transparency into every answer</h3>
+  <h2 class="section-title">Total transparency into every answer</h2>
 
   <div class="trust-grid">
     <div class="trust-card" class:is-flipped={flipped === 1} use:spotlight use:reveal>
@@ -139,8 +138,12 @@
 
   .trust-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr 1fr;
     gap: 24px;
+  }
+
+  .trust-grid :global(.trust-card:first-child) {
+    grid-column: 1 / -1;
   }
 
   @media (max-width: 768px) {
@@ -148,6 +151,9 @@
       grid-template-columns: 1fr;
       max-width: 420px;
       margin: 0 auto;
+    }
+    .trust-grid :global(.trust-card:first-child) {
+      grid-column: 1;
     }
   }
 
