@@ -152,7 +152,8 @@ class AppState {
         dialect: this.dbInfo?.dialect,
       });
     }
-    goto("/chat");
+    // Redirect is handled by the $effect in onboard/+page.svelte
+    // when dbInfo.has_knowledge becomes true
   }
 
   verify(apiCount?: number) {
