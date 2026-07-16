@@ -133,7 +133,7 @@ async def verify_email(email: str) -> EmailVerificationOutcome:
     if status in {"valid"} or (status == "catch_all" or catch_all):
         return EmailVerificationOutcome(
             allowed=True,
-            status=status or "catch_all" if catch_all else "valid",
+            status=status or ("catch_all" if catch_all else "valid"),
             reason="",
             disposable=False,
             catch_all=catch_all,
