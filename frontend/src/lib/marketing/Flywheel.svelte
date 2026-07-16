@@ -1,8 +1,4 @@
 <script lang="ts">
-  import { countUp } from "$lib/actions/countUp";
-  import { reveal } from "$lib/actions/reveal";
-
-  let countEl: HTMLElement;
   let flywheelEl: HTMLElement;
 </script>
 

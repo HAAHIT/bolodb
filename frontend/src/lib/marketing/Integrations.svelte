@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { reveal } from "$lib/actions/reveal";
 
   const dbs = [
     { name: "PostgreSQL", color: "#336791" },

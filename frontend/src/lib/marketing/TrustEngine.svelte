@@ -1,37 +1,11 @@
 <script lang="ts">
-  import { browser } from "$app/environment";
-  import { motionPrefs } from "$lib/motion/motionPrefs";
   import { spotlight } from "$lib/actions/spotlight";
   import { reveal } from "$lib/actions/reveal";
 
   let flipped = $state(0);
-  let sectionEl: HTMLElement;
-  let titleEl: HTMLElement;
-
-  $effect(() => {
-    if (!browser || !sectionEl) return;
-    if (motionPrefs.reduced) return;
-    let st: any;
-    (async () => {
-      const { loadGsap } = await import("$lib/motion/gsap");
-      const { gsap, ScrollTrigger } = await loadGsap();
-      st = ScrollTrigger.create({
-        trigger: sectionEl,
-        start: "top 80%",
-        onEnter: () => {
-          gsap.fromTo(titleEl, { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: "power3.out" });
-        },
-        once: true,
-      });
-    })();
-    return () => { st?.kill(); };
-  });
-
-  const sampleSQL =
-    "SELECT name, email, SUM(revenue) as total_revenue\nFROM customers\nJOIN orders ON customers.id = orders.customer_id\nWHERE orders.created_at >= date('now', 'start of month')\nGROUP BY customers.id\nORDER BY total_revenue DESC\nLIMIT 3;";
 </script>
 
-<section id="trust" bind:this={sectionEl} class="trust-section">
+<section id="trust" class="trust-section">
   <h2 class="section-title">Total transparency into every answer</h2>
 
   <div class="trust-grid">
