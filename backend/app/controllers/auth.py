@@ -109,7 +109,9 @@ async def signup(user: UserSignup):
         raise HTTPException(status_code=400, detail=verification.reason)
 
     if await get_user_by_email(user.email) is not None:
-        raise HTTPException(status_code=400, detail="Could not create account")
+        raise HTTPException(
+            status_code=400, detail="An account with this email already exists"
+        )
     encoded_pass = user.password.encode("utf-8")
     salt = bcrypt.gensalt()
     hashed_pw = bcrypt.hashpw(encoded_pass, salt)
@@ -118,7 +120,9 @@ async def signup(user: UserSignup):
     try:
         await create_user(user_in_db)
     except UserAlreadyExistsError:
-        raise HTTPException(status_code=400, detail="Could not create account")
+        raise HTTPException(
+            status_code=400, detail="An account with this email already exists"
+        )
     return True
 
 
