@@ -50,6 +50,19 @@
 - `Integrations.svelte`: Remove eyebrow, remove use:reveal
 - `FinalCta.svelte`: Left-align panel, remove GSAP scroll animation, remove magnetic action
 
+### Commit 6: `fix(alembic)`
+- Rename duplicate revision 0003 → 0004 for password_reset_tokens migration
+
+### Commit 7: `fix: reduce card padding, add missing sampleSQL`
+- Pipeline cards: 32px → 24px padding
+- TrustEngine cards: 36px → 28px padding
+- TrustEngine flip card: define sampleSQL (was undefined)
+
+### Commit 8: `feat: add privacy and terms pages`
+- Create `/privacy` and `/terms` routes with legal content
+- Footer: add Privacy and Terms links
+- Layout: add legal routes to hidden navbar paths
+
 ## Design Tokens
 
 | Token | Value | Usage |
@@ -93,8 +106,11 @@ MarketingLayout
 - `frontend/src/lib/marketing/Integrations.svelte`
 - `frontend/src/lib/marketing/FinalCta.svelte`
 - `frontend/src/lib/marketing/Footer.svelte`
+- `frontend/src/routes/privacy/+page.svelte`
+- `frontend/src/routes/terms/+page.svelte`
 - `frontend/src/routes/connect/+page.svelte`
 - `frontend/src/routes/chat/+page.svelte`
 - `frontend/src/routes/dashboard/+page.svelte`
 - `frontend/src/routes/onboard/+page.svelte`
 - `frontend/src/lib/components/ui/Navbar.svelte`
+- `backend/alembic/versions/0004_add_password_reset_tokens.py`
