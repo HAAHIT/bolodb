@@ -22,7 +22,9 @@
     try {
       const res = await apiCall('/api/auth/me');
       userEmail = res?.content?.email || '';
-    } catch {}
+    } catch (e) {
+      console.error("Failed to load user profile:", e);
+    }
   });
 
   function toggleMenu() { menuOpen = !menuOpen; }

@@ -52,7 +52,9 @@ class AppState {
         try {
           const schema = await apiCall("/api/schema");
           this.realSchema = schemaObjToDisplay(schema);
-        } catch {}
+        } catch (e) {
+          console.error("Failed to load schema:", e);
+        }
         this.isLoaded = true;
         if (redirect) {
           if (!this.apiKeySet) {
@@ -93,7 +95,9 @@ class AppState {
   async logout() {
     try {
       await apiCall("/api/auth/logout", {});
-    } catch {}
+    } catch (e) {
+      console.error("Failed to logout:", e);
+    }
     if (browser) {
       const { default: posthog } = await import("posthog-js");
       posthog.capture("user_logged_out");
@@ -120,7 +124,9 @@ class AppState {
       try {
         const schema = await apiCall("/api/schema");
         this.realSchema = schemaObjToDisplay(schema);
-      } catch {}
+      } catch (e) {
+        console.error("Failed to load schema:", e);
+      }
       if (res.has_knowledge) {
         goto("/chat");
         return;
@@ -183,7 +189,9 @@ class AppState {
   async disconnect() {
     try {
       await apiCall("/api/disconnect", {});
-    } catch {}
+    } catch (e) {
+      console.error("Failed to disconnect:", e);
+    }
     this.dbInfo = null;
     this.realSchema = null;
     this.verifiedCount = 0;
