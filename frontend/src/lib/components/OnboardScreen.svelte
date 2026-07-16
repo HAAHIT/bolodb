@@ -64,9 +64,9 @@
     {#if step === 'profile'}
       <ProfileStep onNext={async () => { await loadOnboardData(); step = 'glossary'; }} {schema} />
     {:else if step === 'glossary'}
-      <GlossaryStep glossaryItems={realGlossary} onNext={(g) => { confirmedGlossary = g; step = 'starters'; }} />
+      <GlossaryStep glossaryItems={realGlossary} onNext={(g) => { confirmedGlossary = g; step = 'starters'; }} onBack={() => { step = 'profile'; }} />
     {:else if step === 'starters'}
-      <StartersStep starterItems={realStarters} glossary={confirmedGlossary || []} {onDone} />
+      <StartersStep starterItems={realStarters} glossary={confirmedGlossary || []} {onDone} onBack={() => { step = 'glossary'; }} />
       <div style="margin-top:18px;padding:12px 16px;background:var(--brand-tint);border:1px solid var(--brand-tint-2);border-radius:var(--radius-sm);font-size:12.5px;color:var(--brand-ink);line-height:1.5">
         <strong>Tip:</strong> After setup, go to <strong>Settings → Manage data catalog</strong> to add business terms or use <strong>"Suggest with AI"</strong> — this helps BoloDB understand your data better and improves answer accuracy.
       </div>
