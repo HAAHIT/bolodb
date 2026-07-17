@@ -487,7 +487,8 @@ def build_sql_system_prompt(
 ):
     hint = _DIALECT_HINTS.get(dialect, "")
     return (
-        f"You are an expert {dialect} analyst. Convert the user's question into "
+        f"Answer in English\n"
+        "You are an expert {dialect} analyst. Convert the user's question into "
         "exactly one read-only SELECT query.\n\n"
         "Rules:\n"
         "1. SELECT (or WITH ... SELECT) only — never modify data.\n"
