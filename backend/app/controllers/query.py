@@ -75,9 +75,9 @@ async def run_query(user_id, db, kb, cfg, providers, session_log, req_data):
 
     # Step 1 — user knowledge: confirmed term meanings + similar verified answers.
     db_id = db.get_db_id(user_id)
-    glossary = kb.get_glossary(db_id)
-    catalog = kb.get_catalog(db_id)
-    retrieved = kb.retrieve_similar(db_id, q, k=3)
+    glossary = await kb.get_glossary(user_id, db_id)
+    catalog = await kb.get_catalog(user_id, db_id)
+    retrieved = await kb.retrieve_similar(user_id, db_id, q, k=3)
 
     # Step 2 — schema linking: budget for the configured model, then pick tables.
     budget = model_budget(cfg.get("model", ""))
@@ -218,13 +218,13 @@ async def feedback(user_id, db, kb, session_log, req_data):
         raise HTTPException(409, "No database connected")
     session_log.log_feedback(req_data.query_id, req_data.verdict, req_data.reason)
     if req_data.verdict == "correct":
-        kb.add_verified(
-            db.get_db_id(user_id), req_data.question, req_data.sql, req_data.restatement
+        await kb.add_verified(
+            user_id, db.get_db_id(user_id), req_data.question, req_data.sql, req_data.restatement
         )
-    out = {"ok": True, "trust": kb.trust_level(db.get_db_id(user_id))}
+    out = {"ok": True, "trust": await kb.trust_level(user_id, db.get_db_id(user_id))}
     if req_data.verdict == "correct":
         out["starters"] = [
-            v["question"] for v in kb.get_verified(db.get_db_id(user_id))[:6]
+            v["question"] for v in (await kb.get_verified(user_id, db.get_db_id(user_id)))[:6]
         ]
     return out
 
@@ -232,10 +232,10 @@ async def feedback(user_id, db, kb, session_log, req_data):
 async def verify(user_id, db, kb, req_data):
     if not db.connected(user_id):
         raise HTTPException(409, "No database connected")
-    kb.add_verified(
-        db.get_db_id(user_id), req_data.question, req_data.sql, req_data.restatement
+    await kb.add_verified(
+        user_id, db.get_db_id(user_id), req_data.question, req_data.sql, req_data.restatement
     )
-    return {"ok": True, "trust": kb.trust_level(db.get_db_id(user_id))}
+    return {"ok": True, "trust": await kb.trust_level(user_id, db.get_db_id(user_id))}
 
 
 async def execute(user_id, db, req_data):
@@ -336,9 +336,10 @@ async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_dat
     context = req_data.context
     query_start = time.monotonic()
 
-    glossary = kb.get_glossary(db.get_db_id(user_id))
-    catalog = kb.get_catalog(db.get_db_id(user_id))
-    retrieved = kb.retrieve_similar(db.get_db_id(user_id), q, k=3)
+    dbid = db.get_db_id(user_id)
+    glossary = await kb.get_glossary(user_id, dbid)
+    catalog = await kb.get_catalog(user_id, dbid)
+    retrieved = await kb.retrieve_similar(user_id, dbid, q, k=3)
     budget = model_budget(cfg.get("model", ""))
     full_schema = db.get_schema(user_id)
     context_tables = (

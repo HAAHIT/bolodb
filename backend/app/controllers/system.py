@@ -16,17 +16,18 @@ async def get_state(user_id, db, cfg, kb):
     config.pop("last_db_url", None)
     s = {"connected": db.connected(user_id), "config": config}
     if db.connected(user_id):
+        dbid = db.get_db_id(user_id)
         s["database"] = {
             "url": db.get_info(user_id)["url"],
             "dialect": db.get_dialect(user_id),
             "db_id": db.get_info(user_id)["db_id"],
             "tables": db.get_info(user_id)["tables"],
-            "has_knowledge": kb.count_verified(db.get_db_id(user_id)) > 0,
+            "has_knowledge": (await kb.count_verified(user_id, dbid)) > 0,
         }
-        s["trust"] = kb.trust_level(db.get_db_id(user_id))
-        s["glossary"] = kb.get_glossary(db.get_db_id(user_id))
+        s["trust"] = await kb.trust_level(user_id, dbid)
+        s["glossary"] = await kb.get_glossary(user_id, dbid)
         s["starters"] = [
-            v["question"] for v in kb.get_verified(db.get_db_id(user_id))[:6]
+            v["question"] for v in (await kb.get_verified(user_id, dbid))[:6]
         ]
     return s
 
