@@ -19,6 +19,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    """
+    Add the tour completion flag and knowledge-related tables to the database.
+    
+    The migration creates tables for verified questions and answers, glossary terms,
+    catalog metadata, joins, synonyms, and value mappings, with indexes scoped by
+    user and database identifier.
+    """
     op.add_column(
         "users",
         sa.Column("tour_completed", sa.Boolean(), nullable=False, server_default=sa.text("false")),
@@ -105,6 +112,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """
+    Revert the schema changes introduced by this migration.
+    """
     op.drop_table("catalog_value_mappings")
     op.drop_table("catalog_synonyms")
     op.drop_table("catalog_joins")

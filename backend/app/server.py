@@ -86,6 +86,16 @@ async def lifespan(app):
 
 
 def create_app(initial_db_url="", readonly=True):
+    """
+    Create and configure the FastAPI application and its backend services.
+    
+    Parameters:
+    	initial_db_url (str): Ignored legacy database URL; connections are established per authenticated user.
+    	readonly (bool): Whether database access should be read-only.
+    
+    Returns:
+    	FastAPI: The configured application instance.
+    """
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",

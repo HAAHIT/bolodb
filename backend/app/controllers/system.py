@@ -13,6 +13,17 @@ log = logging.getLogger(__name__)
 
 
 async def get_state(user_id, db, cfg, kb):
+    """
+    Assemble the user's connection, configuration, onboarding, and knowledge state.
+    
+    Parameters:
+        user_id: Identifier of the user whose state is requested.
+        cfg: Application configuration used to build the public configuration view.
+    
+    Returns:
+        A dictionary containing user configuration and status, with database and
+        knowledge metadata when the user has a connected database.
+    """
     config = cfgmod.public_config(cfg)
     config.pop("last_db_url", None)
     user = await mdb.get_user_by_id(user_id)
@@ -40,6 +51,15 @@ async def get_state(user_id, db, cfg, kb):
 
 
 async def get_health(pg_status="unknown"):
+    """
+    Build a health and diagnostics summary for PostgreSQL, environment configuration, and Supabase JWKS reachability.
+    
+    Parameters:
+        pg_status (str): Current PostgreSQL connection status.
+    
+    Returns:
+        dict: Health status, PostgreSQL status, environment checks, and Supabase JWKS reachability status.
+    """
     env_checks = {
         "JWT_SECRET": bool(get_jwt_secret()) if os.getenv("JWT_SECRET") else False,
         "SUPABASE_URL": bool(get_supabase_url()),
@@ -74,12 +94,28 @@ async def get_health(pg_status="unknown"):
 
 
 async def set_tour_completed(user_id):
+    """Mark the user's tour as completed.
+    
+    Parameters:
+    	user_id: The identifier of the user whose tour is complete.
+    
+    Returns:
+    	dict: A confirmation payload indicating that the tour was completed.
+    """
     await mdb.update_user(user_id, tour_completed=True)
     return {"ok": True, "tour_completed": True}
 
 
 async def update_config(user_id, cfg, providers, req_data):
-    """Update AI settings. The only settable field is last_db_url."""
+    """
+    Update the persisted configuration with the supported database URL setting.
+    
+    Parameters:
+        req_data: Request data containing an optional ``last_db_url`` value.
+    
+    Returns:
+        A dictionary containing the public configuration.
+    """
     if req_data.last_db_url is not None:
         cfg["last_db_url"] = req_data.last_db_url
     cfgmod.save_config(cfg)

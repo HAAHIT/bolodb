@@ -46,8 +46,15 @@ async def get_starters(user_id, db, providers):
 
 
 async def save(user_id, db, kb, req_data):
-    """Persist onboarding results (glossary + verified starters) and seed the
-    semantic catalog's deterministic backbone when none exists yet."""
+    """
+    Persist onboarding results and initialize the semantic catalog when it is empty.
+    
+    Parameters:
+        req_data: Onboarding glossary entries and verified starter questions to save.
+    
+    Returns:
+        A dictionary containing `ok` set to `True` and the user's updated trust level.
+    """
     if not db.connected(user_id):
         raise HTTPException(409, "No database connected")
     db_id = db.get_db_id(user_id)

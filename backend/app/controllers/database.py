@@ -8,6 +8,19 @@ logger = logging.getLogger(__name__)
 
 
 async def connect(db, kb, cfg, req_data, user_id=None):
+    """
+    Connects to a database and enriches the connection details with knowledge-base information.
+    
+    Parameters:
+        req_data: Request data containing the database URL.
+        user_id: Optional identifier of the user establishing the connection.
+    
+    Returns:
+        The connection result with trust, glossary, knowledge availability, and starter questions.
+    
+    Raises:
+        HTTPException: If the database connection fails.
+    """
     result = db.connect(user_id, req_data.db_url)
     if not result["ok"]:
         raise HTTPException(400, result["error"])
@@ -34,6 +47,15 @@ async def connect(db, kb, cfg, req_data, user_id=None):
 
 
 async def connect_sample(db, kb, cfg, user_id=None):
+    """
+    Connect to the sample database and return its connection details and knowledge metadata.
+    
+    Parameters:
+    	user_id: Optional identifier of the user establishing the connection.
+    
+    Returns:
+    	dict: Connection details enriched with trust, glossary, knowledge availability, starter questions, and a sample-database flag.
+    """
     url = ensure_sample_db()
     result = db.connect(user_id, url)
     if not result["ok"]:

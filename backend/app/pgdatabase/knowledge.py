@@ -20,6 +20,18 @@ DUPLICATE_THRESHOLD = 0.92
 
 
 def _similarity(a, b, tb=None, b_lower=None):
+    """
+    Compute a similarity score between two strings using token overlap and sequence similarity.
+    
+    Parameters:
+    	a (str): The first string to compare.
+    	b (str): The second string to compare.
+    	tb (set, optional): Precomputed tokens for `b`.
+    	b_lower (str, optional): Lowercase version of `b`.
+    
+    Returns:
+    	float: A weighted similarity score from 0.0 to 1.0.
+    """
     ta = _tokens(a)
     if tb is None:
         tb = _tokens(b)
@@ -32,9 +44,25 @@ def _similarity(a, b, tb=None, b_lower=None):
 
 class KnowledgeService:
     def __init__(self, session_factory):
+        """Initialize the service with the factory used to create asynchronous database sessions.
+        
+        Parameters:
+        	session_factory: A callable that creates asynchronous database sessions.
+        """
         self._session_factory = session_factory
 
     async def add_verified(self, user_id, db_id, question, sql, restatement=""):
+        """
+        Add a verified question-and-answer entry unless a sufficiently similar question already exists.
+        
+        Parameters:
+        	user_id: Identifier of the user who owns the entry.
+        	db_id: Identifier of the database associated with the entry.
+        	question: Natural-language question associated with the SQL query.
+        	sql: SQL query that answers the question.
+        	restatement: Optional restatement of the question.
+        
+        """
         async with self._session_factory() as session:
             existing = await self.get_verified(user_id, db_id)
             tb = _tokens(question)
@@ -57,6 +85,16 @@ class KnowledgeService:
             await session.commit()
 
     async def get_verified(self, user_id, db_id):
+        """
+        Retrieve verified question-and-answer entries for a user and database, with newest entries first.
+        
+        Parameters:
+        	user_id: Identifier of the user.
+        	db_id: Identifier of the database.
+        
+        Returns:
+        	A list of dictionaries containing each question, SQL statement, and restatement.
+        """
         async with self._session_factory() as session:
             result = await session.execute(
                 select(VerifiedQA)
@@ -69,6 +107,16 @@ class KnowledgeService:
             ]
 
     async def count_verified(self, user_id, db_id):
+        """
+        Count verified Q&A entries for a user and database.
+        
+        Parameters:
+        	user_id: Identifier of the user.
+        	db_id: Identifier of the database.
+        
+        Returns:
+        	int: The number of verified Q&A entries.
+        """
         async with self._session_factory() as session:
             result = await session.execute(
                 select(func.count()).where(
@@ -78,6 +126,17 @@ class KnowledgeService:
             return result.scalar() or 0
 
     async def retrieve_similar(self, user_id, db_id, question, k=3, threshold=0.25):
+        """
+        Finds verified questions that are similar to the provided question.
+        
+        Parameters:
+        	question (str): The question to compare against stored verified questions.
+        	k (int): The maximum number of results to return.
+        	threshold (float): The minimum similarity score required for a result.
+        
+        Returns:
+        	list: Up to `k` matching verified Q&As, ordered by descending similarity, with each similarity rounded to three decimal places.
+        """
         scored = []
         tb = _tokens(question)
         b_lower = question.lower()
@@ -89,6 +148,12 @@ class KnowledgeService:
         return scored[:k]
 
     async def set_glossary(self, user_id, db_id, terms):
+        """
+        Replace the glossary entries for a user and database.
+        
+        Parameters:
+            terms (iterable): Glossary entry dictionaries containing `term`, `maps_to`, and `sql_hint`.
+        """
         async with self._session_factory() as session:
             await session.execute(
                 delete(Glossary).where(
@@ -108,6 +173,15 @@ class KnowledgeService:
             await session.commit()
 
     async def get_glossary(self, user_id, db_id):
+        """Retrieve glossary entries for a user and database.
+        
+        Parameters:
+        	user_id: The user identifier.
+        	db_id: The database identifier.
+        
+        Returns:
+        	list: Glossary entries containing each term, its mapped value, and SQL hint.
+        """
         async with self._session_factory() as session:
             result = await session.execute(
                 select(Glossary).where(
@@ -148,6 +222,12 @@ class KnowledgeService:
     }
 
     async def set_catalog(self, user_id, db_id, catalog):
+        """
+        Replace the specified catalog sections for a user and database.
+        
+        Parameters:
+            catalog (dict): Catalog sections and entries to store. Sections included in the mapping replace their existing entries; omitted sections remain unchanged.
+        """
         async with self._session_factory() as session:
             for key, (model_class, cols, in_keys) in self._CATALOG_CLASSES.items():
                 if key not in catalog:
@@ -165,6 +245,16 @@ class KnowledgeService:
             await session.commit()
 
     async def get_catalog(self, user_id, db_id):
+        """
+        Retrieve the semantic catalog entries for a user and database.
+        
+        Parameters:
+            user_id: Identifier of the user whose catalog entries are retrieved.
+            db_id: Identifier of the database whose catalog entries are retrieved.
+        
+        Returns:
+            A dictionary mapping each catalog section to a list of entry dictionaries.
+        """
         async with self._session_factory() as session:
             out = {}
             for key, (model_class, cols, out_keys) in self._CATALOG_CLASSES.items():
@@ -183,10 +273,29 @@ class KnowledgeService:
             return out
 
     async def catalog_is_empty(self, user_id, db_id):
+        """Determine whether a user's catalog contains any entries.
+        
+        Parameters:
+        	user_id: The user whose catalog is checked.
+        	db_id: The database whose catalog is checked.
+        
+        Returns:
+        	bool: `True` if all catalog sections are empty, `False` otherwise.
+        """
         catalog = await self.get_catalog(user_id, db_id)
         return not any(catalog.values())
 
     async def trust_level(self, user_id, db_id):
+        """
+        Summarize the trust level for a user's database from its verified answers.
+        
+        Parameters:
+        	user_id: Identifier of the user.
+        	db_id: Identifier of the database.
+        
+        Returns:
+        	A dictionary containing the trust `level`, verified-answer count, percentage, and explanatory note.
+        """
         n = await self.count_verified(user_id, db_id)
         if n >= 7:
             return {
