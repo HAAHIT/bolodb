@@ -13,10 +13,15 @@ log = logging.getLogger(__name__)
 
 
 async def get_state(user_id, db, cfg, kb):
-    config = cfgmod.public_config(cfg, user_id)
+    config = cfgmod.public_config(cfg)
     config.pop("last_db_url", None)
     user = await mdb.get_user_by_id(user_id)
-    s = {"connected": db.connected(user_id), "config": config, "tour_completed": user.get("tour_completed", False) if user else False}
+    s = {
+        "connected": db.connected(user_id),
+        "config": config,
+        "openrouter_ready": bool(os.environ.get("OPENROUTER_API_KEY")),
+        "tour_completed": user.get("tour_completed", False) if user else False,
+    }
     if db.connected(user_id):
         dbid = db.get_db_id(user_id)
         s["database"] = {
@@ -74,32 +79,8 @@ async def set_tour_completed(user_id):
 
 
 async def update_config(user_id, cfg, providers, req_data):
-    """Update AI settings. Gemini is the only provider, so the accepted fields
-    are the model choice and the Gemini API key (set or clear)."""
-    global_change = False
-    cfg["provider"] = "gemini"
-    if req_data.model is not None and req_data.model in cfgmod.ALLOWED_MODELS:
-        cfg["model"] = req_data.model
-        global_change = True
-    if req_data.api_key:
-        # Encrypted at the boundary and scoped to this user only: the config
-        # dict (and therefore the config file) never holds the key in clear
-        # text, and no other user's provider can ever pick it up. Decryption
-        # happens only when the provider is built (create_provider in
-        # backend/app/llm.py).
-        cfgmod.set_api_key(cfg, user_id, req_data.api_key)
-    elif req_data.clear_api_key:
-        cfgmod.clear_api_key(cfg, user_id)
-
-    if global_change:
-        providers.reconfigure(cfg)
-    else:
-        providers.invalidate(user_id)
-
+    """Update AI settings. The only settable field is last_db_url."""
+    if req_data.last_db_url is not None:
+        cfg["last_db_url"] = req_data.last_db_url
     cfgmod.save_config(cfg)
-    try:
-        h = await providers.get(user_id).health_check()
-    except Exception:
-        log.exception("Health check failed after config update")
-        h = {"ok": False, "error": "Health check failed", "models": []}
-    return {"config": cfgmod.public_config(cfg, user_id), "health": h}
+    return {"config": cfgmod.public_config(cfg)}
