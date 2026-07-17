@@ -16,6 +16,7 @@ class AppState {
   isLoaded = $state(false);
   theme = $state("dark");
   activeConversationId = $state<string | null>(null);
+  tourCompleted = $state(false);
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -47,6 +48,7 @@ class AppState {
         this.modelName = s.config?.model || "";
         this.apiKeySet = !!s.config?.api_keys_set?.gemini;
         this.verifiedCount = s.trust?.verified || 0;
+        this.tourCompleted = s.tour_completed || false;
         this.dbInfo = s.database || null;
         this.starters = s.starters || [];
         try {
