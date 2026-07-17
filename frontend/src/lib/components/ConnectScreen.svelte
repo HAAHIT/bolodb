@@ -1,6 +1,6 @@
 <script lang="ts">
   import { GEMINI_KEY_URL } from "$lib/data";
-  import { apiCall } from "$lib/api";
+  import { apiCall, isExpectedClientError } from "$lib/api";
   import { humanError } from "$lib/data";
   import type { DbInfo } from "$lib/types";
   import posthog from "posthog-js";
@@ -84,7 +84,9 @@
       posthog.capture("api_key_configured", { provider: "gemini" });
     } catch (e: any) {
       keyError = e.message || "Could not save the API key.";
-      posthog.captureException(e);
+      // Expected client errors (4xx) are already shown to the user — don't
+      // report them to error tracking.
+      if (!isExpectedClientError(e)) posthog.captureException(e);
     }
     keySaving = false;
   }
@@ -140,7 +142,9 @@
       error =
         humanError(e.message) ||
         "Connection failed — check your details and try again.";
-      posthog.captureException(e);
+      // Bad connection details (a 4xx) are expected and already shown to the
+      // user — don't report them to error tracking.
+      if (!isExpectedClientError(e)) posthog.captureException(e);
       connecting = null;
     }
   }
@@ -161,7 +165,9 @@
       error =
         humanError(e.message) ||
         "Reconnection failed — the database may no longer be available.";
-      posthog.captureException(e);
+      // Expected client errors (4xx) are already shown to the user — don't
+      // report them to error tracking.
+      if (!isExpectedClientError(e)) posthog.captureException(e);
       reconnecting = null;
     }
   }
