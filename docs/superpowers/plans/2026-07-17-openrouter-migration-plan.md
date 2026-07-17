@@ -208,7 +208,7 @@ import openai
 
 log = logging.getLogger(__name__)
 
-MODEL = "deepseek-v4-flash"
+MODEL = "deepseek/deepseek-v4-flash"
 
 
 def _redact_error_text(text, max_len=200):
@@ -565,7 +565,7 @@ class ProviderManager:
         self._provider = None
 ```
 
-Replace the rest of `llm.py` with the remaining prompt-building functions (`_context_block`, `_glossary_block`, `_semantic_block`, `_examples_block`, `build_sql_system_prompt`, `generate_sql`, `shortlist_tables`, `explain_sql`, `suggest_catalog`, `generate_glossary`, `generate_starters`) — these are unchanged from the original, just remove the `thinking_budget` parameter from all signatures and calls since OpenRouter/gpt-4o doesn't support Gemini-style thinking.
+Replace the rest of `llm.py` with the remaining prompt-building functions (`_context_block`, `_glossary_block`, `_semantic_block`, `_examples_block`, `build_sql_system_prompt`, `generate_sql`, `shortlist_tables`, `explain_sql`, `suggest_catalog`, `generate_glossary`, `generate_starters`) — these are unchanged from the original, just remove the `thinking_budget` parameter from all signatures and calls since OpenRouter/DeepSeek V4 Flash doesn't support Gemini-style thinking.
 
 Update: Remove `thinking_budget` from all function signatures. In `generate_sql`:
 ```python
@@ -978,7 +978,8 @@ async def get_health(pg_status="unknown"):
         try:
             import httpx
             jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
-            resp = await httpx.AsyncClient(timeout=5).get(jwks_url)
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.get(jwks_url)
             if resp.status_code == 200:
                 jwks_status = "reachable"
             else:
@@ -1011,7 +1012,7 @@ from pydantic import BaseModel
 
 
 class ConfigUpdate(BaseModel):
-    # No provider, model, or api_key fields — these are fixed to OpenRouter/gpt-4o
+    # No provider, model, or api_key fields — these are fixed to OpenRouter/DeepSeek V4 Flash
     pass
 
 
@@ -1590,18 +1591,18 @@ If `Provider` is only used in `data.ts`, remove the interface from `types.ts` an
 
 - [ ] **Step 4: Update `Sidebar.svelte`**
 
-Remove `engine`, `modelName`, `apiKeySet` from props. Update the display to show "OpenRouter" and "gpt-4o" statically:
+Remove `engine`, `modelName`, `apiKeySet` from props. Update the display to show "OpenRouter" and "DeepSeek V4 Flash" statically:
 
 ```svelte
 let { verifiedCount, onSettings, schema, dbInfo, onConversationSelect, activeConversationId, conversationTrigger = 0 }:
   { verifiedCount: number; onSettings: () => void; schema: SchemaTable[] | null; dbInfo: DbInfo | null; onConversationSelect?: (id: string) => void; activeConversationId?: string | null; conversationTrigger?: number } = $props();
 ```
 
-Replace any `{modelName || prov.model}` with the hardcoded `gpt-4o`.
+Replace any `{modelName || prov.model}` with the hardcoded `DeepSeek V4 Flash`.
 
 - [ ] **Step 5: Update `AskScreen.svelte`**
 
-Remove `engine`, `modelName`, `setModelName`, `apiKeySet`, `setApiKeyStatus` from props. Replace the model name display with hardcoded "gpt-4o". Remove the Settings import's modelName/setModelName props.
+Remove `engine`, `modelName`, `setModelName`, `apiKeySet`, `setApiKeyStatus` from props. Replace the model name display with hardcoded "DeepSeek V4 Flash". Remove the Settings import's modelName/setModelName props.
 
 - [ ] **Step 6: Update `chat/+page.svelte`**
 
@@ -1631,12 +1632,12 @@ Remove the `modelName` reference:
 {/if}
 
 <!-- After: -->
-<span ...>gpt-4o</span>
+<span ...>DeepSeek V4 Flash</span>
 ```
 
 - [ ] **Step 8: Update `AnswerCard.svelte`**
 
-Remove the `modelName` prop or replace display with hardcoded "gpt-4o".
+Remove the `modelName` prop or replace display with hardcoded "DeepSeek V4 Flash".
 
 - [ ] **Step 9: Commit**
 
@@ -1657,7 +1658,7 @@ cd /home/somesh/Documents/bolodb && git add frontend/src/lib/appState.svelte.ts 
 - [ ] **Step 1: Update `.env.example`**
 
 Replace:
-```
+```dotenv
 # ── AI ──
 # Google Gemini API key (https://aistudio.google.com/apikey)
 # Used to generate SQL from natural-language questions.
@@ -1665,10 +1666,10 @@ Replace:
 GEMINI_API_KEY=
 ```
 with:
-```
+```dotenv
 # ── AI ──
 # OpenRouter API key (https://openrouter.ai/keys)
-# Used to generate SQL from natural-language questions via deepseek-v4-flash.
+# Used to generate SQL from natural-language questions via DeepSeek V4 Flash.
 OPENROUTER_API_KEY=
 ```
 
@@ -1713,8 +1714,7 @@ with `strict: true`. Schemas are defined as module-level constants in
 
 ## Adding a Different Model
 
-To change the model, edit `MODEL` in `backend/app/llm.py` or set
-`OPENROUTER_MODEL` in the environment (if implemented).
+To change the model, edit `MODEL` in `backend/app/llm.py`.
 ```
 
 - [ ] **Step 4: Remove old Gemini doc**

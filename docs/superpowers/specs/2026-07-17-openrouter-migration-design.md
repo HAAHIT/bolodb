@@ -73,7 +73,7 @@
 
 - Remove `MODELS` array and `<select>` dropdown
 - Remove API key section (input field, save/change/remove buttons, configured badge)
-- Add read-only "AI: OpenRouter (openai/gpt-4o)" info line
+- Add read-only "AI: OpenRouter (DeepSeek V4 Flash)" info line
 - Keep: connection management, user profile, theme if any
 
 ### `frontend/src/lib/types.ts`

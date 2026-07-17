@@ -1,6 +1,6 @@
 # AI Layer — OpenRouter
 
-BoloDB uses OpenRouter (`deepseek-v4-flash`) for all AI operations:
+BoloDB uses OpenRouter (`DeepSeek V4 Flash`) for all AI operations:
 - SQL generation (question → SQL)
 - SQL explanation (SQL → plain English)
 - Glossary suggestion (onboarding)
@@ -18,7 +18,7 @@ users — there is no per-user API key storage.
 All AI operations funnel through `backend/app/llm.py`:
 
 - `OpenRouterProvider` — wraps the OpenAI SDK pointed at
-  `https://openrouter.ai/api/v1`. Uses `deepseek-v4-flash` with
+  `https://openrouter.ai/api/v1`. Uses `deepseek/deepseek-v4-flash` with
   `max_retries=2` and `temperature=0.1`.
 - `create_provider()` — factory function, called at startup.
 - `ProviderManager` — caches a single shared provider instance.
