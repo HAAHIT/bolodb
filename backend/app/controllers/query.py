@@ -68,21 +68,21 @@ def _failure_payload(message, tables=None):
 async def run_query(user_id, db, kb, cfg, providers, session_log, req_data):
     """
     Generate, validate, and execute SQL for a user's question, with confidence scoring and repair attempts.
-    
+
     Parameters:
-    	user_id: Identifier of the user whose database and knowledge base are used.
-    	db: Database connection and schema provider.
-    	kb: Knowledge base used for glossary, catalog, and verified-answer retrieval.
-    	cfg: Application configuration.
-    	providers: LLM provider registry.
-    	session_log: Query history logger.
-    	req_data: Request containing the question and optional conversation context.
-    
+        user_id: Identifier of the user whose database and knowledge base are used.
+        db: Database connection and schema provider.
+        kb: Knowledge base used for glossary, catalog, and verified-answer retrieval.
+        cfg: Application configuration.
+        providers: LLM provider registry.
+        session_log: Query history logger.
+        req_data: Request containing the question and optional conversation context.
+
     Returns:
-    	A response containing the generated SQL, execution results, confidence information, and repair metadata.
-    
+        A response containing the generated SQL, execution results, confidence information, and repair metadata.
+
     Raises:
-    	HTTPException: If no database is connected or the question is empty.
+        HTTPException: If no database is connected or the question is empty.
     """
     if not db.connected(user_id):
         raise HTTPException(409, "No database connected")
@@ -234,54 +234,63 @@ async def explain(user_id, db, providers, req_data):
 async def feedback(user_id, db, kb, session_log, req_data):
     """
     Record feedback for a query and update verified knowledge when the feedback is positive.
-    
+
     Parameters:
-    	user_id: Identifier of the user submitting the feedback.
-    	db: Database connection manager used to identify the connected database.
-    	kb: Knowledge base used to store verified queries and retrieve trust information.
-    	session_log: Session logger used to record the feedback.
-    	req_data: Feedback data containing the query ID, verdict, reason, question, SQL, and restatement.
-    
+        user_id: Identifier of the user submitting the feedback.
+        db: Database connection manager used to identify the connected database.
+        kb: Knowledge base used to store verified queries and retrieve trust information.
+        session_log: Session logger used to record the feedback.
+        req_data: Feedback data containing the query ID, verdict, reason, question, SQL, and restatement.
+
     Returns:
-    	A dictionary containing the operation status and trust level. Positive feedback also includes up to six verified question starters.
-    
+        A dictionary containing the operation status and trust level. Positive feedback also includes up to six verified question starters.
+
     Raises:
-    	HTTPException: If no database is connected for the user.
+        HTTPException: If no database is connected for the user.
     """
     if not db.connected(user_id):
         raise HTTPException(409, "No database connected")
     session_log.log_feedback(req_data.query_id, req_data.verdict, req_data.reason)
     if req_data.verdict == "correct":
         await kb.add_verified(
-            user_id, db.get_db_id(user_id), req_data.question, req_data.sql, req_data.restatement
+            user_id,
+            db.get_db_id(user_id),
+            req_data.question,
+            req_data.sql,
+            req_data.restatement,
         )
     out = {"ok": True, "trust": await kb.trust_level(user_id, db.get_db_id(user_id))}
     if req_data.verdict == "correct":
         out["starters"] = [
-            v["question"] for v in (await kb.get_verified(user_id, db.get_db_id(user_id)))[:6]
+            v["question"]
+            for v in (await kb.get_verified(user_id, db.get_db_id(user_id)))[:6]
         ]
     return out
 
 
 async def verify(user_id, db, kb, req_data):
     """Mark a question and its SQL explanation as verified.
-    
+
     Parameters:
         user_id: Identifier of the user verifying the query.
         db: Database connection used to determine the active database.
         kb: Knowledge base used to store the verified query and calculate trust.
         req_data: Request containing the question, SQL statement, and restatement.
-    
+
     Returns:
         A dictionary indicating success and the user's updated trust level.
-    
+
     Raises:
         HTTPException: If no database is connected for the user.
     """
     if not db.connected(user_id):
         raise HTTPException(409, "No database connected")
     await kb.add_verified(
-        user_id, db.get_db_id(user_id), req_data.question, req_data.sql, req_data.restatement
+        user_id,
+        db.get_db_id(user_id),
+        req_data.question,
+        req_data.sql,
+        req_data.restatement,
     )
     return {"ok": True, "trust": await kb.trust_level(user_id, db.get_db_id(user_id))}
 
@@ -289,17 +298,17 @@ async def verify(user_id, db, kb, req_data):
 async def execute(user_id, db, req_data):
     """
     Execute the requested SQL statement against the user's connected database.
-    
+
     Parameters:
-    	user_id: Identifier of the user whose database connection should be used.
-    	db: Database service used to execute the statement.
-    	req_data: Request containing the SQL statement.
-    
+        user_id: Identifier of the user whose database connection should be used.
+        db: Database service used to execute the statement.
+        req_data: Request containing the SQL statement.
+
     Returns:
-    	dict: The database execution result.
-    
+        dict: The database execution result.
+
     Raises:
-    	HTTPException: If no database is connected or the SQL execution returns an error.
+        HTTPException: If no database is connected or the SQL execution returns an error.
     """
     if not db.connected(user_id):
         raise HTTPException(409, "No database connected")
@@ -390,7 +399,7 @@ def _build_checks(verdict, schema=None):
 async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_data):
     """
     Stream the SQL generation, validation, execution, confidence, and result events for a question.
-    
+
     Parameters:
         user_id: Identifier of the requesting user.
         db: Database connection and schema provider.
@@ -399,7 +408,7 @@ async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_dat
         providers: Collection of user-specific language model providers.
         session_log: Service used to record the completed query.
         req_data: Request containing the question and optional conversation context.
-    
+
     Yields:
         dict: Progress, error, or final-result event. The final result includes generated SQL,
             execution data, confidence information, and the recorded query identifier.

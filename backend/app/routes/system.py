@@ -24,7 +24,7 @@ async def state(
 ):
     """
     Retrieve the application state for the authenticated user.
-    
+
     Returns:
         The current application state.
     """
@@ -45,7 +45,7 @@ async def tour_complete(
 async def health():
     """
     Check PostgreSQL connectivity and provide application health information.
-    
+
     Returns:
         JSONResponse: Health information with status code 503 when PostgreSQL is unavailable.
     """

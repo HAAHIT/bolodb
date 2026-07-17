@@ -36,12 +36,12 @@ def kbs():
 def _session(sf):
     """
     Configure and return an asynchronous session mock for use with an async context manager.
-    
+
     Parameters:
-    	sf: Session factory mock whose return value is configured to the session mock.
-    
+        sf: Session factory mock whose return value is configured to the session mock.
+
     Returns:
-    	The configured asynchronous session mock.
+        The configured asynchronous session mock.
     """
     s = AsyncMock()
     sf.return_value = s
@@ -51,10 +51,10 @@ def _session(sf):
 
 def _result(value):
     """Create a mock result object whose scalar method returns the specified value.
-    
+
     Parameters:
         value: The value returned by the mock result's scalar method.
-    
+
     Returns:
         A mock result object configured to return value from scalar.
     """

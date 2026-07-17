@@ -15,11 +15,11 @@ log = logging.getLogger(__name__)
 async def get_state(user_id, db, cfg, kb):
     """
     Assemble the user's connection, configuration, onboarding, and knowledge state.
-    
+
     Parameters:
         user_id: Identifier of the user whose state is requested.
         cfg: Application configuration used to build the public configuration view.
-    
+
     Returns:
         A dictionary containing user configuration and status, with database and
         knowledge metadata when the user has a connected database.
@@ -53,10 +53,10 @@ async def get_state(user_id, db, cfg, kb):
 async def get_health(pg_status="unknown"):
     """
     Build a health and diagnostics summary for PostgreSQL, environment configuration, and Supabase JWKS reachability.
-    
+
     Parameters:
         pg_status (str): Current PostgreSQL connection status.
-    
+
     Returns:
         dict: Health status, PostgreSQL status, environment checks, and Supabase JWKS reachability status.
     """
@@ -95,12 +95,12 @@ async def get_health(pg_status="unknown"):
 
 async def set_tour_completed(user_id):
     """Mark the user's tour as completed.
-    
+
     Parameters:
-    	user_id: The identifier of the user whose tour is complete.
-    
+        user_id: The identifier of the user whose tour is complete.
+
     Returns:
-    	dict: A confirmation payload indicating that the tour was completed.
+        dict: A confirmation payload indicating that the tour was completed.
     """
     await mdb.update_user(user_id, tour_completed=True)
     return {"ok": True, "tour_completed": True}
@@ -109,10 +109,10 @@ async def set_tour_completed(user_id):
 async def update_config(user_id, cfg, providers, req_data):
     """
     Update the persisted configuration with the supported database URL setting.
-    
+
     Parameters:
         req_data: Request data containing an optional ``last_db_url`` value.
-    
+
     Returns:
         A dictionary containing the public configuration.
     """
