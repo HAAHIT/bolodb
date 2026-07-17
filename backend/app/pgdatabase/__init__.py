@@ -50,6 +50,7 @@ from backend.app.pgdatabase.conversations import (
     clear_conversations,
 )
 from backend.app.pgdatabase.serialization import serialize_doc
+from backend.app.pgdatabase.knowledge import KnowledgeService
 
 __all__ = [
     "get_engine",
@@ -94,4 +95,5 @@ __all__ = [
     "delete_conversation",
     "clear_conversations",
     "serialize_doc",
+    "KnowledgeService",
 ]
