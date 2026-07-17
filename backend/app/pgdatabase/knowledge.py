@@ -1,7 +1,6 @@
 """Async PostgreSQL knowledge service — per-(user, database) storage for
 verified Q&As, glossary, and semantic catalog."""
 
-import time
 from difflib import SequenceMatcher
 
 from sqlalchemy import select, delete, func
