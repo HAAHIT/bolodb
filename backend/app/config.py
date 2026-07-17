@@ -37,7 +37,6 @@ log = logging.getLogger(__name__)
 CONFIG_DIR = Path(os.path.expanduser("~")) / ".bolodb"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 SECRET_FILE = CONFIG_DIR / ".secret"
-KB_FILE = CONFIG_DIR / "knowledge.db"
 _DB_URL_KEY_FILE = CONFIG_DIR / "db_url.key"
 
 DEFAULT_MODEL = "gemini-flash-latest"
