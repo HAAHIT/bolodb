@@ -5,7 +5,6 @@ This module is the ONLY place in the backend that talks to an AI model.
 
 import json
 import logging
-import os
 import re
 import time
 from abc import ABC, abstractmethod
@@ -279,7 +278,7 @@ class OpenRouterProvider(LLMProvider):
                 "json_schema": {
                     "name": name,
                     "strict": True,
-                    "schema": schema_copy,
+                    "schema": schema_copy["schema"],
                 },
             }
         elif json_mode:
@@ -323,7 +322,7 @@ class OpenRouterProvider(LLMProvider):
 
 
 def create_provider(cfg, user_id=None):
-    key = cfg.get("openrouter_key", "") or os.environ.get("OPENROUTER_API_KEY", "")
+    key = cfg.get("openrouter_key", "")
     if not key:
         raise ValueError(
             "OPENROUTER_API_KEY is not set. "

@@ -343,7 +343,7 @@
           stroke-width="1.8"
         /></svg
       >
-      AI ready — OpenRouter (deepseek-v4-flash). Only your
+      AI ready. Only your
       <b>database structure and your question</b> are sent — never your actual data.
     </div>
 

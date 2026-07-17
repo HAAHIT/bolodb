@@ -185,7 +185,7 @@
           {/if}
         </div>
         <div style="flex-shrink:0;display:flex;align-items:center;gap:8px">
-          <span style="font-size:10.5px;font-weight:600;color:var(--faint);letter-spacing:.02em;text-transform:uppercase">gpt-4o</span>
+
           <div data-tour="confidence">
             <ConfidenceBadge level={turn.confidence} reason={turn.reason} />
           </div>

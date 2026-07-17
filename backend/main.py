@@ -1,7 +1,6 @@
 """BoloDB entry point."""
 
 import argparse
-import os
 import time
 
 import uvicorn
@@ -23,7 +22,7 @@ def main():
     from backend.app import config as cfgmod
 
     cfg = cfgmod.load_config()
-    if not cfg.get("openrouter_key") and not os.environ.get("OPENROUTER_API_KEY"):
+    if not cfg.get("openrouter_key"):
         print(
             "  Note: no OpenRouter API key configured. Set the\n"
             "  OPENROUTER_API_KEY environment variable.\n"

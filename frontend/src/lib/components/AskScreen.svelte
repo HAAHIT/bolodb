@@ -646,7 +646,7 @@
               stroke-width="1.8"
             /></svg
           >
-          Only the schema and your question are sent to OpenRouter to generate
+          Only the schema and your question are sent to generate
           SQL — never your row data.
         </div>
       </div>

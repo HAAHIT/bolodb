@@ -6,7 +6,7 @@ and returns SQL + results + a confidence signal. The steps, in order:
 1. Look up user knowledge: glossary terms + previously verified similar answers.
 2. Schema linking: pick only the relevant tables (backend/app/schema_link.py).
 3. Generate→validate→execute→repair loop (backend/app/repair.py) with the
-   Gemini provider (backend/app/llm.py) as the generator.
+   the LLM provider (backend/app/llm.py) as the generator.
 4. Score confidence from real signals and log the query.
 """
 

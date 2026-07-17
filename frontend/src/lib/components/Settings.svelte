@@ -87,7 +87,7 @@
           >
         </span>
         <div style="min-width:0">
-          <div style="font-weight:700;font-size:13.5px">OpenRouter (deepseek-v4-flash)</div>
+          <div style="font-weight:700;font-size:13.5px">AI Engine</div>
           <div style="font-size:11px;color:var(--faint);font-weight:600">
             Powers every AI feature in BoloDB
           </div>

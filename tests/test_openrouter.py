@@ -73,6 +73,9 @@ def test_complete_passes_json_schema(mock_openai):
     assert kwargs["response_format"]["type"] == "json_schema"
     assert kwargs["response_format"]["json_schema"]["name"] == "sql_result"
     assert kwargs["response_format"]["json_schema"]["strict"] is True
+    inner = kwargs["response_format"]["json_schema"]["schema"]
+    assert inner["type"] == "object"
+    assert "properties" in inner
 
 
 @patch("backend.app.llm.openai.AsyncOpenAI")
@@ -143,6 +146,7 @@ def test_create_provider_builds_openrouter():
     assert p.model == "deepseek-v4-flash"
 
 
-def test_create_provider_rejects_missing_key():
+def test_create_provider_rejects_missing_key(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     with pytest.raises(ValueError, match="OPENROUTER_API_KEY"):
         create_provider({"openrouter_key": ""}, "user-1")
