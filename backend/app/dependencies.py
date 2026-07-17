@@ -23,7 +23,7 @@ def get_db(request: Request):
 
 
 def get_kb(request: Request):
-    return request.app.state.kb
+    return request.app.state.kbs
 
 
 def get_providers(request: Request):
