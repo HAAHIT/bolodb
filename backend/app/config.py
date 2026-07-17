@@ -53,13 +53,20 @@ def load_config():
         d = {}
 
     # Strip legacy fields that no longer apply
-    d.pop("provider", None)
-    d.pop("model", None)
-    d.pop("api_keys", None)
+    changed = False
+    for key in ("provider", "model", "api_keys"):
+        if key in d:
+            d.pop(key)
+            changed = True
 
     cfg = {**default_config(), **d}
     # API key is always read fresh from env, never from disk
     cfg["openrouter_key"] = os.environ.get("OPENROUTER_API_KEY", "")
+
+    # Persist sanitized config if legacy fields were removed
+    if changed:
+        save_config(cfg)
+
     return cfg
 
 

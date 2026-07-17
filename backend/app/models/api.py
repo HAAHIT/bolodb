@@ -2,7 +2,7 @@ from pydantic import BaseModel
 
 
 class ConfigUpdate(BaseModel):
-    pass
+    last_db_url: str | None = None
 
 
 class ConnectReq(BaseModel):

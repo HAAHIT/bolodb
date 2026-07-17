@@ -65,5 +65,7 @@ async def get_health(pg_status="unknown"):
 
 async def update_config(user_id, cfg, providers, req_data):
     """Update AI settings. The only settable field is last_db_url."""
+    if req_data.last_db_url is not None:
+        cfg["last_db_url"] = req_data.last_db_url
     cfgmod.save_config(cfg)
     return {"config": cfgmod.public_config(cfg)}

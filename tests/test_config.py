@@ -55,8 +55,12 @@ def test_load_config_env_var(tmp_path):
 
 def test_save_config_writes_plain_dict(tmp_path):
     with _paths(tmp_path) as config_dir:
-        save_config({"test": "data"})
-        assert json.loads((config_dir / "config.json").read_text()) == {"test": "data"}
+        save_config(
+            {"openrouter_key": "sk-or-v1-secret", "last_db_url": "sqlite:///test.db"}
+        )
+        saved = json.loads((config_dir / "config.json").read_text())
+        assert "openrouter_key" not in saved
+        assert saved["last_db_url"] == "sqlite:///test.db"
 
 
 def test_public_config():
