@@ -4,7 +4,6 @@ import os
 
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy import pool
 
 load_dotenv()
 
@@ -28,7 +27,9 @@ def get_engine():
             db_url = "postgresql+asyncpg://" + db_url[len("postgres://") :]
         _engine = create_async_engine(
             db_url,
-            poolclass=pool.NullPool,
+            pool_size=5,
+            max_overflow=10,
+            pool_recycle=300,
             connect_args={"statement_cache_size": 0},
         )
     return _engine
