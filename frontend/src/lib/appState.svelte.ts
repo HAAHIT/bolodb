@@ -14,6 +14,7 @@ class AppState {
   theme = $state("dark");
   openrouterReady = $state(false);
   activeConversationId = $state<string | null>(null);
+  tourCompleted = $state(false);
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -41,6 +42,7 @@ class AppState {
     try {
       const s = await apiCall("/api/state");
       this.openrouterReady = s.openrouter_ready ?? false;
+      this.tourCompleted = s.tour_completed ?? false;
       if (s.connected) {
         this.verifiedCount = s.trust?.verified || 0;
         this.dbInfo = s.database || null;
@@ -101,6 +103,7 @@ class AppState {
     this.realSchema = null;
     this.verifiedCount = 0;
     this.starters = [];
+    this.tourCompleted = false;
     this.activeConversationId = null;
     goto("/login");
   }
