@@ -7,15 +7,50 @@ import backend.app.routes.database as database_routes
 
 class DummyKB:
     async def trust_level(self, user_id, db_id):
+        """Return the trust level associated with a database.
+
+        Parameters:
+                user_id: The user requesting the trust level.
+                db_id: The database identifier.
+
+        Returns:
+                str: The database trust level.
+        """
         return f"trust:{db_id}"
 
     async def get_glossary(self, user_id, db_id):
+        """Return glossary entries for a database.
+
+        Parameters:
+                user_id: The user requesting the glossary.
+                db_id: The database identifier.
+
+        Returns:
+                A list containing the database identifier.
+        """
         return [{"db_id": db_id}]
 
     async def count_verified(self, user_id, db_id):
+        """Count the verified entries for a database.
+
+        Parameters:
+            user_id: Identifier of the user requesting the count.
+            db_id: Identifier of the database.
+
+        Returns:
+            int: The number of verified entries.
+        """
         return 1
 
     async def get_verified(self, user_id, db_id):
+        """Return a verified starter question for the specified database.
+
+        Parameters:
+            db_id: Identifier of the database.
+
+        Returns:
+            A list containing the starter question for the database.
+        """
         return [{"question": f"starter:{db_id}"}]
 
 

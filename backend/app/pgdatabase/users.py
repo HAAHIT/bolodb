@@ -19,6 +19,16 @@ class UserAlreadyExistsError(Exception):
 
 
 def _user_to_dict(user) -> dict:
+    """
+    Serialize a user record into a dictionary containing its persisted fields.
+
+    Parameters:
+        user: The user record to serialize.
+
+    Returns:
+        dict: A serialized dictionary containing the user's identity, authentication,
+            role, verification, tour completion, and creation-time fields.
+    """
     return serialize_doc(
         {
             "id": user.id,
