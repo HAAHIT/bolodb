@@ -20,47 +20,16 @@
     dbInfo ? (dbInfo.url || '').split('/').pop() || dbInfo.dialect || 'your database' : 'sample store',
   );
 
-  const models = [
-    { name: 'Flash Lite', desc: 'Cheapest & fastest — small, simple databases' },
-    { name: 'Flash', desc: 'Best cost/accuracy balance for most uses' },
-    { name: 'Pro', desc: 'Most accurate — large schemas, hard questions' },
-  ];
-  let model = $state(1);
   let showCatalog = $state(false);
 
   $effect(() => {
     if (openCatalogTrigger > 0) showCatalog = true;
   });
-
-  $effect(() => {
-    if (typeof localStorage !== 'undefined') {
-      const stored = Number(localStorage.getItem('bolodb_model'));
-      if (!Number.isNaN(stored) && stored >= 0 && stored <= 2) model = stored;
-    }
-  });
-
-  function pickModel(i: number) {
-    model = i;
-    try { localStorage.setItem('bolodb_model', String(i)); } catch {}
-  }
 </script>
 
 <div class="wrap">
   <div class="inner rise">
     <h1 class="title">Settings</h1>
-
-    <div class="card">
-      <span class="label">AI MODEL</span>
-      {#each models as mo, i}
-        <button class="model" class:active={model === i} onclick={() => pickModel(i)}>
-          <span class="model-info">
-            <span class="model-name">{mo.name}</span>
-            <span class="model-desc">{mo.desc}</span>
-          </span>
-          <span class="check" style="color:{model === i ? 'var(--brand)' : 'transparent'}">✓</span>
-        </button>
-      {/each}
-    </div>
 
     <div class="card">
       <span class="label">CONNECTION</span>
@@ -117,25 +86,6 @@
     gap: 14px;
   }
   .label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em; color: var(--faint); }
-  .model {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    text-align: left;
-    background: transparent;
-    border: 1.5px solid var(--border);
-    border-radius: 12px;
-    padding: 14px 18px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .model:hover { border-color: var(--brand); }
-  .model.active { background: var(--card-hover); border-color: var(--brand); }
-  .model-info { display: flex; flex-direction: column; gap: 3px; }
-  .model-name { font-size: 14.5px; font-weight: 700; color: var(--ink); }
-  .model-desc { font-size: 12.5px; color: var(--muted); }
-  .check { font-size: 14px; }
   .conn-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
   .conn-name { display: flex; align-items: center; gap: 9px; font-size: 14px; color: var(--ink-2); }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok-ink); }
