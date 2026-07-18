@@ -71,6 +71,11 @@
         doneBtnText: "Got it",
         onDestroyed: () => {
           if (!isMounted) return;
+          // Persist completion as soon as the intro tour is dismissed.
+          // Previously this only happened after the *result* tour ran, so a
+          // user who closed the tour (or never triggered the result tour) got
+          // the full tour again on every visit — with a click-blocking overlay.
+          markDone();
           maybeStartResultTour(driver);
         },
         steps: tourSteps,

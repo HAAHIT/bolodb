@@ -13,18 +13,26 @@
 
   let error = $state("");
   let loading = $state(false);
+  // Hide the button entirely when Supabase auth isn't configured (local dev,
+  // self-hosted installs) — a button that can only fail is worse than none.
+  let supabaseUrl = $state("");
+  let supabaseAnonKey = $state("");
+  const configured = $derived(!!supabaseUrl && !!supabaseAnonKey);
 
-  async function handleSupabaseGoogle() {
+  onMount(async () => {
+    try {
+      const config = await apiCall("/api/config/public");
+      supabaseUrl = config.supabase_url || "";
+      supabaseAnonKey = config.supabase_anon_key || "";
+    } catch {
+      // leave unconfigured — button stays hidden
+    }
+  });
+
+  function handleSupabaseGoogle() {
     loading = true;
     error = "";
     try {
-      // Fetch Supabase project URL and anon key from backend
-      const config = await apiCall("/api/config/public");
-      const supabaseUrl = config.supabase_url;
-      const supabaseAnonKey = config.supabase_anon_key;
-      if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error("Google sign-in is not configured");
-      }
       // Redirect to Supabase Google OAuth
       const redirectTo = `${window.location.origin}/auth/callback`;
       const supabaseAuthUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}`;
@@ -38,6 +46,13 @@
     }
   }
 </script>
+
+{#if configured}
+<div class="auth-divider">
+  <span class="auth-divider-line"></span>
+  <span class="auth-divider-text">or</span>
+  <span class="auth-divider-line"></span>
+</div>
 
 <div style="text-align:center">
   {#if error}
@@ -77,3 +92,4 @@
     Continue with Google
   </button>
 </div>
+{/if}

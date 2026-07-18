@@ -21,7 +21,7 @@
       yNice
       c="date"
       cRange={['var(--brand)']}
-      padding={{ left: 8, right: 8, top: 8, bottom: 8 }}
+      padding={{ left: 36, right: 12, top: 8, bottom: 24 }}
       clip
       props={{ xAxis: { tickLabelProps: { truncate: { maxChars: 12 } } } }}
       tooltipContext={{ mode: 'band' }}

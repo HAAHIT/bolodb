@@ -62,6 +62,8 @@
   let activeConversationId: string | null = $state(null);
   let abortController: AbortController | null = $state(null);
   let showScrollBtn = $state(false);
+  let lastTurnCount = 0;
+  let convLoadSeq = 0;
 
   const trust = $derived(trustFor(verifiedCount));
 
@@ -77,7 +79,15 @@
 
   $effect(() => {
     turns; // track
-    if (feedRef) feedRef.scrollTop = feedRef.scrollHeight;
+    // Only follow new content when the user is already near the bottom —
+    // force-scrolling on every turns update yanks the viewport while
+    // someone is reading or verifying an older answer.
+    if (!feedRef) return;
+    const distance = feedRef.scrollHeight - feedRef.scrollTop - feedRef.clientHeight;
+    if (distance < 200 || turns.length !== lastTurnCount) {
+      feedRef.scrollTop = feedRef.scrollHeight;
+    }
+    lastTurnCount = turns.length;
   });
 
   function onFeedScroll() {
@@ -430,6 +440,10 @@
   }
 
   async function handleNewConversation() {
+    // Cancel any in-flight query stream so its callbacks can't write into
+    // the fresh conversation view.
+    abortController?.abort();
+    convLoadSeq++;
     turns = [];
     activeConversationId = null;
     onActiveConversationChange(null);
@@ -440,7 +454,11 @@
     const cols = result.length > 0 && result[0] && typeof result[0] === 'object'
       ? Object.keys(result[0])
       : [];
+    // Direct /sql executions are persisted with this marker restatement;
+    // restore them as direct turns so they don't grow a verify prompt.
+    const isDirect = t.restatement === 'Direct SQL execution' && t.question === t.sql;
     return {
+      isDirect,
       id: t._id,
       question: t.question,
       thinking: false,
@@ -464,9 +482,15 @@
 
   async function handleConversationSelect(convId: string) {
     if (convId === activeConversationId) return;
+    // Cancel any in-flight query stream and stamp this load so that when two
+    // conversations are clicked in quick succession, only the latest click's
+    // response is applied (otherwise the slower fetch would win).
+    abortController?.abort();
+    const seq = ++convLoadSeq;
     loading = true;
     try {
       const conv = await getConversation(convId);
+      if (seq !== convLoadSeq) return;
       activeConversationId = conv._id;
       onActiveConversationChange(conv._id);
       const loaded: Turn[] = [];
@@ -481,7 +505,7 @@
     } catch (e) {
       console.error('Failed to load conversation', e);
     } finally {
-      loading = false;
+      if (seq === convLoadSeq) loading = false;
     }
   }
 
