@@ -38,9 +38,10 @@ so it can fix itself (see layer ↻ below).
 Design principle stated at the top of the file: the validator is deliberately
 *conservative*. It only complains when it is certain something is wrong
 (unknown table, unknown column on a known table). Columns that might come
-from a subquery or CTE are left alone — a false rejection of valid SQL would
-be worse than missing an error, because execution (layer ③) is the final
-backstop anyway.
+from a subquery, CTE, or **SELECT alias** are left alone — a false rejection
+of valid SQL would be worse than missing an error, because execution
+(layer ③) is the final backstop anyway. Column aliases from the SELECT list
+are collected and treated as valid references in ORDER BY / GROUP BY / HAVING.
 
 Tests: `tests/test_sqlvalidate.py`.
 
