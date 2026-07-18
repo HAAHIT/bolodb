@@ -137,7 +137,9 @@ class VerifiedQA(Base):
         DateTime(timezone=True), default=_utcnow
     )
     __table_args__ = (
-        UniqueConstraint("user_id", "db_id", "question", name="uq_verified_qa_user_db_question"),
+        UniqueConstraint(
+            "user_id", "db_id", "question", name="uq_verified_qa_user_db_question"
+        ),
         Index("ix_verified_qa_user_db", "user_id", "db_id"),
     )
 

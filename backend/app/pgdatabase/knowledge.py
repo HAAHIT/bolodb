@@ -70,8 +70,9 @@ class KnowledgeService:
         """
         async with self._session_factory() as session:
             result = await session.execute(
-                select(VerifiedQA)
-                .where(VerifiedQA.user_id == user_id, VerifiedQA.db_id == db_id)
+                select(VerifiedQA).where(
+                    VerifiedQA.user_id == user_id, VerifiedQA.db_id == db_id
+                )
             )
             tb = _tokens(question)
             b_lower = question.lower()
@@ -93,7 +94,9 @@ class KnowledgeService:
                 await session.rollback()
                 logger.warning(
                     "Duplicate verified QA skipped (user=%s db=%s question=%s)",
-                    user_id, db_id, question,
+                    user_id,
+                    db_id,
+                    question,
                 )
 
     async def get_verified(self, user_id, db_id):
@@ -317,9 +320,21 @@ class KnowledgeService:
                 )
             )
             for t in [
-                {"term": "Revenue", "maps_to": "orders.total_amount", "sql_hint": "Sum of total_amount on orders with status = completed"},
-                {"term": "Active customer", "maps_to": "orders.created_at", "sql_hint": "A customer with at least one order in the last 90 days"},
-                {"term": "Top product", "maps_to": "order_items.quantity", "sql_hint": "Product ranked by units sold (sum of quantity)"},
+                {
+                    "term": "Revenue",
+                    "maps_to": "orders.total_amount",
+                    "sql_hint": "Sum of total_amount on orders with status = completed",
+                },
+                {
+                    "term": "Active customer",
+                    "maps_to": "orders.created_at",
+                    "sql_hint": "A customer with at least one order in the last 90 days",
+                },
+                {
+                    "term": "Top product",
+                    "maps_to": "order_items.quantity",
+                    "sql_hint": "Product ranked by units sold (sum of quantity)",
+                },
             ]:
                 session.add(Glossary(user_id=user_id, db_id=db_id, **t))
             for q, s, r in [
@@ -339,7 +354,11 @@ class KnowledgeService:
                     "Count of customers grouped by segment",
                 ),
             ]:
-                session.add(VerifiedQA(user_id=user_id, db_id=db_id, question=q, sql=s, restatement=r))
+                session.add(
+                    VerifiedQA(
+                        user_id=user_id, db_id=db_id, question=q, sql=s, restatement=r
+                    )
+                )
             await session.commit()
 
     async def trust_level(self, user_id, db_id):
