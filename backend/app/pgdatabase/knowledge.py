@@ -312,7 +312,7 @@ class KnowledgeService:
                     VerifiedQA.user_id == user_id, VerifiedQA.db_id == db_id
                 )
             )
-            if count.scalar() or 0 > 0:
+            if count.scalar():
                 return
             await session.execute(
                 delete(Glossary).where(
