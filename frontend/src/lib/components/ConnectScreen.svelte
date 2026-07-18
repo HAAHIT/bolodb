@@ -43,27 +43,6 @@
   async function start() {
     if (choice === "sample") return go("sample");
     return go("url");
-
-
-
-  function buildUrl(): string {
-    if (dbType === "sqlite") return `sqlite:///${filePath.trim()}`;
-    if (dbType === "duckdb")
-      return filePath.trim() ? `duckdb:///${filePath.trim()}` : "duckdb://";
-    const u = encodeURIComponent(user);
-    const p = encodeURIComponent(password);
-    const dialect = dbType === "mssql" ? "mssql+pyodbc" : dbType;
-    const creds = u && p ? `${u}:${p}@` : u ? `${u}@` : "";
-    return `${dialect}://${creds}${host.trim()}:${port}/${dbName.trim()}`;
-  }
-
-  function canConnect(): boolean {
-    if (formMode) {
-      if (dbType === "duckdb") return true;
-      if (isFileBased) return filePath.trim().length > 0;
-      return !!(host.trim() && user.trim() && dbName.trim());
-    }
-    return dbUrl.trim().length > 0;
   }
 
   async function go(kind: string) {
