@@ -3,7 +3,7 @@
   import { browser } from "$app/environment";
   import posthog from "posthog-js";
   import { apiCall } from "$lib/api";
-  import { appState } from "$lib/appState";
+  import { appState } from "$lib/appState.svelte";
   import type { DriveStep, Driver } from "driver.js";
 
   onMount(() => {

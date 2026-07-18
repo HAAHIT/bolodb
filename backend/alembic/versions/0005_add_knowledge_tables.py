@@ -21,13 +21,23 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column(
         "users",
-        sa.Column("tour_completed", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column(
+            "tour_completed",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
     )
 
     op.create_table(
         "verified_qas",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("db_id", sa.String(), nullable=False),
         sa.Column("question", sa.Text(), nullable=False),
         sa.Column("sql", sa.Text(), nullable=False, server_default=""),
@@ -39,7 +49,12 @@ def upgrade() -> None:
     op.create_table(
         "glossary_terms",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("db_id", sa.String(), nullable=False),
         sa.Column("term", sa.String(), nullable=False),
         sa.Column("maps_to", sa.String(), nullable=False),
@@ -50,7 +65,12 @@ def upgrade() -> None:
     op.create_table(
         "catalog_columns",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("db_id", sa.String(), nullable=False),
         sa.Column("table_name", sa.String(), nullable=False),
         sa.Column("column_name", sa.String(), nullable=False),
@@ -61,7 +81,12 @@ def upgrade() -> None:
     op.create_table(
         "catalog_metrics",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("db_id", sa.String(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("description", sa.Text(), nullable=False, server_default=""),
@@ -72,7 +97,12 @@ def upgrade() -> None:
     op.create_table(
         "catalog_joins",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("db_id", sa.String(), nullable=False),
         sa.Column("tables", sa.String(), nullable=False),
         sa.Column("join_condition", sa.Text(), nullable=False),
@@ -83,7 +113,12 @@ def upgrade() -> None:
     op.create_table(
         "catalog_synonyms",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("db_id", sa.String(), nullable=False),
         sa.Column("term", sa.String(), nullable=False),
         sa.Column("entity_type", sa.String(), nullable=False),
@@ -94,14 +129,21 @@ def upgrade() -> None:
     op.create_table(
         "catalog_value_mappings",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("db_id", sa.String(), nullable=False),
         sa.Column("table_name", sa.String(), nullable=False),
         sa.Column("column_name", sa.String(), nullable=False),
         sa.Column("db_value", sa.String(), nullable=False),
         sa.Column("business_label", sa.String(), nullable=False),
     )
-    op.create_index("ix_cat_val_user_db", "catalog_value_mappings", ["user_id", "db_id"])
+    op.create_index(
+        "ix_cat_val_user_db", "catalog_value_mappings", ["user_id", "db_id"]
+    )
 
 
 def downgrade() -> None:

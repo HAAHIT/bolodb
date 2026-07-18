@@ -219,12 +219,17 @@ async def feedback(user_id, db, kb, session_log, req_data):
     session_log.log_feedback(req_data.query_id, req_data.verdict, req_data.reason)
     if req_data.verdict == "correct":
         await kb.add_verified(
-            user_id, db.get_db_id(user_id), req_data.question, req_data.sql, req_data.restatement
+            user_id,
+            db.get_db_id(user_id),
+            req_data.question,
+            req_data.sql,
+            req_data.restatement,
         )
     out = {"ok": True, "trust": await kb.trust_level(user_id, db.get_db_id(user_id))}
     if req_data.verdict == "correct":
         out["starters"] = [
-            v["question"] for v in (await kb.get_verified(user_id, db.get_db_id(user_id)))[:6]
+            v["question"]
+            for v in (await kb.get_verified(user_id, db.get_db_id(user_id)))[:6]
         ]
     return out
 
@@ -233,7 +238,11 @@ async def verify(user_id, db, kb, req_data):
     if not db.connected(user_id):
         raise HTTPException(409, "No database connected")
     await kb.add_verified(
-        user_id, db.get_db_id(user_id), req_data.question, req_data.sql, req_data.restatement
+        user_id,
+        db.get_db_id(user_id),
+        req_data.question,
+        req_data.sql,
+        req_data.restatement,
     )
     return {"ok": True, "trust": await kb.trust_level(user_id, db.get_db_id(user_id))}
 

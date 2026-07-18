@@ -99,7 +99,14 @@ async def get_user_by_id(user_id: str) -> Optional[dict]:
 
 
 _ALLOWED_USER_FIELDS = frozenset(
-    {"google_id", "supabase_id", "hashed_pass", "email_verified", "email", "tour_completed"}
+    {
+        "google_id",
+        "supabase_id",
+        "hashed_pass",
+        "email_verified",
+        "email",
+        "tour_completed",
+    }
 )
 
 

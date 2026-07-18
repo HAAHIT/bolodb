@@ -15,7 +15,9 @@ async def connect(db, kb, cfg, req_data, user_id=None):
     result["trust"] = await kb.trust_level(user_id, db_id)
     result["glossary"] = await kb.get_glossary(user_id, db_id)
     result["has_knowledge"] = (await kb.count_verified(user_id, db_id)) > 0
-    result["starters"] = [v["question"] for v in (await kb.get_verified(user_id, db_id))[:6]]
+    result["starters"] = [
+        v["question"] for v in (await kb.get_verified(user_id, db_id))[:6]
+    ]
 
     if user_id:
         try:
@@ -42,7 +44,8 @@ async def connect_sample(db, kb, cfg, user_id=None):
     dbid = db.get_db_id(user_id)
     if (await kb.count_verified(user_id, dbid)) == 0:
         await kb.set_glossary(
-            user_id, dbid,
+            user_id,
+            dbid,
             [
                 {
                     "term": "Revenue",
@@ -62,19 +65,22 @@ async def connect_sample(db, kb, cfg, user_id=None):
             ],
         )
         await kb.add_verified(
-            user_id, dbid,
+            user_id,
+            dbid,
             "How many orders were completed last month?",
             "SELECT COUNT(*) AS completed_orders\nFROM orders\nWHERE status = 'completed'\n  AND created_at >= date('now','start of month','-1 month')\n  AND created_at <  date('now','start of month');",
             "Count of orders with status 'completed' created in the previous calendar month",
         )
         await kb.add_verified(
-            user_id, dbid,
+            user_id,
+            dbid,
             "Which product category brings in the most revenue?",
             "SELECT p.category, ROUND(SUM(oi.quantity*oi.unit_price)) AS revenue\nFROM order_items oi\nJOIN products p ON p.id = oi.product_id\nJOIN orders   o ON o.id = oi.order_id\nWHERE o.status = 'completed'\nGROUP BY p.category\nORDER BY revenue DESC;",
             "Total revenue per product category, highest first",
         )
         await kb.add_verified(
-            user_id, dbid,
+            user_id,
+            dbid,
             "How many customers do we have in each segment?",
             "SELECT segment, COUNT(*) AS customers\nFROM customers\nGROUP BY segment\nORDER BY customers DESC;",
             "Count of customers grouped by segment",
