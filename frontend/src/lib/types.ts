@@ -76,6 +76,8 @@ export interface Turn {
   verdict?: "correct" | "wrong" | null;
   reasonChosen?: string | null;
   isDirect?: boolean;
+  /** Restored from history with the stored result capped server-side. */
+  resultTruncated?: boolean;
   thinkingArtifacts?: ThinkingArtifact[];
 }
 

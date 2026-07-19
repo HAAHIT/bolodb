@@ -171,6 +171,9 @@
       {:else}
         <ResultTable columns={turn.columns || []} rows={turn.rows || []} />
       {/if}
+      {#if turn.resultTruncated}
+        <div style="font-size:11.5px;color:var(--faint);margin-top:6px">Restored from history — showing the first {(turn.rows || []).length} saved rows of a larger result. Re-run the question for the full set.</div>
+      {/if}
     {:else}
       <!-- restatement + confidence -->
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:15px">
@@ -225,6 +228,9 @@
           <ResultChart columns={turn.columns || []} rows={(turn.rows || []).map(r => r.map(String))} />
         {:else}
           <ResultTable columns={turn.columns || []} rows={turn.rows || []} />
+        {/if}
+        {#if turn.resultTruncated}
+          <div style="font-size:11.5px;color:var(--faint);margin-top:6px">Restored from history — showing the first {(turn.rows || []).length} saved rows of a larger result. Re-run the question for the full set.</div>
         {/if}
       {/if}
       {#if turn.sql}

@@ -109,8 +109,13 @@
       } catch (e) {
         console.error(e);
         appState.showError("Couldn't rename that conversation — please try again.");
+        // Keep the editor open with the typed text so the user can retry.
+        return;
       }
     }
+    // Only close the editor if this rename session is still the active one —
+    // a slower earlier request must not clobber a newer edit.
+    if (editingId !== id) return;
     editingId = null;
     editTitle = '';
   }
@@ -182,10 +187,10 @@
                   <span class="convo-title">{cv.title || cv.last_question || 'New conversation'}</span>
                   <span class="convo-meta">{cv.turn_count} turn{cv.turn_count === 1 ? '' : 's'} · {formatTime(cv.updated_at)}</span>
                 </button>
-                <button class="convo-ren opacity-0 group-hover:opacity-100" aria-label="Rename conversation" title="Rename" onclick={(e) => startRename(cv, e)}>
+                <button class="convo-ren opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label="Rename conversation" title="Rename" onclick={(e) => startRename(cv, e)}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M17 3a2.85 2.85 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </button>
-                <button class="convo-del opacity-0 group-hover:opacity-100" aria-label="Delete conversation" title="Delete" onclick={(e) => handleDelete(cv._id, e)}>✕</button>
+                <button class="convo-del opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label="Delete conversation" title="Delete" onclick={(e) => handleDelete(cv._id, e)}>✕</button>
               {/if}
             </div>
           {/each}
@@ -411,6 +416,12 @@
     transition: opacity 0.12s, color 0.12s;
   }
   .convo-ren:hover { color: var(--brand); }
+  .convo-ren:focus-visible,
+  .convo-del:focus-visible {
+    opacity: 1;
+    outline: 2px solid var(--brand);
+    outline-offset: 1px;
+  }
   .convo-edit {
     width: 100%;
     box-sizing: border-box;

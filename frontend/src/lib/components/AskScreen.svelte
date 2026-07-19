@@ -487,6 +487,7 @@
     const isDirect = t.restatement === 'Direct SQL execution' && t.question === t.sql;
     return {
       isDirect,
+      resultTruncated: !!t.result_truncated,
       id: t._id,
       question: t.question,
       thinking: false,

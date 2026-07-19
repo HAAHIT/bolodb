@@ -26,6 +26,19 @@ class AppState {
       const stored = localStorage.getItem("bolodb_theme");
       // Normalize legacy theme names to the two-theme system (dark / light)
       this.theme = stored === "dark" ? "dark" : stored ? "light" : "dark";
+      // Survive a page reload mid-onboarding: sample DBs ship with seeded
+      // knowledge, so without this /onboard would bounce a refreshed user
+      // straight to /chat before they finished.
+      this.onboardingActive =
+        sessionStorage.getItem("bolodb_onboarding_active") === "1";
+    }
+  }
+
+  private setOnboardingActive(active: boolean) {
+    this.onboardingActive = active;
+    if (typeof window !== "undefined") {
+      if (active) sessionStorage.setItem("bolodb_onboarding_active", "1");
+      else sessionStorage.removeItem("bolodb_onboarding_active");
     }
   }
 
@@ -113,6 +126,7 @@ class AppState {
     this.starters = [];
     this.tourCompleted = false;
     this.activeConversationId = null;
+    this.setOnboardingActive(false);
     goto("/login");
   }
 
@@ -135,7 +149,7 @@ class AppState {
         return;
       }
     }
-    this.onboardingActive = true;
+    this.setOnboardingActive(true);
     goto("/onboard");
   }
 
@@ -156,7 +170,7 @@ class AppState {
         dialect: this.dbInfo?.dialect,
       });
     }
-    this.onboardingActive = false;
+    this.setOnboardingActive(false);
     goto("/chat");
   }
 
@@ -214,6 +228,7 @@ class AppState {
     this.verifiedCount = 0;
     this.starters = [];
     this.activeConversationId = null;
+    this.setOnboardingActive(false);
     goto("/connect");
   }
 }
