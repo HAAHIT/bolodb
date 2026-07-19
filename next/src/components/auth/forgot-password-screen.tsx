@@ -2,94 +2,92 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/client";
-import { toast } from "sonner";
+import { apiCall } from "@/lib/api";
 
 export function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
 
-  async function handleReset(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!email.trim() || loading) return;
     setLoading(true);
-    const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    setError("");
+    try {
+      await apiCall("/api/auth/forgot-password", { email: email.trim() });
+      setSent(true);
+    } catch (err: any) {
+      setError(err.message || "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    setSent(true);
-    toast.success("Check your email for a reset link");
-  }
-
-  if (sent) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="w-full max-w-sm">
-          <CardHeader className="text-center">
-            <CardTitle className="text-xl">Check your email</CardTitle>
-            <CardDescription>
-              We&apos;ve sent a password reset link to {email}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-center text-sm text-muted-foreground">
-              <Link href="/login" className="text-primary hover:underline">
-                Back to sign in
-              </Link>
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <Link href="/" className="text-2xl font-bold mb-1 block">
-            BoloDB
-          </Link>
-          <CardTitle className="text-xl">Forgot password?</CardTitle>
-          <CardDescription>
-            Enter your email and we&apos;ll send you a reset link
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleReset} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">
-                Email
-              </label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="m@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+    <div className="auth-page">
+      <div className="card rise auth-card" data-testid="forgot-password-card">
+        <div className="auth-header">
+          <div className="auth-logo-wrap">
+            <Link href="/" className="text-2xl font-bold">BoloDB</Link>
+          </div>
+          <h1 className="auth-title">Forgot your password?</h1>
+          <p className="auth-subtitle">Enter your email and we&apos;ll send reset instructions if you have an account.</p>
+        </div>
+
+        {sent ? (
+          <>
+            <div role="status" aria-live="polite" className="auth-success" data-testid="forgot-password-sent">
+              Check your email for reset instructions.<br />
+              If you don&apos;t see the message, please check spam.
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Sending link..." : "Send reset link"}
-            </Button>
-          </form>
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            Remember your password?{" "}
-            <Link href="/login" className="text-primary hover:underline">
-              Sign in
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
+            <div className="auth-footer">
+              <Link href="/login" data-testid="forgot-back-to-login">&larr; Back to sign in</Link>
+            </div>
+          </>
+        ) : (
+          <>
+            <form onSubmit={handleSubmit} className="auth-form" data-testid="forgot-password-form">
+              <div>
+                <label htmlFor="email" className="auth-label">Email</label>
+                <input
+                  id="email"
+                  type="email"
+                  className="field"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@company.com"
+                  data-testid="forgot-email-input"
+                  autoComplete="email"
+                  required
+                />
+              </div>
+
+              {error && (
+                <div role="alert" aria-live="polite" className="auth-error" data-testid="forgot-error-message">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className={"btn btn-primary btn-block" + (!email.trim() || loading ? " disabled" : "")}
+                disabled={!email.trim() || loading}
+                data-testid="forgot-submit-button"
+              >
+                {loading && <span className="spinner" />}
+                {loading ? "Sending\u2026" : "Send reset link"}
+              </button>
+            </form>
+
+            <div className="auth-footer">
+              Remembered your password?{" "}
+              <Link href="/login" data-testid="forgot-signin-link">Sign in</Link>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,20 @@
-export function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let _reduced = false;
+
+if (typeof window !== "undefined") {
+  const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  _reduced = mq.matches;
+
+  mq.addEventListener("change", (e) => {
+    _reduced = e.matches;
+  });
 }
+
+export function prefersReducedMotion() {
+  return _reduced;
+}
+
+export const motionPrefs = {
+  get reduced() {
+    return _reduced;
+  },
+};

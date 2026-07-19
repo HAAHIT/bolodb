@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Copy, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,10 +39,13 @@ export function SqlBlock({
       {expanded && (
         <div className="border-t">
           <div className="flex items-center justify-end px-3 py-1">
-            <Button variant="ghost" size="sm" onClick={handleCopy}>
+            <button
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs"
+              onClick={handleCopy}
+            >
               <Copy className="h-3 w-3 mr-1" />
               Copy
-            </Button>
+            </button>
           </div>
           <pre className="px-3 pb-3 text-sm overflow-x-auto">
             <code>{sql}</code>

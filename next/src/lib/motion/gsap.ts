@@ -1,10 +1,17 @@
-let gsapInstance: any = null;
+let _gsap: any = null;
+let _ScrollTrigger: any = null;
 
-export async function loadGsap(): Promise<any> {
-  if (gsapInstance) return gsapInstance;
-  const gsap = (await import("gsap")).default;
-  const { default: ScrollTrigger } = await import("gsap/ScrollTrigger");
+export async function loadGsap() {
+  if (_gsap) return { gsap: _gsap, ScrollTrigger: _ScrollTrigger };
+
+  const [{ gsap }, { ScrollTrigger }] = await Promise.all([
+    import("gsap"),
+    import("gsap/ScrollTrigger"),
+  ]);
+
   gsap.registerPlugin(ScrollTrigger);
-  gsapInstance = gsap;
-  return gsapInstance;
+  _gsap = gsap;
+  _ScrollTrigger = ScrollTrigger;
+
+  return { gsap, ScrollTrigger };
 }

@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Plus,
   MessageSquare,
@@ -75,16 +73,21 @@ export function Sidebar({
     setEditingId(null);
   };
 
+  const btnBase = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
+
   return (
     <div className={cn("flex flex-col h-full border-r bg-muted/10", className)}>
       <div className="p-3 border-b">
-        <Button className="w-full" size="sm" onClick={onNewConversation}>
+        <button
+          className={cn(btnBase, "bg-primary text-primary-foreground shadow hover:bg-primary/90 h-8 rounded-md px-3 text-xs w-full")}
+          onClick={onNewConversation}
+        >
           <Plus className="h-4 w-4 mr-2" />
           New conversation
-        </Button>
+        </button>
       </div>
 
-      <ScrollArea className="flex-1">
+      <div className="relative overflow-auto flex-1">
         <div className="p-2 space-y-1">
           {conversations?.map((conv: Conversation) => (
             <div
@@ -110,64 +113,56 @@ export function Sidebar({
                       if (e.key === "Escape") setEditingId(null);
                     }}
                   />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
+                  <button
+                    className={cn(btnBase, "hover:bg-accent hover:text-accent-foreground h-6 w-6")}
                     onClick={() => handleRenameConfirm(conv._id)}
                   >
                     <Check className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
+                  </button>
+                  <button
+                    className={cn(btnBase, "hover:bg-accent hover:text-accent-foreground h-6 w-6")}
                     onClick={() => setEditingId(null)}
                   >
                     <X className="h-3 w-3" />
-                  </Button>
+                  </button>
                 </div>
               ) : (
                 <>
                   <span className="flex-1 truncate">{conv.title || "Untitled"}</span>
                   <div className="hidden group-hover:flex items-center gap-0.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
+                    <button
+                      className={cn(btnBase, "hover:bg-accent hover:text-accent-foreground h-6 w-6")}
                       onClick={(e) => handleRenameStart(conv, e)}
                     >
                       <Pencil className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-destructive"
+                    </button>
+                    <button
+                      className={cn(btnBase, "hover:bg-accent hover:text-accent-foreground h-6 w-6 text-destructive")}
                       onClick={(e) => handleDelete(conv._id, e)}
                     >
                       <Trash2 className="h-3 w-3" />
-                    </Button>
+                    </button>
                   </div>
                 </>
               )}
             </div>
           ))}
         </div>
-      </ScrollArea>
+      </div>
 
       <div className="p-3 border-t space-y-1">
-        <Button variant="ghost" size="sm" className="w-full justify-start">
+        <button className={cn(btnBase, "hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start")}>
           <Database className="h-4 w-4 mr-2" />
           Schema
-        </Button>
-        <Button variant="ghost" size="sm" className="w-full justify-start">
+        </button>
+        <button className={cn(btnBase, "hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start")}>
           <LayoutDashboard className="h-4 w-4 mr-2" />
           Dashboard
-        </Button>
-        <Button variant="ghost" size="sm" className="w-full justify-start">
+        </button>
+        <button className={cn(btnBase, "hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start")}>
           <Settings className="h-4 w-4 mr-2" />
           Settings
-        </Button>
+        </button>
       </div>
     </div>
   );

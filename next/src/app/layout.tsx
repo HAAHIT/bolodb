@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { QueryProvider } from "@/providers/query-provider";
 import { PostHogProvider } from "@/providers/posthog-provider";
@@ -41,19 +40,12 @@ export default async function RootLayout({
       </head>
       <body>
         <NextIntlClientProvider messages={messages}>
-          <ThemeProvider
-            attribute="data-theme"
-            defaultTheme="dark"
-            storageKey="bolodb_theme"
-            enableSystem
-          >
-            <QueryProvider>
-              <PostHogProvider>
-                {children}
-                <Toaster richColors position="top-right" />
-              </PostHogProvider>
-            </QueryProvider>
-          </ThemeProvider>
+          <QueryProvider>
+            <PostHogProvider>
+              {children}
+              <Toaster richColors position="top-right" />
+            </PostHogProvider>
+          </QueryProvider>
         </NextIntlClientProvider>
       </body>
     </html>

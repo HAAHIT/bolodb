@@ -1,52 +1,60 @@
-import Link from "next/link";
-
 export default function PrivacyPage() {
   return (
-    <div className="max-w-2xl mx-auto py-16 px-4">
-      <h1 className="text-3xl font-bold mb-6">Privacy Policy</h1>
-      <p className="text-muted-foreground mb-4">
-        Last updated: January 2025
-      </p>
-      <div className="space-y-4 text-muted-foreground">
-        <p>
-          BoloDB (&ldquo;we&rdquo;, &ldquo;our&rdquo;, or &ldquo;us&rdquo;) is committed to
-          protecting your privacy. This Privacy Policy explains how we collect,
-          use, and share your personal information when you use our service.
+    <main className="max-w-[720px] mx-auto px-6 py-20 pb-[120px]">
+      <h1 className="text-4xl font-extrabold mb-1 leading-tight">Privacy Policy</h1>
+      <p className="text-[13px] text-muted-foreground mb-12">Last updated: July 16, 2026</p>
+
+      <section className="mb-10">
+        <h2 className="text-lg font-bold mb-3">What we collect</h2>
+        <ul className="pl-5 space-y-2">
+          <li className="text-[15px] leading-relaxed text-muted-foreground"><strong>Account info</strong> &mdash; email address and hashed password for authentication.</li>
+          <li className="text-[15px] leading-relaxed text-muted-foreground"><strong>Database connections</strong> &mdash; connection strings are encrypted at rest and used only to run your queries.</li>
+          <li className="text-[15px] leading-relaxed text-muted-foreground"><strong>Queries and results</strong> &mdash; your questions, generated SQL, and result sets are stored to power the trust flywheel and history.</li>
+          <li className="text-[15px] leading-relaxed text-muted-foreground"><strong>Analytics</strong> &mdash; anonymous product analytics via PostHog. Respects <code className="font-mono text-[13px] bg-muted px-1.5 py-0.5 rounded">Do Not Track</code>. No personal data is sent.</li>
+        </ul>
+      </section>
+
+      <section className="mb-10">
+        <h2 className="text-lg font-bold mb-3">What we send externally</h2>
+        <ul className="pl-5 space-y-2">
+          <li className="text-[15px] leading-relaxed text-muted-foreground"><strong>Schema + your question</strong> &mdash; sent to Google Gemini to generate SQL. Your row data never leaves your machine.</li>
+          <li className="text-[15px] leading-relaxed text-muted-foreground"><strong>Email</strong> &mdash; verification and password-reset emails are sent through MyEmailVerifier and Resend.</li>
+        </ul>
+      </section>
+
+      <section className="mb-10">
+        <h2 className="text-lg font-bold mb-3">What we never do</h2>
+        <ul className="pl-5 space-y-2">
+          <li className="text-[15px] leading-relaxed text-muted-foreground">We never sell or share your data with third parties for advertising.</li>
+          <li className="text-[15px] leading-relaxed text-muted-foreground">We never read or transmit your actual database rows.</li>
+          <li className="text-[15px] leading-relaxed text-muted-foreground">We never track you across sites.</li>
+        </ul>
+      </section>
+
+      <section className="mb-10">
+        <h2 className="text-lg font-bold mb-3">Data storage</h2>
+        <p className="text-[15px] leading-relaxed text-muted-foreground">
+          User accounts and query history are stored in PostgreSQL (Supabase).
+          The local knowledge base is stored in SQLite on your machine.
+          Database connection strings are encrypted using Fernet symmetric encryption.
         </p>
-        <h2 className="text-xl font-semibold text-foreground">
-          Information We Collect
-        </h2>
-        <p>
-          We collect information you provide directly, such as your email
-          address when you create an account. We also collect usage data to help
-          us improve our service.
+      </section>
+
+      <section className="mb-10">
+        <h2 className="text-lg font-bold mb-3">Changes</h2>
+        <p className="text-[15px] leading-relaxed text-muted-foreground">
+          We may update this policy from time to time. The &ldquo;Last updated&rdquo; date at the top
+          will always reflect the most recent revision.
         </p>
-        <h2 className="text-xl font-semibold text-foreground">
-          How We Use Your Information
-        </h2>
-        <p>
-          We use your information to provide, maintain, and improve our service,
-          to communicate with you, and to comply with legal obligations.
+      </section>
+
+      <section className="mb-10">
+        <h2 className="text-lg font-bold mb-3">Contact</h2>
+        <p className="text-[15px] leading-relaxed text-muted-foreground">
+          Questions? Open an issue on{" "}
+          <a href="https://github.com/HAAHIT/bolodb" className="text-primary no-underline hover:underline">GitHub</a>.
         </p>
-        <h2 className="text-xl font-semibold text-foreground">
-          Data Security
-        </h2>
-        <p>
-          We implement appropriate security measures to protect your personal
-          information. However, no method of transmission over the Internet is
-          100% secure.
-        </p>
-        <h2 className="text-xl font-semibold text-foreground">Contact</h2>
-        <p>
-          If you have questions about this Privacy Policy, please contact us at
-          privacy@bolodb.com.
-        </p>
-      </div>
-      <div className="mt-8">
-        <Link href="/" className="text-primary hover:underline text-sm">
-          &larr; Back to home
-        </Link>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }

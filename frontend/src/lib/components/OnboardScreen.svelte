@@ -22,8 +22,8 @@
     const errors: string[] = [];
     try {
       const [g, s] = await Promise.allSettled([
-        apiCall('/api/onboard/glossary', {}),
-        apiCall('/api/onboard/starters', {})
+        apiCall('/api/onboard/glossary', {}), // TODO : Not injecting schema and expecting a response
+        apiCall('/api/onboard/starters', {})  // TODO : Not injecting schema and expecting a response
       ]);
       realGlossary = g.status === 'fulfilled' ? (g.value.glossary || []) : defaultGlossary;
       realStarters = s.status === 'fulfilled' ? (s.value.starters || []) : defaultStarters;

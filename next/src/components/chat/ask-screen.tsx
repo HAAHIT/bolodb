@@ -2,9 +2,7 @@
 
 import { useState, useRef, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import { Sidebar } from "./sidebar";
 import { AnswerCard } from "./answer-card";
 import { Spinner } from "@/components/shared/spinner";
@@ -83,6 +81,8 @@ export function AskScreen() {
     return base;
   }, [hasServerTurns, serverTurns, localTurns, stream]);
 
+  const btnBase = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
+
   return (
     <div className="flex h-full">
       {sidebarOpen && (
@@ -96,27 +96,23 @@ export function AskScreen() {
 
       <div className="flex-1 flex flex-col">
         <div className="flex items-center gap-2 p-2 border-b">
-          <Button
-            variant="ghost"
-            size="icon"
+          <button
+            className={cn(btnBase, "hover:bg-accent hover:text-accent-foreground h-9 w-9 md:hidden")}
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="md:hidden"
           >
             <Menu className="h-4 w-4" />
-          </Button>
+          </button>
           {!sidebarOpen && (
-            <Button
-              variant="ghost"
-              size="icon"
+            <button
+              className={cn(btnBase, "hover:bg-accent hover:text-accent-foreground h-9 w-9 hidden md:flex")}
               onClick={() => setSidebarOpen(true)}
-              className="hidden md:flex"
             >
               <Menu className="h-4 w-4" />
-            </Button>
+            </button>
           )}
         </div>
 
-        <ScrollArea className="flex-1 p-4">
+        <div className="relative overflow-auto flex-1 p-4">
           {allTurns.length === 0 && !stream.isStreaming ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-2">
@@ -135,31 +131,32 @@ export function AskScreen() {
               ))}
             </div>
           )}
-        </ScrollArea>
+        </div>
 
         <div className="border-t p-4">
           <form
             onSubmit={handleSubmit}
             className="max-w-3xl mx-auto flex gap-2"
           >
-            <Input
+            <input
               ref={inputRef}
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="Ask a question about your data..."
               disabled={stream.isStreaming}
-              className="flex-1"
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 flex-1"
             />
-            <Button
+            <button
               type="submit"
               disabled={!question.trim() || stream.isStreaming}
+              className={cn(btnBase, "bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2")}
             >
               {stream.isStreaming ? (
                 <Spinner className="h-4 w-4" />
               ) : (
                 <Send className="h-4 w-4" />
               )}
-            </Button>
+            </button>
           </form>
         </div>
       </div>

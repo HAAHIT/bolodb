@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { motionPrefs } from "@/lib/motion/motion-prefs";
 
 export function Backdrop() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -12,77 +13,122 @@ export function Backdrop() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    let animationId: number;
-    let particles: { x: number; y: number; size: number; speedX: number; speedY: number; alpha: number }[] = [];
+    let w = 0, h = 0;
+    const dpr = Math.min(1.5, devicePixelRatio || 1);
+    let blobs: any[] = [];
+    let isVisible = true;
+    let running = false;
+    let animId = 0;
 
-    const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
+    function currentDark() {
+      const attr = document.documentElement.getAttribute("data-theme");
+      if (attr) return attr === "dark";
+      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
 
-    const init = () => {
-      resize();
-      particles = Array.from({ length: 30 }, () => ({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        size: Math.random() * 3 + 1,
-        speedX: (Math.random() - 0.5) * 0.5,
-        speedY: (Math.random() - 0.5) * 0.5,
-        alpha: Math.random() * 0.5 + 0.1,
-      }));
-    };
+    function palette() {
+      return currentDark()
+        ? [[77, 166, 255], [98, 224, 176], [139, 123, 255]]
+        : [[27, 158, 107], [43, 179, 214], [95, 140, 220]];
+    }
 
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    function build() {
+      const c = palette();
+      blobs = [
+        { x: 0.22, y: 0.16, r: 0.55, c: c[0], ax: 0.05, ay: 0.06, sp: 0.00013, ph: 0 },
+        { x: 0.82, y: 0.1, r: 0.5, c: c[1], ax: 0.06, ay: 0.05, sp: 0.00017, ph: 2 },
+        { x: 0.6, y: 0.78, r: 0.62, c: c[2], ax: 0.07, ay: 0.05, sp: 0.00011, ph: 4 },
+        { x: 0.1, y: 0.88, r: 0.42, c: c[0], ax: 0.05, ay: 0.06, sp: 0.00015, ph: 1.5 },
+      ];
+    }
 
-      particles.forEach((p) => {
-        p.x += p.speedX;
-        p.y += p.speedY;
+    function resize() {
+      w = canvas.width = Math.floor(window.innerWidth * dpr);
+      h = canvas.height = Math.floor(window.innerHeight * dpr);
+    }
 
-        if (p.x < 0 || p.x > canvas.width) p.speedX *= -1;
-        if (p.y < 0 || p.y > canvas.height) p.speedY *= -1;
-
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(100, 100, 255, ${p.alpha})`;
-        ctx.fill();
-      });
-
-      // Draw connecting lines
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          if (dist < 200) {
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(100, 100, 255, ${0.1 * (1 - dist / 200)})`;
-            ctx.stroke();
-          }
-        }
+    function draw(t: number) {
+      ctx!.clearRect(0, 0, w, h);
+      ctx!.globalCompositeOperation = "lighter";
+      const base = currentDark() ? 0.12 : 0.08;
+      for (let i = 0; i < blobs.length; i++) {
+        const b = blobs[i];
+        const cx = (b.x + Math.sin(t * b.sp + b.ph) * b.ax) * w;
+        const cy = (b.y + Math.cos(t * b.sp * 1.3 + b.ph) * b.ay) * h;
+        const rad = b.r * Math.max(w, h);
+        const g = ctx!.createRadialGradient(cx, cy, 0, cx, cy, rad);
+        g.addColorStop(0, `rgba(${b.c[0]},${b.c[1]},${b.c[2]},${base})`);
+        g.addColorStop(1, `rgba(${b.c[0]},${b.c[1]},${b.c[2]},0)`);
+        ctx!.fillStyle = g;
+        ctx!.fillRect(0, 0, w, h);
       }
+      ctx!.globalCompositeOperation = "source-over";
+    }
 
-      animationId = requestAnimationFrame(animate);
-    };
+    function loop(now: number) {
+      if (isVisible) draw(now);
+      animId = requestAnimationFrame(loop);
+    }
 
-    init();
-    animate();
+    function start() {
+      if (running) return;
+      running = true;
+      animId = requestAnimationFrame(loop);
+    }
+
+    function stop() {
+      running = false;
+      if (animId) cancelAnimationFrame(animId);
+      animId = 0;
+    }
+
+    resize();
+    build();
+
+    if (motionPrefs.reduced) {
+      draw(6000);
+      return;
+    }
+
+    const obs = new IntersectionObserver(
+      (entries) => { isVisible = entries[0]?.isIntersecting ?? true; },
+      { threshold: 0 },
+    );
+    obs.observe(canvas);
+
+    function onVisibilityChange() {
+      if (document.hidden) stop();
+      else if (!motionPrefs.reduced) start();
+    }
+
     window.addEventListener("resize", resize);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    const themeObs = new MutationObserver(() => {
+      build();
+      if (motionPrefs.reduced) draw(6000);
+    });
+    themeObs.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+
+    start();
 
     return () => {
-      cancelAnimationFrame(animationId);
+      stop();
       window.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      obs.disconnect();
+      themeObs.disconnect();
     };
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 pointer-events-none"
-      style={{ opacity: 0.3 }}
-    />
+    <>
+      <canvas ref={canvasRef} className="backdrop-canvas" aria-hidden="true" />
+      <div className="backdrop-noise" aria-hidden="true" />
+      <div className="backdrop-static" aria-hidden="true" />
+    </>
   );
 }

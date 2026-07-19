@@ -1,42 +1,80 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
 import { supabaseGoogleLogin } from "@/lib/api";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
+  const [error, setError] = useState("");
+  const [processing, setProcessing] = useState(true);
 
   useEffect(() => {
     async function handleCallback() {
-      const supabase = createClient();
-      const { data, error } = await supabase.auth.getSession();
-      if (error || !data.session) {
-        router.push("/login");
-        return;
-      }
+      try {
+        const hash = window.location.hash;
+        const params = new URLSearchParams(hash.substring(1));
 
-      const { session } = data;
+        const errorParam = params.get("error");
+        const errorDescription = params.get("error_description");
+        const accessToken = params.get("access_token");
 
-      if (session.user.app_metadata.provider === "google") {
-        try {
-          await supabaseGoogleLogin(session.provider_token ?? session.access_token);
-        } catch {
-          // Continue anyway
+        if (!accessToken) {
+          setError(
+            errorDescription || errorParam || "No access token received from Supabase",
+          );
+          setProcessing(false);
+          return;
         }
-      }
 
-      router.push("/chat");
-      router.refresh();
+        await supabaseGoogleLogin(accessToken);
+        window.location.hash = "";
+        router.push("/chat");
+      } catch (err: any) {
+        setError(err.message || "Authentication failed");
+        setProcessing(false);
+      }
     }
 
     handleCallback();
   }, [router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <p className="text-muted-foreground">Signing you in...</p>
+    <div className="auth-page">
+      <div className="card rise auth-card">
+        <div className="auth-header">
+          <div className="auth-logo-wrap">
+            <Link href="/" className="text-2xl font-bold">BoloDB</Link>
+          </div>
+          {error ? (
+            <>
+              <h1 className="auth-title">Authentication failed</h1>
+              <p className="auth-subtitle">Something went wrong during sign-in.</p>
+            </>
+          ) : (
+            <>
+              <h1 className="auth-title">Signing you in</h1>
+              <p className="auth-subtitle">Please wait while we complete your authentication.</p>
+            </>
+          )}
+        </div>
+
+        {error ? (
+          <>
+            <div role="alert" aria-live="polite" className="auth-error" data-testid="callback-error">
+              {error}
+            </div>
+            <div className="auth-footer">
+              <Link href="/login">&larr; Back to sign in</Link>
+            </div>
+          </>
+        ) : (
+          <div style={{ textAlign: "center", padding: "24px 0" }}>
+            <span className="spinner" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

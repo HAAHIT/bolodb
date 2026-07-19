@@ -4,7 +4,6 @@ import { useHistoryStats } from "@/hooks/use-conversations";
 import { ChartCard } from "./chart-card";
 import { ConfidenceBadge } from "@/components/shared/confidence-badge";
 import { Spinner } from "@/components/shared/spinner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const COLORS = ["#22c55e", "#eab308", "#ef4444"];
@@ -49,35 +48,35 @@ export function DashboardTab() {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">
+        <div className="rounded-xl border bg-card text-card-foreground shadow">
+          <div className="flex flex-col space-y-1.5 p-6 pb-2">
+            <div className="text-sm font-semibold leading-none tracking-tight text-muted-foreground">
               Total Queries
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </div>
+          </div>
+          <div className="p-6 pt-0">
             <p className="text-3xl font-bold">{stats.total_queries || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">
+          </div>
+        </div>
+        <div className="rounded-xl border bg-card text-card-foreground shadow">
+          <div className="flex flex-col space-y-1.5 p-6 pb-2">
+            <div className="text-sm font-semibold leading-none tracking-tight text-muted-foreground">
               Verified
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </div>
+          </div>
+          <div className="p-6 pt-0">
             <p className="text-3xl font-bold text-green-600">
               {stats.verified_count || 0}
             </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">
+          </div>
+        </div>
+        <div className="rounded-xl border bg-card text-card-foreground shadow">
+          <div className="flex flex-col space-y-1.5 p-6 pb-2">
+            <div className="text-sm font-semibold leading-none tracking-tight text-muted-foreground">
               Confidence
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </div>
+          </div>
+          <div className="p-6 pt-0">
             <ConfidenceBadge
               confidence={
                 stats.verified_count && stats.total_queries
@@ -89,8 +88,8 @@ export function DashboardTab() {
                   : "N/A"
               }
             />
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">

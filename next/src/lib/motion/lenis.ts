@@ -1,41 +1,47 @@
-let lenisInstance: any = null;
+let _lenis: any = null;
 
-export async function initLenis(): Promise<any> {
-  if (lenisInstance) return lenisInstance;
+export function getLenis() {
+  return _lenis;
+}
+
+export async function initLenis() {
+  if (typeof window === "undefined" || _lenis) return _lenis;
+
   const Lenis = (await import("lenis")).default;
-  lenisInstance = new Lenis({
+
+  _lenis = new Lenis({
     duration: 1.2,
     easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
     orientation: "vertical",
+    gestureOrientation: "vertical",
     smoothWheel: true,
+    wheelMultiplier: 1,
+    touchMultiplier: 1.5,
   });
 
-  const raf = (time: number) => {
-    lenisInstance.raf(time);
-    requestAnimationFrame(raf);
-  };
-  requestAnimationFrame(raf);
-
-  return lenisInstance;
-}
-
-export function getLenis() {
-  return lenisInstance;
+  return _lenis;
 }
 
 export function destroyLenis() {
-  if (lenisInstance) {
-    lenisInstance.destroy();
-    lenisInstance = null;
+  if (_lenis) {
+    _lenis.destroy();
+    _lenis = null;
   }
 }
 
 export function scrollTo(target: string | HTMLElement, options?: any) {
-  if (lenisInstance) {
-    lenisInstance.scrollTo(target, options);
-  } else {
-    const el =
-      typeof target === "string" ? document.querySelector(target) : target;
-    el?.scrollIntoView({ behavior: "smooth" });
+  if (!_lenis) {
+    if (typeof target === "string") {
+      const id = target.replace(/^#/, "");
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    } else {
+      target.scrollIntoView({ behavior: "smooth" });
+    }
+    return;
   }
+  const selector =
+    typeof target === "string" && !target.startsWith("#")
+      ? "#" + target
+      : target;
+  _lenis.scrollTo(selector, options);
 }

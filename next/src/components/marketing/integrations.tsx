@@ -1,64 +1,60 @@
 "use client";
 
 import { useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Copy } from "lucide-react";
-import { toast } from "sonner";
 
-const DATABASES = [
-  { name: "PostgreSQL", color: "text-blue-500", example: "postgresql://user:pass@host:5432/db" },
-  { name: "MySQL", color: "text-orange-500", example: "mysql://user:pass@host:3306/db" },
-  { name: "SQL Server", color: "text-red-500", example: "mssql://user:pass@host:1433/db" },
-  { name: "SQLite", color: "text-green-500", example: "sqlite:///path/to/database.db" },
+const dbs = [
+  { name: "PostgreSQL", color: "#336791" },
+  { name: "MySQL", color: "#4479A1" },
+  { name: "SQL Server", color: "#CC2927" },
+  { name: "SQLite", color: "#003B57" },
 ];
 
+const connStrings: Record<string, { label: string; code: string }[]> = {
+  PostgreSQL: [
+    { label: "URL", code: "postgresql://user:pass@host:5432/dbname" },
+    { label: "Params", code: "host=localhost port=5432 dbname=mydb user=myuser password=mypass" },
+  ],
+  MySQL: [
+    { label: "URL", code: "mysql://user:pass@host:3306/dbname" },
+    { label: "Params", code: "host=localhost port=3306 dbname=mydb user=myuser password=mypass" },
+  ],
+  "SQL Server": [
+    { label: "URL", code: "sqlserver://host:1433;database=dbname;user=myuser;password=mypass;" },
+    { label: "Params", code: "server=localhost,1433;database=mydb;user id=myuser;password=mypass;" },
+  ],
+  SQLite: [
+    { label: "File path", code: "/path/to/your/database.db" },
+    { label: "In-memory", code: ":memory:" },
+  ],
+};
+
 export function Integrations() {
-  const [active, setActive] = useState(0);
+  const [activeDb, setActiveDb] = useState("PostgreSQL");
+  const [activeTabIdx, setActiveTabIdx] = useState(0);
 
   return (
-    <section className="py-20 px-4">
-      <div className="max-w-4xl mx-auto text-center">
-        <h2 className="text-3xl md:text-4xl font-bold mb-4">
-          Works with your database
-        </h2>
-        <p className="text-muted-foreground mb-10 max-w-2xl mx-auto">
-          Connect any SQL database with a simple connection string
-        </p>
-
-        <div className="flex flex-wrap justify-center gap-2 mb-8">
-          {DATABASES.map((db, i) => (
-            <button
-              key={db.name}
-              onClick={() => setActive(i)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                active === i
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted hover:bg-muted/80"
-              }`}
-            >
-              {db.name}
-            </button>
+    <section id="integrations" className="integrations-section">
+      <h2 className="section-title">Works with every major database</h2>
+      <div className="db-grid">
+        {dbs.map((db) => (
+          <button key={db.name} className={"db-card" + (activeDb === db.name ? " active-db" : "")} onClick={() => { setActiveDb(db.name); setActiveTabIdx(0); }}>
+            <div className="db-logo-circle" style={{ background: db.color + "15", color: db.color }}>{db.name.slice(0, 2)}</div>
+            <span className="db-name">{db.name}</span>
+          </button>
+        ))}
+      </div>
+      <div className="conn-strings">
+        <div className="conn-tabs" role="tablist" aria-label="Connection string format">
+          {connStrings[activeDb].map((tab, i) => (
+            <button key={i} type="button" id={"conn-tab-" + i} className={"conn-tab" + (i === activeTabIdx ? " active-tab" : "")} role="tab" aria-selected={i === activeTabIdx} aria-controls={"conn-panel-" + i} onClick={() => setActiveTabIdx(i)}>{tab.label}</button>
           ))}
         </div>
-
-        <Card className="p-4 max-w-lg mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">{DATABASES[active].name}</span>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(DATABASES[active].example);
-                toast.success("Copied to clipboard");
-              }}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <Copy className="h-4 w-4" />
-            </button>
-          </div>
-          <code className="text-sm bg-muted block p-3 rounded-md text-left">
-            {DATABASES[active].example}
-          </code>
-        </Card>
+        <div id={"conn-panel-" + activeTabIdx} role="tabpanel" tabIndex={0} aria-labelledby={"conn-tab-" + activeTabIdx}>
+          <pre className="conn-code">{connStrings[activeDb][activeTabIdx].code}</pre>
+        </div>
+        <p className="conn-tip">Tip: use a read-only database account — BoloDB never writes to your data.</p>
       </div>
+      <p className="any-db">+ any SQL database via connection string</p>
     </section>
   );
 }

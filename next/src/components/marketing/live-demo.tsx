@@ -1,143 +1,251 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
-import { MessageSquare, Database as DatabaseIcon } from "lucide-react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { trackDemoViewed } from "@/lib/marketing/analytics";
+import { motionPrefs } from "@/lib/motion/motion-prefs";
 
 const QUESTIONS = [
-  "What were our top 5 products by revenue last month?",
-  "Show me customer churn rate by quarter",
-  "Which marketing channel has the highest conversion?",
-  "What's our average order value by region?",
-  "List employees who joined in the last 90 days",
+  "Show me the top 3 customers this month by revenue",
+  "Which products are low on stock right now?",
+  "How do refunds compare to last quarter?",
 ];
 
-const SAMPLE_RESULT = {
-  columns: ["product", "revenue", "units_sold"],
-  rows: [
-    ["Wireless Headphones", "$124,500", "1,245"],
-    ["Smart Watch Pro", "$98,200", "492"],
-    ["Laptop Stand", "$67,800", "2,260"],
-    ["USB-C Hub", "$45,300", "1,510"],
-    ["Mechanical Keyboard", "$38,900", "389"],
-  ],
-};
+const SQL = "SELECT name, SUM(revenue) AS total\nFROM customers\nJOIN orders ON orders.customer_id = customers.id\nWHERE orders.created_at >= date('now','start of month')\nGROUP BY customers.id\nORDER BY total DESC\nLIMIT 3;";
 
-function QuestionDisplay({ question, onDone }: { question: string; onDone: () => void }) {
-  const [displayText, setDisplayText] = useState("");
+const ROWS: [string, string][] = [
+  ["Acme Corp", "$124,500"],
+  ["Globex Inc", "$98,200"],
+  ["Initech", "$86,450"],
+];
 
-  useEffect(() => {
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < question.length) {
-        setDisplayText(question.slice(0, i + 1));
-        i++;
-      } else {
-        clearInterval(interval);
-        onDone();
-      }
-    }, 30);
-    return () => clearInterval(interval);
-  }, [question, onDone]);
-
-  return (
-    <span className="text-sm text-muted-foreground">
-      {displayText}
-      <span className="animate-pulse">|</span>
-    </span>
-  );
+function addRow(rowsEl: HTMLElement, r: [string, string], animate: boolean) {
+  const tr = document.createElement("tr");
+  const td1 = document.createElement("td");
+  td1.textContent = r[0];
+  const td2 = document.createElement("td");
+  td2.className = "num";
+  td2.textContent = r[1];
+  tr.appendChild(td1);
+  tr.appendChild(td2);
+  if (animate) {
+    tr.className = "row-anim";
+    tr.style.opacity = "0";
+    tr.style.transform = "translateY(8px)";
+  }
+  rowsEl.appendChild(tr);
+  if (animate) {
+    requestAnimationFrame(() => {
+      tr.style.transition = "opacity .4s var(--ease), transform .4s var(--ease)";
+      tr.style.opacity = "1";
+      tr.style.transform = "none";
+    });
+  }
 }
 
 export function LiveDemo() {
-  const [currentQ, setCurrentQ] = useState(0);
-  const [showResult, setShowResult] = useState(false);
+  const [typedText, setTypedText] = useState("");
+  const [answerHidden, setAnswerHidden] = useState(true);
+  const [thinkingHidden, setThinkingHidden] = useState(false);
+  const [sqlHidden, setSqlHidden] = useState(true);
+  const [resultHidden, setResultHidden] = useState(true);
+  const [skip, setSkip] = useState(false);
+  const [qi, setQi] = useState(0);
 
-  const handleTypingDone = () => {
-    setTimeout(() => setShowResult(true), 500);
-  };
+  const panelRef = useRef<HTMLDivElement>(null);
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const runningRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  const clearTimers = useCallback(() => {
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+  }, []);
+
+  const resetState = useCallback(() => {
+    clearTimers();
+    setTypedText("");
+    setAnswerHidden(true);
+    setThinkingHidden(false);
+    setSqlHidden(true);
+    setResultHidden(true);
+    if (tbodyRef.current) {
+      tbodyRef.current.innerHTML = "";
+    }
+  }, [clearTimers]);
 
   useEffect(() => {
-    if (!showResult) return;
-    const timer = setTimeout(() => {
-      setShowResult(false);
-      setCurrentQ((prev) => (prev + 1) % QUESTIONS.length);
-    }, 4500);
-    return () => clearTimeout(timer);
-  }, [showResult]);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (motionPrefs.reduced) {
+      setTypedText(QUESTIONS[0]);
+      setAnswerHidden(false);
+      setThinkingHidden(true);
+      setSqlHidden(false);
+      setResultHidden(false);
+      const tbody = tbodyRef.current;
+      if (tbody) {
+        ROWS.forEach((row) => addRow(tbody, row, false));
+      }
+      return;
+    }
+
+    if (skip) return;
+
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const runCycle = (questionIdx: number) => {
+      if (!mountedRef.current) return;
+      resetState();
+
+      const question = QUESTIONS[questionIdx];
+      let i = 0;
+
+      const typeTimer = setInterval(() => {
+        if (!mountedRef.current) { clearInterval(typeTimer); return; }
+        if (i < question.length) {
+          setTypedText(question.slice(0, i + 1));
+          i++;
+        } else {
+          clearInterval(typeTimer);
+
+          const t1 = setTimeout(() => {
+            if (!mountedRef.current) return;
+            setAnswerHidden(false);
+            setThinkingHidden(true);
+          }, 500);
+          timersRef.current.push(t1);
+
+          const t2 = setTimeout(() => {
+            if (!mountedRef.current) return;
+            setThinkingHidden(true);
+            setSqlHidden(false);
+          }, 1500);
+          timersRef.current.push(t2);
+
+          const t3 = setTimeout(() => {
+            if (!mountedRef.current) return;
+            setResultHidden(false);
+            const tbody = tbodyRef.current;
+            if (tbody) {
+              ROWS.forEach((row, idx) => {
+                const tr = setTimeout(() => {
+                  if (mountedRef.current) addRow(tbody, row, true);
+                }, idx * 160);
+                timersRef.current.push(tr);
+              });
+            }
+          }, 2500);
+          timersRef.current.push(t3);
+
+          const t4 = setTimeout(() => {
+            if (!mountedRef.current) return;
+            setQi((prev) => (prev + 1) % QUESTIONS.length);
+          }, 6200);
+          timersRef.current.push(t4);
+        }
+      }, 38);
+      timersRef.current.push(typeTimer as unknown as ReturnType<typeof setTimeout>);
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && mountedRef.current && !runningRef.current) {
+            runningRef.current = true;
+            runCycle(qi);
+          } else if (!entry.isIntersecting) {
+            clearTimers();
+            runningRef.current = false;
+          }
+        });
+      },
+      { threshold: 0.35 }
+    );
+
+    observer.observe(panel);
+
+    return () => {
+      observer.disconnect();
+      clearTimers();
+      runningRef.current = false;
+    };
+  }, [qi, skip, resetState, clearTimers]);
+
+  const handleSkip = useCallback(() => {
+    setSkip(true);
+    clearTimers();
+    setTypedText(QUESTIONS[qi]);
+    setAnswerHidden(false);
+    setThinkingHidden(true);
+    setSqlHidden(false);
+    setResultHidden(false);
+    const tbody = tbodyRef.current;
+    if (tbody) {
+      tbody.innerHTML = "";
+      ROWS.forEach((row) => addRow(tbody, row, false));
+    }
+    trackDemoViewed();
+  }, [qi, clearTimers]);
+
+  const handlePlay = useCallback(() => {
+    setSkip(false);
+    setQi(0);
+    resetState();
+  }, [resetState]);
 
   return (
-    <section id="demo" className="py-20 px-4">
-      <div className="max-w-4xl mx-auto">
-        <h2 className="text-3xl md:text-4xl font-bold text-center mb-4">
-          See it in action
-        </h2>
-        <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
-          Watch how BoloDB transforms natural language into precise SQL queries
-        </p>
-
-        <Card className="p-6">
-          <div className="flex items-center gap-3 mb-6 pb-4 border-b">
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <MessageSquare className="h-4 w-4 text-primary" />
+    <section id="demo" className="demo-section" aria-label="Product demo">
+      <h2 className="section-title">See it in action</h2>
+      <div className="demo-panel" ref={panelRef}>
+        <div className="demo-top">
+          <span className="demo-badge">Demo</span>
+          <button className="skip-btn" aria-pressed={skip} onClick={skip ? handlePlay : handleSkip}>
+            {skip ? "Replay" : "Skip"}
+          </button>
+        </div>
+        <div className="demo-body">
+          <div className="bubble user">
+            <span>{typedText}</span><span className="caret">|</span>
+          </div>
+          <div className="answer" hidden={answerHidden} style={answerHidden ? { display: "none" } : {}}>
+            <div className="ai-avatar" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2a2 2 0 0 1 2 2c-.11.66-.54 1.18-1.07 1.57"></path>
+                <path d="M15 14h6"></path>
+                <path d="M15 10h6"></path>
+                <circle cx="8" cy="12" r="6"></circle>
+              </svg>
             </div>
-            <div className="flex-1">
-              <div className="h-4 w-3/4 rounded bg-muted flex items-center px-3">
-                <QuestionDisplay
-                  key={currentQ}
-                  question={QUESTIONS[currentQ]}
-                  onDone={handleTypingDone}
-                />
+            <div className="answer-body">
+              <div className="thinking" hidden={thinkingHidden} style={thinkingHidden ? { display: "none" } : {}}>
+                <span className="mini-spin"></span> Thinking…
+              </div>
+              <div className="sql-block" hidden={sqlHidden} style={sqlHidden ? { display: "none" } : {}}>
+                <div className="sql-head mono">Generated SQL</div>
+                <pre className="sql-code mono"><code>{SQL}</code></pre>
+              </div>
+              <div className="result" hidden={resultHidden} style={resultHidden ? { display: "none" } : {}}>
+                <div className="result-top">
+                  <span className="conf conf-high pop"><span className="dot"></span>High confidence</span>
+                  <span className="result-meta mono">3 rows · 41ms</span>
+                </div>
+                <table className="result-table">
+                  <thead><tr><th>Customer</th><th className="num">Revenue</th></tr></thead>
+                  <tbody id="demo-rows" ref={tbodyRef}></tbody>
+                </table>
               </div>
             </div>
           </div>
-
-          {showResult && (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-              <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
-                <DatabaseIcon className="h-4 w-4" />
-                <span>Query returned 5 rows in 0.8s</span>
-              </div>
-
-              <div className="overflow-x-auto rounded-md border">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/50">
-                      {SAMPLE_RESULT.columns.map((col) => (
-                        <th
-                          key={col}
-                          className="px-4 py-2 text-left font-medium"
-                        >
-                          {col}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {SAMPLE_RESULT.rows.map((row, i) => (
-                      <tr key={i} className="border-b last:border-0">
-                        {row.map((cell, j) => (
-                          <td key={j} className="px-4 py-2">
-                            {cell}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="mt-4 p-3 rounded-md bg-muted/50">
-                <p className="text-xs text-muted-foreground mb-1">SQL</p>
-                <code className="text-sm">
-                  SELECT p.name, SUM(oi.quantity * oi.unit_price) as revenue,
-                  SUM(oi.quantity) as units_sold FROM products p JOIN
-                  order_items oi ON p.id = oi.product_id ...
-                </code>
-              </div>
-            </div>
-          )}
-        </Card>
+        </div>
       </div>
+      <p className="demo-alt">BoloDB turns plain-English questions into SQL, runs them against your database, and returns results with a confidence score.</p>
     </section>
   );
 }

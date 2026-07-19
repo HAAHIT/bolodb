@@ -1,15 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
 import { Spinner } from "@/components/shared/spinner";
 import { apiCall, getCatalog, saveCatalog } from "@/lib/api";
 import { toast } from "sonner";
@@ -76,33 +67,34 @@ export function DataCatalog() {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Data Catalog</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="rounded-xl border bg-card text-card-foreground shadow">
+        <div className="flex flex-col space-y-1.5 p-6">
+          <div className="font-semibold leading-none tracking-tight">Data Catalog</div>
+        </div>
+        <div className="p-6 pt-0">
           <div className="flex justify-center py-8">
             <Spinner />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Data Catalog</CardTitle>
-        <CardDescription>
+    <div className="rounded-xl border bg-card text-card-foreground shadow">
+      <div className="flex flex-col space-y-1.5 p-6">
+        <div className="font-semibold leading-none tracking-tight">Data Catalog</div>
+        <div className="text-sm text-muted-foreground">
           Define synonyms, metrics, and annotations for your data schema.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
+        </div>
+      </div>
+      <div className="p-6 pt-0 space-y-6">
         {SECTIONS.map((section) => (
           <div key={section.key} className="space-y-2">
             <label className="text-sm font-medium">{section.label}</label>
             <div className="flex gap-2">
-              <Input
+              <input
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 value={catalog[section.key] || ""}
                 onChange={(e) =>
                   setCatalog((prev) => ({
@@ -112,9 +104,8 @@ export function DataCatalog() {
                 }
                 placeholder={`Enter ${section.label.toLowerCase()}...`}
               />
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs"
                 onClick={() => handleSuggest(section.key)}
                 disabled={suggesting[section.key]}
               >
@@ -123,20 +114,24 @@ export function DataCatalog() {
                 ) : (
                   <Lightbulb className="h-4 w-4" />
                 )}
-              </Button>
+              </button>
             </div>
           </div>
         ))}
 
-        <Button onClick={handleSave} disabled={saving} className="w-full">
+        <button
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2 w-full"
+          onClick={handleSave}
+          disabled={saving}
+        >
           {saving ? (
             <Spinner className="mr-2" />
           ) : (
             <Save className="mr-2 h-4 w-4" />
           )}
           Save Catalog
-        </Button>
-      </CardContent>
-    </Card>
+        </button>
+      </div>
+    </div>
   );
 }

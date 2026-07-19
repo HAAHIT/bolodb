@@ -2,9 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/shared/spinner";
 import { Stepper } from "./stepper";
 import { apiCall } from "@/lib/api";
@@ -97,17 +95,19 @@ export function OnboardScreen() {
     router.push("/chat");
   }, [glossary, router]);
 
+  const btnBase = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
+
   return (
     <div className="mx-auto max-w-3xl space-y-8 p-6">
       <Stepper currentStep={step} steps={STEPS} />
 
       <div className="flex justify-center">
         {step === 0 && (
-          <Card className="w-full">
-            <CardHeader>
-              <CardTitle>Schema</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <div className="rounded-xl border bg-card text-card-foreground shadow w-full">
+            <div className="flex flex-col space-y-1.5 p-6">
+              <div className="font-semibold leading-none tracking-tight">Schema</div>
+            </div>
+            <div className="p-6 pt-0">
               {loading ? (
                 <div className="flex justify-center py-8">
                   <Spinner />
@@ -131,16 +131,16 @@ export function OnboardScreen() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {step === 1 && (
-          <Card className="w-full">
-            <CardHeader>
-              <CardTitle>Glossary Terms</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <div className="rounded-xl border bg-card text-card-foreground shadow w-full">
+            <div className="flex flex-col space-y-1.5 p-6">
+              <div className="font-semibold leading-none tracking-tight">Glossary Terms</div>
+            </div>
+            <div className="p-6 pt-0">
               {loading ? (
                 <div className="flex justify-center py-8">
                   <Spinner />
@@ -154,14 +154,16 @@ export function OnboardScreen() {
                   {glossary.map((item, i) => (
                     <div key={i} className="rounded-lg border p-3 space-y-2">
                       <div className="font-medium text-sm">{item.term}</div>
-                      <Input
+                      <input
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         placeholder="Definition"
                         value={item.def || ""}
                         onChange={(e) =>
                           updateGlossaryItem(i, "def", e.target.value)
                         }
                       />
-                      <Input
+                      <input
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         placeholder="Maps to"
                         value={item.maps_to || ""}
                         onChange={(e) =>
@@ -172,16 +174,16 @@ export function OnboardScreen() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {step === 2 && (
-          <Card className="w-full">
-            <CardHeader>
-              <CardTitle>Starter Queries</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <div className="rounded-xl border bg-card text-card-foreground shadow w-full">
+            <div className="flex flex-col space-y-1.5 p-6">
+              <div className="font-semibold leading-none tracking-tight">Starter Queries</div>
+            </div>
+            <div className="p-6 pt-0">
               {loading ? (
                 <div className="flex justify-center py-8">
                   <Spinner />
@@ -209,29 +211,42 @@ export function OnboardScreen() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
       </div>
 
       <div className="flex justify-between">
-        <Button
-          variant="outline"
+        <button
+          className={cn(btnBase, "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2")}
           onClick={() => goToStep(Math.max(0, step - 1))}
           disabled={step === 0}
         >
           Back
-        </Button>
+        </button>
         <div className="flex gap-2">
           {step < 2 && (
-            <Button variant="ghost" onClick={() => goToStep(step + 1)}>
+            <button
+              className={cn(btnBase, "hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2")}
+              onClick={() => goToStep(step + 1)}
+            >
               Skip
-            </Button>
+            </button>
           )}
           {step < 2 ? (
-            <Button onClick={() => goToStep(step + 1)}>Next</Button>
+            <button
+              className={cn(btnBase, "bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2")}
+              onClick={() => goToStep(step + 1)}
+            >
+              Next
+            </button>
           ) : (
-            <Button onClick={handleFinish}>Finish</Button>
+            <button
+              className={cn(btnBase, "bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2")}
+              onClick={handleFinish}
+            >
+              Finish
+            </button>
           )}
         </div>
       </div>
