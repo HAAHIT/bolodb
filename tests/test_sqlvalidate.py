@@ -214,6 +214,50 @@ def test_outer_alias_not_visible_in_sibling_subquery_select_list():
     assert any("Unknown column" in e and "revenue" in e for e in res["errors"])
 
 
+def test_window_order_by_does_not_resolve_select_alias():
+    # A window's OVER (ORDER BY ...) cannot reference a SELECT alias, so `revenue`
+    # here is not a valid reference and must be flagged.
+    sql = (
+        "SELECT total_amount AS revenue, "
+        "ROW_NUMBER() OVER (ORDER BY revenue) FROM orders"
+    )
+    res = validate_sql(sql, SCHEMA)
+    assert res["ok"] is False
+    assert any("Unknown column" in e and "revenue" in e for e in res["errors"])
+
+    # Ordering a window over a real column is fine.
+    ok = validate_sql(
+        "SELECT ROW_NUMBER() OVER (ORDER BY total_amount) FROM orders", SCHEMA
+    )
+    assert ok["ok"] is True, ok["errors"]
+
+
+def test_unrelated_cte_does_not_mask_invalid_where_alias():
+    # An unrelated CTE must not suppress unknown-column detection in a sibling
+    # scope that doesn't reference it.
+    sql = (
+        "WITH ignored AS (SELECT 1 AS x) "
+        "SELECT total_amount AS revenue FROM orders WHERE revenue > 0"
+    )
+    res = validate_sql(sql, SCHEMA)
+    assert res["ok"] is False
+    assert any("Unknown column" in e and "revenue" in e for e in res["errors"])
+
+
+def test_correlated_subquery_column_from_outer_opaque_not_flagged():
+    # The subquery selects from an aliased derived table (opaque); an unresolved
+    # column there could come from that source, so it must not be flagged.
+    sql = (
+        "SELECT c.name FROM customers c WHERE c.id IN ("
+        "SELECT d.customer_id FROM (SELECT customer_id, mystery FROM orders) d "
+        "WHERE d.mystery > 0)"
+    )
+    res = validate_sql(sql, SCHEMA)
+    # `mystery` is qualified by the derived-table alias `d`, so it's left
+    # unchecked; the query must validate cleanly.
+    assert res["ok"] is True, res["errors"]
+
+
 def test_unparseable_sql():
     res = validate_sql("SELECT FROM WHERE haha", SCHEMA)
     assert res["ok"] is False

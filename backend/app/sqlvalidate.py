@@ -50,13 +50,20 @@ def _alias_clause(col):
     list, ...). ``select`` is the enclosing SELECT node whose projection aliases
     are visible from that clause, so alias resolution stays scoped to the SELECT
     that actually defines them (a nested SELECT's aliases don't leak outward).
+
+    Ordering inside a window function's ``OVER (... ORDER BY ...)`` is not a
+    statement clause and cannot reference SELECT aliases, so a ``Window``
+    ancestor forces ``clause`` back to ``None``.
     """
     clause = None
+    windowed = False
     node = col.parent
     while node is not None:
         if isinstance(node, exp.Select):
-            return clause, node
-        if clause is None:
+            return (None if windowed else clause), node
+        if isinstance(node, exp.Window):
+            windowed = True
+        elif clause is None and not windowed:
             if isinstance(node, exp.Order):
                 clause = "order"
             elif isinstance(node, exp.Group):
@@ -64,7 +71,7 @@ def _alias_clause(col):
             elif isinstance(node, exp.Having):
                 clause = "having"
         node = node.parent
-    return clause, None
+    return (None if windowed else clause), None
 
 
 def _projection_aliases(select):
@@ -74,6 +81,45 @@ def _projection_aliases(select):
         for a in select.expressions
         if isinstance(a, exp.Alias) and a.alias
     }
+
+
+def _select_sources(select):
+    """Yield the FROM / JOIN source expressions owned directly by ``select``.
+
+    Only the SELECT's own relations are returned — relations nested inside a
+    derived-table subquery are left to that subquery's own scope.
+    """
+    for value in select.args.values():
+        if isinstance(value, exp.From):
+            yield value.this
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, exp.Join):
+                    yield item.this
+
+
+def _scope_has_opaque_source(col, cte_names, norm):
+    """Whether an unqualified column could originate from an opaque source.
+
+    Walks the SELECT scopes enclosing ``col`` (the innermost plus any outer
+    scopes it can reference, e.g. a correlated subquery). A scope is opaque when
+    one of its own FROM/JOIN relations is a derived-table subquery, a CTE, or an
+    unknown table — cases where we can't enumerate the available columns. This
+    is scoped rather than global so an unrelated CTE elsewhere in the statement
+    can't mask a genuinely invalid column reference.
+    """
+    node = col.parent
+    while node is not None:
+        if isinstance(node, exp.Select):
+            for src in _select_sources(node):
+                if isinstance(src, exp.Subquery):
+                    return True
+                if isinstance(src, exp.Table):
+                    name = (src.name or "").lower()
+                    if name and (name in cte_names or name not in norm):
+                        return True
+        node = node.parent
+    return False
 
 
 def validate_sql(sql, schema, dialect=""):
@@ -99,13 +145,10 @@ def validate_sql(sql, schema, dialect=""):
     norm = _normalize_schema(schema)
     errors = []
 
-    # Sources whose output columns are produced dynamically and therefore can't
-    # be checked against the schema: CTEs and aliased subqueries.
+    # CTE names — sources whose output columns are produced dynamically and so
+    # can't be checked against the schema. Opaque sources are resolved per
+    # SELECT scope in _scope_has_opaque_source below.
     cte_names = {c.alias.lower() for c in tree.find_all(exp.CTE) if c.alias}
-    opaque_sources = set(cte_names)
-    for sub in tree.find_all(exp.Subquery):
-        if sub.alias:
-            opaque_sources.add(sub.alias.lower())
 
     # Cache of a SELECT node's projection aliases, keyed by object id, so the
     # per-clause alias check below stays scoped to the defining SELECT.
@@ -125,16 +168,10 @@ def validate_sql(sql, schema, dialect=""):
             if t.alias:
                 alias_to_table[t.alias.lower()] = tname
         elif tname in cte_names:
-            # Referencing a CTE by name; track any alias as opaque too.
-            if t.alias:
-                opaque_sources.add(t.alias.lower())
+            # Referencing a CTE by name — opaque, resolved per scope later.
+            pass
         else:
             errors.append(f"Unknown table: '{t.name}' is not in the database schema.")
-
-            # Unknown tables make unqualified column resolution ambiguous; treat them as opaque.
-            opaque_sources.add(tname)
-            if t.alias:
-                opaque_sources.add(t.alias.lower())
     for col in tree.find_all(exp.Column):
         cname = (col.name or "").lower()
         if not cname:
@@ -173,9 +210,11 @@ def validate_sql(sql, schema, dialect=""):
                     alias_cache[id(select)] = aliases
                 if cname in aliases:
                     continue
-        # If an opaque source is present, the column might come from it — don't
-        # flag. Only report when every source is a known table and none has it.
-        if opaque_sources or not real_tables_in_use:
+        # If an opaque source is in scope, the column might come from it — don't
+        # flag. Scoped to the column's own SELECT (and outer scopes it can see)
+        # so an unrelated CTE/subquery elsewhere can't mask a real error. Only
+        # report when every source in scope is a known table and none has it.
+        if not real_tables_in_use or _scope_has_opaque_source(col, cte_names, norm):
             continue
         errors.append(
             f"Unknown column: '{col.name}' does not exist in any of the "
