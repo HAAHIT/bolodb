@@ -1,0 +1,89 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "search": "Search",
+    "confirm": "Confirm"
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "signOut": "Sign out",
+    "email": "Email",
+    "password": "Password",
+    "forgotPassword": "Forgot password?",
+    "resetPassword": "Reset password",
+    "verifyEmail": "Verify email",
+    "googleSignIn": "Continue with Google",
+    "or": "or",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?"
+  },
+  "nav": {
+    "chat": "Chat",
+    "dashboard": "Dashboard",
+    "connect": "Connect",
+    "profile": "Profile",
+    "settings": "Settings"
+  },
+  "chat": {
+    "placeholder": "Ask a question about your data...",
+    "thinking": "Thinking...",
+    "runQuery": "Run query",
+    "viewTable": "Table",
+    "viewChart": "Chart",
+    "viewSql": "SQL",
+    "correct": "Correct",
+    "wrong": "Wrong",
+    "regenerate": "Regenerate",
+    "copySql": "Copy SQL",
+    "newConversation": "New conversation",
+    "conversations": "Conversations",
+    "noConversations": "No conversations yet"
+  },
+  "connect": {
+    "title": "Connect your database",
+    "dialect": "Database type",
+    "connectionString": "Connection string",
+    "test": "Test connection",
+    "connect": "Connect",
+    "sampleData": "Try with sample data",
+    "success": "Connected successfully",
+    "error": "Connection failed"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "totalQueries": "Total queries",
+    "verifiedQueries": "Verified queries",
+    "confidenceBreakdown": "Confidence breakdown",
+    "topTables": "Top tables",
+    "activity": "Activity"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "theme": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "disconnect": "Disconnect database",
+    "disconnectConfirm": "Are you sure?"
+  },
+  "onboard": {
+    "step1": "Read your database schema",
+    "step2": "Define business terms",
+    "step3": "Verify starter queries",
+    "skip": "Skip onboarding",
+    "finish": "Finish"
+  },
+  "errors": {
+    "general": "Something went wrong",
+    "network": "Network error",
+    "unauthorized": "Please sign in"
+  }
+}
