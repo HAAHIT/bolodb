@@ -21,6 +21,7 @@ const AvatarImage = forwardRef<
   HTMLImageElement,
   HTMLAttributes<HTMLImageElement> & { src?: string; alt?: string }
 >(({ className, src, alt, ...props }, ref) => (
+  // eslint-disable-next-line @next/next/no-img-element
   <img
     ref={ref}
     src={src}
