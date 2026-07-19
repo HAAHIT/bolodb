@@ -15,12 +15,30 @@ class AppState {
   openrouterReady = $state(false);
   activeConversationId = $state<string | null>(null);
   tourCompleted = $state(false);
+  // True while a freshly connected user is walking the onboarding flow —
+  // stops /onboard's has_knowledge redirect from kicking them out (sample
+  // databases ship with seeded knowledge, so has_knowledge alone can't
+  // distinguish "already onboarded" from "just connected").
+  onboardingActive = $state(false);
 
   constructor() {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("bolodb_theme");
       // Normalize legacy theme names to the two-theme system (dark / light)
       this.theme = stored === "dark" ? "dark" : stored ? "light" : "dark";
+      // Survive a page reload mid-onboarding: sample DBs ship with seeded
+      // knowledge, so without this /onboard would bounce a refreshed user
+      // straight to /chat before they finished.
+      this.onboardingActive =
+        sessionStorage.getItem("bolodb_onboarding_active") === "1";
+    }
+  }
+
+  private setOnboardingActive(active: boolean) {
+    this.onboardingActive = active;
+    if (typeof window !== "undefined") {
+      if (active) sessionStorage.setItem("bolodb_onboarding_active", "1");
+      else sessionStorage.removeItem("bolodb_onboarding_active");
     }
   }
 
@@ -108,6 +126,7 @@ class AppState {
     this.starters = [];
     this.tourCompleted = false;
     this.activeConversationId = null;
+    this.setOnboardingActive(false);
     goto("/login");
   }
 
@@ -122,11 +141,15 @@ class AppState {
       } catch (e) {
         console.error("Failed to load schema:", e);
       }
-      if (res.has_knowledge) {
+      // Sample databases always walk through onboarding (they ship with
+      // seeded knowledge, so has_knowledge can't mean "already onboarded").
+      // Own databases with existing knowledge (reconnects) skip straight in.
+      if (!isSample && res.has_knowledge) {
         goto("/chat");
         return;
       }
     }
+    this.setOnboardingActive(true);
     goto("/onboard");
   }
 
@@ -147,8 +170,8 @@ class AppState {
         dialect: this.dbInfo?.dialect,
       });
     }
-    // Redirect is handled by the $effect in onboard/+page.svelte
-    // when dbInfo.has_knowledge becomes true
+    this.setOnboardingActive(false);
+    goto("/chat");
   }
 
   verify(apiCount?: number) {
@@ -177,9 +200,21 @@ class AppState {
               title: "Fully calibrated",
               body: "All answers appear directly now. Reasoning is always one tap away.",
             };
-      this.toast = msg;
-      setTimeout(() => (this.toast = null), 4200);
+      this.showToast(msg);
     }
+  }
+
+  private toastTimer: ReturnType<typeof setTimeout> | undefined;
+
+  showToast(toast: Toast, duration = 4200) {
+    this.toast = toast;
+    clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => (this.toast = null), duration);
+  }
+
+  /** Surface a failed action to the user as an error toast. */
+  showError(body: string, title = "Something went wrong") {
+    this.showToast({ title, body, kind: "error" }, 5200);
   }
 
   async disconnect() {
@@ -193,6 +228,7 @@ class AppState {
     this.verifiedCount = 0;
     this.starters = [];
     this.activeConversationId = null;
+    this.setOnboardingActive(false);
     goto("/connect");
   }
 }

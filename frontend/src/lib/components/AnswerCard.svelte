@@ -171,6 +171,9 @@
       {:else}
         <ResultTable columns={turn.columns || []} rows={turn.rows || []} />
       {/if}
+      {#if turn.resultTruncated}
+        <div style="font-size:11.5px;color:var(--faint);margin-top:6px">Restored from history — showing the first {(turn.rows || []).length} saved rows of a larger result. Re-run the question for the full set.</div>
+      {/if}
     {:else}
       <!-- restatement + confidence -->
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:15px">
@@ -209,13 +212,13 @@
         </div>
       {/if}
 
-      {#if !turn.executionError && turn.confidence === 'low' && !turn.basedOn}
+      {#if !turn.executionError && turn.sql && turn.confidence === 'low' && !turn.basedOn}
         <div style="font-size:12.5px;color:var(--c-med-ink);background:var(--c-med-tint);padding:8px 12px;border-radius:var(--radius-sm);margin-bottom:14px;font-weight:600">
           If the result looks right, click "Yes, correct" below — that trains BoloDB for next time.
         </div>
       {/if}
 
-      {#if !turn.executionError}
+      {#if !turn.executionError && turn.sql}
         <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:8px;gap:6px;">
           {#if hasChartData}
             <ChartToggle mode={viewMode} onToggle={() => viewMode = viewMode === 'table' ? 'chart' : 'table'} />
@@ -226,13 +229,18 @@
         {:else}
           <ResultTable columns={turn.columns || []} rows={turn.rows || []} />
         {/if}
+        {#if turn.resultTruncated}
+          <div style="font-size:11.5px;color:var(--faint);margin-top:6px">Restored from history — showing the first {(turn.rows || []).length} saved rows of a larger result. Re-run the question for the full set.</div>
+        {/if}
       {/if}
-      <div data-tour="sql-view">
-        <SqlBlock sql={turn.sql || ''} />
-      </div>
+      {#if turn.sql}
+        <div data-tour="sql-view">
+          <SqlBlock sql={turn.sql || ''} />
+        </div>
+      {/if}
 
-      <!-- verify zone -->
-      {#if !turn.executionError}
+      <!-- verify zone: only for turns that actually produced an answer -->
+      {#if !turn.executionError && turn.sql}
         <div class="hr" style="margin:16px 0 14px"></div>
 
         {#if turn.verdict == null && !showReasons}

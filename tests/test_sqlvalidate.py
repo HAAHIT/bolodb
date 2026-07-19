@@ -125,6 +125,35 @@ def test_group_by_and_order_by_columns_validated():
     assert any("bogus_col" in e for e in bad["errors"])
 
 
+def test_order_by_select_alias_not_flagged():
+    # `revenue` is a SELECT alias, not a real column — must not be flagged.
+    res = validate_sql(
+        "SELECT total_amount AS revenue FROM orders ORDER BY revenue DESC",
+        SCHEMA,
+    )
+    assert res["ok"] is True, res["errors"]
+
+    # `customers` is a SELECT alias for COUNT(*).
+    res = validate_sql(
+        "SELECT segment, COUNT(*) AS customers FROM customers "
+        "GROUP BY segment ORDER BY customers DESC",
+        SCHEMA,
+    )
+    assert res["ok"] is True, res["errors"]
+
+    # Real column should still be accepted.
+    res = validate_sql(
+        "SELECT total_amount AS revenue FROM orders ORDER BY total_amount",
+        SCHEMA,
+    )
+    assert res["ok"] is True, res["errors"]
+
+    # Bona-fide unknown column with no matching alias should still be flagged.
+    bad = validate_sql("SELECT id, name FROM customers ORDER BY bogus_col", SCHEMA)
+    assert bad["ok"] is False
+    assert any("bogus_col" in e for e in bad["errors"])
+
+
 def test_unparseable_sql():
     res = validate_sql("SELECT FROM WHERE haha", SCHEMA)
     assert res["ok"] is False

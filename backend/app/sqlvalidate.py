@@ -68,6 +68,9 @@ def validate_sql(sql, schema, dialect=""):
         if sub.alias:
             opaque_sources.add(sub.alias.lower())
 
+    # SELECT aliases are valid references in ORDER BY, GROUP BY, and HAVING.
+    select_aliases = {a.alias.lower() for a in tree.find_all(exp.Alias) if a.alias}
+
     # Map every alias / table name in use to its resolved base table (for real
     # schema tables only), and collect the set of real tables referenced.
     alias_to_table = {}
@@ -111,6 +114,9 @@ def validate_sql(sql, schema, dialect=""):
 
         # Unqualified column: accept if it exists in any real table in scope.
         if any(cname in norm[t] for t in real_tables_in_use):
+            continue
+        # Accept if it matches a SELECT alias (ORDER BY / GROUP BY / HAVING).
+        if cname in select_aliases:
             continue
         # If an opaque source is present, the column might come from it — don't
         # flag. Only report when every source is a known table and none has it.

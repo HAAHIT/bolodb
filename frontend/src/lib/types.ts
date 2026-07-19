@@ -76,6 +76,8 @@ export interface Turn {
   verdict?: "correct" | "wrong" | null;
   reasonChosen?: string | null;
   isDirect?: boolean;
+  /** Restored from history with the stored result capped server-side. */
+  resultTruncated?: boolean;
   thinkingArtifacts?: ThinkingArtifact[];
 }
 
@@ -121,6 +123,7 @@ export type StreamEvent =
 export interface Toast {
   title: string;
   body: string;
+  kind?: "success" | "error";
 }
 
 export interface WrongReason {
@@ -170,6 +173,7 @@ export interface ConversationTurn {
   question: string;
   sql: string;
   result: Record<string, unknown>[];
+  result_truncated?: boolean;
   confidence: "High" | "Medium" | "Low";
   restatement: string;
   timestamp: string;
