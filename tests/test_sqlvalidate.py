@@ -154,6 +154,113 @@ def test_order_by_select_alias_not_flagged():
     assert any("bogus_col" in e for e in bad["errors"])
 
 
+def test_alias_in_where_is_flagged():
+    # `revenue` is a SELECT alias; SQL does not allow referencing it in WHERE,
+    # so this must be flagged rather than slipping through to execution.
+    res = validate_sql(
+        "SELECT total_amount AS revenue FROM orders WHERE revenue > 0", SCHEMA
+    )
+    assert res["ok"] is False
+    assert any("Unknown column" in e and "revenue" in e for e in res["errors"])
+
+
+def test_group_by_alias_accepted_per_dialect():
+    # GROUP BY may reference a SELECT alias across the dialects we support.
+    for dialect in ("postgresql", "mysql", "sqlite", "mssql", ""):
+        res = validate_sql(
+            "SELECT total_amount AS revenue FROM orders GROUP BY revenue",
+            SCHEMA,
+            dialect=dialect,
+        )
+        assert res["ok"] is True, (dialect, res["errors"])
+
+
+def test_having_alias_dialect_dependent():
+    sql = "SELECT segment, COUNT(*) AS c FROM customers GROUP BY segment HAVING c > 1"
+    # MySQL and SQLite allow referencing a SELECT alias in HAVING.
+    for dialect in ("mysql", "sqlite"):
+        res = validate_sql(sql, SCHEMA, dialect=dialect)
+        assert res["ok"] is True, (dialect, res["errors"])
+
+    # Postgres / SQL Server (and standard SQL) do not — the alias must be
+    # flagged so the repair loop rewrites it as the underlying aggregate.
+    for dialect in ("postgresql", "mssql"):
+        res = validate_sql(sql, SCHEMA, dialect=dialect)
+        assert res["ok"] is False, dialect
+        assert any("Unknown column" in e and "'c'" in e for e in res["errors"])
+
+
+def test_nested_subquery_alias_does_not_leak_to_outer_scope():
+    # `revenue` is an alias in the OUTER select; it is not visible inside the
+    # subquery's WHERE, so referencing it there must be flagged.
+    sql = (
+        "SELECT total_amount AS revenue FROM orders "
+        "WHERE customer_id IN (SELECT id FROM customers WHERE revenue > 0)"
+    )
+    res = validate_sql(sql, SCHEMA)
+    assert res["ok"] is False
+    assert any("Unknown column" in e and "revenue" in e for e in res["errors"])
+
+
+def test_outer_alias_not_visible_in_sibling_subquery_select_list():
+    # A GROUP BY inside the subquery must resolve aliases against the subquery's
+    # own projection list, not the outer SELECT's aliases.
+    sql = (
+        "SELECT customer_id AS revenue FROM orders "
+        "WHERE customer_id IN (SELECT customer_id FROM orders GROUP BY revenue)"
+    )
+    res = validate_sql(sql, SCHEMA)
+    assert res["ok"] is False
+    assert any("Unknown column" in e and "revenue" in e for e in res["errors"])
+
+
+def test_window_order_by_does_not_resolve_select_alias():
+    # A window's OVER (ORDER BY ...) cannot reference a SELECT alias, so `revenue`
+    # here is not a valid reference and must be flagged.
+    sql = (
+        "SELECT total_amount AS revenue, "
+        "ROW_NUMBER() OVER (ORDER BY revenue) FROM orders"
+    )
+    res = validate_sql(sql, SCHEMA)
+    assert res["ok"] is False
+    assert any("Unknown column" in e and "revenue" in e for e in res["errors"])
+
+    # Ordering a window over a real column is fine.
+    ok = validate_sql(
+        "SELECT ROW_NUMBER() OVER (ORDER BY total_amount) FROM orders", SCHEMA
+    )
+    assert ok["ok"] is True, ok["errors"]
+
+
+def test_unrelated_cte_does_not_mask_invalid_where_alias():
+    # An unrelated CTE must not suppress unknown-column detection in a sibling
+    # scope that doesn't reference it.
+    sql = (
+        "WITH ignored AS (SELECT 1 AS x) "
+        "SELECT total_amount AS revenue FROM orders WHERE revenue > 0"
+    )
+    res = validate_sql(sql, SCHEMA)
+    assert res["ok"] is False
+    assert any("Unknown column" in e and "revenue" in e for e in res["errors"])
+
+
+def test_correlated_subquery_column_from_outer_opaque_not_flagged():
+    # The subquery correlates through an outer derived-table alias; a column
+    # qualified by that opaque alias cannot be checked and must not be flagged.
+    sql = (
+        "SELECT d.id FROM ("
+        "SELECT c.id, c.name FROM customers c"
+        ") d WHERE d.id IN ("
+        "SELECT o.customer_id FROM orders o "
+        "WHERE o.total_amount > d.mystery"
+        ")"
+    )
+    res = validate_sql(sql, SCHEMA)
+    # `d.mystery` is qualified by the derived-table alias `d` (opaque), so it
+    # is left unchecked; the query must validate cleanly.
+    assert res["ok"] is True, res["errors"]
+
+
 def test_unparseable_sql():
     res = validate_sql("SELECT FROM WHERE haha", SCHEMA)
     assert res["ok"] is False
