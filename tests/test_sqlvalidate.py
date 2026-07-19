@@ -176,10 +176,7 @@ def test_group_by_alias_accepted_per_dialect():
 
 
 def test_having_alias_dialect_dependent():
-    sql = (
-        "SELECT segment, COUNT(*) AS c FROM customers "
-        "GROUP BY segment HAVING c > 1"
-    )
+    sql = "SELECT segment, COUNT(*) AS c FROM customers GROUP BY segment HAVING c > 1"
     # MySQL and SQLite allow referencing a SELECT alias in HAVING.
     for dialect in ("mysql", "sqlite"):
         res = validate_sql(sql, SCHEMA, dialect=dialect)

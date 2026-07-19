@@ -161,8 +161,10 @@ def validate_sql(sql, schema, dialect=""):
         # references, so an unknown column there is still flagged. The alias set
         # comes from the enclosing SELECT so nested-SELECT aliases don't leak.
         clause, select = _alias_clause(col)
-        if clause == "order" or clause == "group" or (
-            clause == "having" and dialect in _HAVING_ALIAS_DIALECTS
+        if (
+            clause == "order"
+            or clause == "group"
+            or (clause == "having" and dialect in _HAVING_ALIAS_DIALECTS)
         ):
             if select is not None:
                 aliases = alias_cache.get(id(select))
