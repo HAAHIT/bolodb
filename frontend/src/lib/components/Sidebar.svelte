@@ -1,7 +1,8 @@
 <script lang="ts">
   import { schema as defaultSchema, trustFor, formatTime } from '$lib/data';
   import type { SchemaTable, DbInfo, Conversation } from '$lib/types';
-  import { getConversations, deleteConversation, clearConversations } from '$lib/api';
+  import { getConversations, deleteConversation, clearConversations, renameConversation } from '$lib/api';
+  import { appState } from '$lib/appState.svelte';
 
   type Tab = 'ask' | 'dash' | 'settings';
 
@@ -75,6 +76,7 @@
       conversations = [];
     } catch (e) {
       console.error(e);
+      appState.showError("Couldn't clear conversations — please try again.");
     }
   }
 
@@ -83,8 +85,51 @@
     try {
       await deleteConversation(id);
       conversations = conversations.filter((c) => c._id !== id);
+      if (id === activeConversationId) {
+        onNewChat?.();
+      }
     } catch (e) {
       console.error(e);
+      appState.showError("Couldn't delete that conversation — please try again.");
+    }
+  }
+
+  let editingId: string | null = $state(null);
+  let editTitle: string = $state('');
+
+  function startRename(cv: Conversation, e: Event) {
+    e.stopPropagation();
+    editingId = cv._id;
+    editTitle = cv.title || cv.last_question || '';
+  }
+
+  async function finishRename(id: string) {
+    const title = editTitle.trim();
+    if (title && title !== (conversations.find((c) => c._id === id)?.title || '')) {
+      try {
+        await renameConversation(id, title);
+        conversations = conversations.map((c) => (c._id === id ? { ...c, title } : c));
+      } catch (e) {
+        console.error(e);
+        appState.showError("Couldn't rename that conversation — please try again.");
+        // Keep the editor open with the typed text so the user can retry.
+        return;
+      }
+    }
+    // Only close the editor if this rename session is still the active one —
+    // a slower earlier request must not clobber a newer edit.
+    if (editingId !== id) return;
+    editingId = null;
+    editTitle = '';
+  }
+
+  function handleRenameKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      (e.target as HTMLInputElement).blur();
+    } else if (e.key === 'Escape') {
+      editingId = null;
+      editTitle = '';
     }
   }
 </script>
@@ -131,11 +176,25 @@
         <div style="display:flex;flex-direction:column;gap:3px">
           {#each conversations as cv (cv._id)}
             <div class="convo-row group">
-              <button class="convo" class:active={activeConversationId === cv._id} onclick={() => { onConversationSelect?.(cv._id); onTab('ask'); }}>
-                <span class="convo-title">{cv.title || cv.last_question || 'New conversation'}</span>
-                <span class="convo-meta">{cv.turn_count} turn{cv.turn_count === 1 ? '' : 's'} · {formatTime(cv.updated_at)}</span>
-              </button>
-              <button class="convo-del opacity-0 group-hover:opacity-100" aria-label="Delete" title="Delete" onclick={(e) => handleDelete(cv._id, e)}>✕</button>
+              {#if editingId === cv._id}
+                <input
+                  class="convo-edit"
+                  bind:value={editTitle}
+                  onblur={() => finishRename(cv._id)}
+                  onkeydown={handleRenameKeydown}
+                  onclick={(e) => e.stopPropagation()}
+                  autofocus
+                />
+              {:else}
+                <button class="convo" class:active={activeConversationId === cv._id} onclick={() => { onConversationSelect?.(cv._id); onTab('ask'); }}>
+                  <span class="convo-title">{cv.title || cv.last_question || 'New conversation'}</span>
+                  <span class="convo-meta">{cv.turn_count} turn{cv.turn_count === 1 ? '' : 's'} · {formatTime(cv.updated_at)}</span>
+                </button>
+                <button class="convo-ren opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label="Rename conversation" title="Rename" onclick={(e) => startRename(cv, e)}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M17 3a2.85 2.85 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <button class="convo-del opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label="Delete conversation" title="Delete" onclick={(e) => handleDelete(cv._id, e)}>✕</button>
+              {/if}
             </div>
           {/each}
           <button class="clear-all" onclick={handleClearConvs}>Clear all</button>
@@ -345,6 +404,39 @@
     transition: opacity 0.12s, color 0.12s;
   }
   .convo-del:hover { color: var(--low); }
+  .convo-ren {
+    position: absolute;
+    right: 28px;
+    top: 8px;
+    background: var(--surface-2);
+    border: none;
+    color: var(--faint);
+    cursor: pointer;
+    padding: 3px 5px;
+    border-radius: 5px;
+    display: inline-flex;
+    align-items: center;
+    transition: opacity 0.12s, color 0.12s;
+  }
+  .convo-ren:hover { color: var(--brand); }
+  .convo-ren:focus-visible,
+  .convo-del:focus-visible {
+    opacity: 1;
+    outline: 2px solid var(--brand);
+    outline-offset: 1px;
+  }
+  .convo-edit {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--card);
+    border: 1px solid var(--brand);
+    border-radius: 9px;
+    padding: 9px 10px;
+    outline: none;
+  }
   .clear-all {
     align-self: flex-start;
     background: transparent;

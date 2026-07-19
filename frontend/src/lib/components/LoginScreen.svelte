@@ -119,12 +119,6 @@
       </Button>
     </form>
 
-    <div class="auth-divider">
-      <span class="auth-divider-line"></span>
-      <span class="auth-divider-text">or</span>
-      <span class="auth-divider-line"></span>
-    </div>
-
     <GoogleSignIn onSuccess={onLogin} />
 
     <div class="auth-footer">

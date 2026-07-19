@@ -80,6 +80,8 @@
   let activeConversationId: string | null = $state(null);
   let abortController: AbortController | null = $state(null);
   let showScrollBtn = $state(false);
+  let lastTurnCount = 0;
+  let convLoadSeq = 0;
 
   const trust = $derived(trustFor(verifiedCount));
 
@@ -95,7 +97,15 @@
 
   $effect(() => {
     turns; // track
-    if (feedRef) feedRef.scrollTop = feedRef.scrollHeight;
+    // Only follow new content when the user is already near the bottom —
+    // force-scrolling on every turns update yanks the viewport while
+    // someone is reading or verifying an older answer.
+    if (!feedRef) return;
+    const distance = feedRef.scrollHeight - feedRef.scrollTop - feedRef.clientHeight;
+    if (distance < 200 || turns.length !== lastTurnCount) {
+      feedRef.scrollTop = feedRef.scrollHeight;
+    }
+    lastTurnCount = turns.length;
   });
 
   function onFeedScroll() {
@@ -212,11 +222,13 @@
     const title = (firstQuestion || "").slice(0, 80);
     try {
       const conv = await createConversation(title, dbInfo?.db_id);
+      activeConversationId = conv._id;
       onActiveConversationChange(conv._id);
       conversationTrigger++;
       return conv._id;
     } catch (e) {
       console.error("Failed to create conversation", e);
+      appState.showError("Couldn't start a new conversation — your question will still run, but it won't be saved to history.");
       return null;
     }
   }
@@ -237,7 +249,7 @@
       onAddTurn({ id, question: rawSql, thinking: true, isDirect: true, timestamp: ts } as Turn);
       const convId = await ensureConversation(rawSql);
       try {
-        const data = await apiCall("/api/execute", { sql: rawSql });
+        const data = await apiCall("/api/execute", { sql: rawSql, conversation_id: convId || undefined });
         const rows2d = rowsToArrays(data.columns || [], data.rows || []);
         onUpdateTurn(id, {
           thinking: false,
@@ -318,21 +330,31 @@
           thinkingArtifacts: [...artifacts],
           timestamp: ts,
         });
+        conversationTrigger++;
       },
       (err: Error) => {
         const errMsg = err.message || "Request failed";
         const isApiKeyError =
           errMsg.toLowerCase().includes("api key");
+        // Transport-level failures carry technical text; anything else came
+        // from a backend error event and is already written for the user
+        // (e.g. the high-traffic notice) — show it verbatim.
+        const isTechnical =
+          /(request failed|stream ended|failed to fetch|network(?:[Ee]rror)? ?error|load failed|streaming not supported)/i.test(
+            errMsg,
+          );
         onUpdateTurn(id, {
           thinking: false,
           restatement: isApiKeyError
             ? "AI not ready — set OPENROUTER_API_KEY in the server environment."
-            : "Something went wrong — please try again.",
+            : isTechnical
+              ? "Something went wrong — please check your connection and try again."
+              : errMsg,
           sql: "",
           columns: [],
           rows: [],
           confidence: "low" as const,
-          reason: errMsg,
+          reason: isTechnical ? errMsg : "",
           basedOn: false,
           query_id: id,
           verdict: null,
@@ -446,45 +468,77 @@
   }
 
   async function handleNewConversation() {
+    // Cancel any in-flight query stream so its callbacks can't write into
+    // the fresh conversation view.
+    abortController?.abort();
+    convLoadSeq++;
+    loading = false;
     turns = [];
+    activeConversationId = null;
     onActiveConversationChange(null);
+  }
+
+  function turnFromHistory(t: ConversationTurn): Turn {
+    const result = Array.isArray(t.result) ? t.result : [];
+    const cols = result.length > 0 && result[0] && typeof result[0] === 'object'
+      ? Object.keys(result[0])
+      : [];
+    // Direct /sql executions are persisted with this marker restatement;
+    // restore them as direct turns so they don't grow a verify prompt.
+    const isDirect = t.restatement === 'Direct SQL execution' && t.question === t.sql;
+    return {
+      isDirect,
+      resultTruncated: !!t.result_truncated,
+      id: t._id,
+      question: t.question,
+      thinking: false,
+      timestamp: t.timestamp,
+      restatement: t.restatement || '',
+      sql: t.sql || '',
+      columns: cols,
+      rows: result.map((row: Record<string, unknown>) => cols.map(c => {
+        const v = row?.[c];
+        return v === null || v === undefined ? '' : String(v);
+      })),
+      confidence: (t.confidence || 'medium').toLowerCase() as "high" | "medium" | "low",
+      reason: '',
+      basedOn: false,
+      query_id: t._id,
+      executionError: null,
+      verdict: null,
+      reasonChosen: null,
+    } as Turn;
   }
 
   async function handleConversationSelect(convId: string) {
     if (convId === activeConversationId) return;
+    // Cancel any in-flight query stream and stamp this load so that when two
+    // conversations are clicked in quick succession, only the latest click's
+    // response is applied (otherwise the slower fetch would win).
+    abortController?.abort();
+    const seq = ++convLoadSeq;
     loading = true;
     try {
       const conv = await getConversation(convId);
+      if (seq !== convLoadSeq) return;
+      activeConversationId = conv._id;
       onActiveConversationChange(conv._id);
-      turns = (conv.turns || []).map((t: ConversationTurn) => ({
-        id: t._id,
-        question: t.question,
-        thinking: false,
-        timestamp: t.timestamp,
-        restatement: t.restatement || '',
-        sql: t.sql || '',
-        columns: t.result && t.result.length > 0 ? Object.keys(t.result[0]) : [],
-        rows: t.result ? (() => {
-          const cols = t.result.length > 0 ? Object.keys(t.result[0]) : [];
-          return t.result.map((row: Record<string, unknown>) => cols.map(c => {
-            const v = row[c];
-            return v === null || v === undefined ? '' : String(v);
-          }));
-        })() : [],
-        confidence: (t.confidence || 'medium').toLowerCase() as "high" | "medium" | "low",
-        reason: '',
-        basedOn: false,
-        query_id: t._id,
-        executionError: null,
-        verdict: null,
-        reasonChosen: null,
-      }));
-      conversationTrigger++;
+      const loaded: Turn[] = [];
+      for (const t of conv.turns || []) {
+        try {
+          loaded.push(turnFromHistory(t));
+        } catch (e) {
+          console.error('Skipping malformed turn', t?._id, e);
+        }
+      }
+      turns = loaded;
     } catch (e) {
       console.error('Failed to load conversation', e);
-      turns = [];
+      if (seq === convLoadSeq) {
+        appState.showError("Couldn't open that conversation — please try again.");
+      }
     } finally {
-      loading = false;
+      if (seq === convLoadSeq) loading = false;
     }
   }
 

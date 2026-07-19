@@ -106,7 +106,10 @@ async def run_query(user_id, db, kb, cfg, providers, session_log, req_data):
         if context
         else set()
     )
-    provider = providers.get(user_id)
+    try:
+        provider = providers.get(user_id)
+    except LLMError as e:
+        raise HTTPException(503, e.user_message)
 
     # Two-stage linking (docs/04-schema-linking.md): on big schemas, ask the
     # model which tables might matter from a names-only catalog, then feed the
@@ -446,7 +449,13 @@ async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_dat
     schema_text = compact_schema(full_schema, tables, budget["samples"])
     # Only the catalog entries for the linked tables go into the prompt.
     prompt_catalog = filter_catalog(catalog, tables)
-    provider_obj = providers.get(user_id)
+    try:
+        provider_obj = providers.get(user_id)
+    except LLMError as e:
+        # Surface the configuration problem (e.g. missing API key) instead of
+        # letting it escape the generator and get masked as an internal error.
+        yield {"kind": "error", "message": e.user_message}
+        return
 
     yield {
         "kind": "schema_linked",
@@ -494,6 +503,10 @@ async def run_query_stream(user_id, db, kb, cfg, providers, session_log, req_dat
                 hint_idx += 1
         except asyncio.CancelledError:
             raise
+        except LLMError as e:
+            log.warning("SQL generation failed during streaming: %s", e, exc_info=True)
+            yield {"kind": "error", "message": e.user_message}
+            return
         except Exception as e:
             log.warning("SQL generation failed during streaming: %s", e, exc_info=True)
             yield {"kind": "error", "message": "Query generation failed"}

@@ -71,6 +71,11 @@
         doneBtnText: "Got it",
         onDestroyed: () => {
           if (!isMounted) return;
+          // Persist completion as soon as the intro tour is dismissed.
+          // Previously this only happened after the *result* tour ran, so a
+          // user who closed the tour (or never triggered the result tour) got
+          // the full tour again on every visit — with a click-blocking overlay.
+          markDone();
           maybeStartResultTour(driver);
         },
         steps: tourSteps,
@@ -175,11 +180,22 @@
     };
   });
 
+  // Idempotent: both the intro tour's dismissal and the result tour's
+  // onDestroyed call this, but one user flow should persist and report
+  // completion exactly once.
+  let completionSent = false;
+
   async function markDone() {
+    if (completionSent) return;
+    completionSent = true;
     try {
       await apiCall("/api/tour-complete", {});
       appState.tourCompleted = true;
-    } catch {}
+    } catch {
+      // Allow a later attempt (e.g. the result tour closing) to retry.
+      completionSent = false;
+      return;
+    }
     try {
       posthog.capture("product_tour_completed");
     } catch {}
