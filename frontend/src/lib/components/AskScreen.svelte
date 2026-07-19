@@ -340,7 +340,7 @@
         // from a backend error event and is already written for the user
         // (e.g. the high-traffic notice) — show it verbatim.
         const isTechnical =
-          /^(request failed|stream ended|failed to fetch|networkerror|load failed|streaming not supported)/i.test(
+          /(request failed|stream ended|failed to fetch|network(?:[Ee]rror)? ?error|load failed|streaming not supported)/i.test(
             errMsg,
           );
         onUpdateTurn(id, {

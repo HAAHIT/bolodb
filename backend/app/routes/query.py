@@ -166,7 +166,7 @@ async def execute(
                 user_id=user_id,
                 question=req.sql,
                 sql=req.sql,
-                result=out.get("rows", []),
+                result=(out.get("rows") or [])[:MAX_RESTORED_ROWS],
                 confidence="High",
                 conversation_id=conversation_id,
                 restatement="Direct SQL execution",
