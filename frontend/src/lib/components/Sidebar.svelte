@@ -635,10 +635,14 @@
       transform: translateX(-100%);
       transition: transform 0.25s var(--ease, ease);
       box-shadow: none;
+      visibility: hidden;
+      pointer-events: none;
     }
     .sidebar.mobile-open {
       transform: translateX(0);
       box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
+      visibility: visible;
+      pointer-events: auto;
     }
     .mobile-close { display: inline-flex; align-items: center; justify-content: center; }
   }

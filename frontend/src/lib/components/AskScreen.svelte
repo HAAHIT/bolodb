@@ -547,6 +547,23 @@
     e.preventDefault();
     ask();
   }
+
+  // Close mobile nav when viewport leaves mobile breakpoint
+  onMount(() => {
+    if (typeof window !== 'undefined') {
+      const mediaQuery = window.matchMedia('(max-width: 768px)');
+      const handleMediaChange = (e: MediaQueryListEvent | MediaQueryList) => {
+        if (!e.matches) {
+          mobileNavOpen = false;
+        }
+      };
+      // Initial check
+      handleMediaChange(mediaQuery);
+      // Listen for changes
+      mediaQuery.addEventListener('change', handleMediaChange);
+      return () => mediaQuery.removeEventListener('change', handleMediaChange);
+    }
+  });
 </script>
 
 <div class="app-root">
@@ -901,6 +918,12 @@
     background: rgba(0, 0, 0, 0.45);
     cursor: pointer;
     animation: fadeIn 0.2s ease both;
+  }
+  @media (min-width: 769px) {
+    .nav-backdrop {
+      display: none;
+      pointer-events: none;
+    }
   }
   @keyframes fadeIn {
     from { opacity: 0; }

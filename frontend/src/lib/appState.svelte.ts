@@ -120,17 +120,20 @@ class AppState {
       posthog.capture("user_logged_out");
       posthog.reset();
     }
-    this.setOnboardingActive(false);
-    // Navigate to the landing page BEFORE clearing dbInfo. Clearing it while
-    // still on /chat (or /dashboard/onboard) would trip those pages' own
-    // "no database → /connect" redirect effect and race it to /connect.
-    await goto("/");
-    this.dbInfo = null;
-    this.realSchema = null;
-    this.verifiedCount = 0;
-    this.starters = [];
-    this.tourCompleted = false;
-    this.activeConversationId = null;
+    try {
+      this.setOnboardingActive(false);
+      // Navigate to the landing page BEFORE clearing dbInfo. Clearing it while
+      // still on /chat (or /dashboard/onboard) would trip those pages' own
+      // "no database → /connect" redirect effect and race it to /connect.
+      await goto("/");
+    } finally {
+      this.dbInfo = null;
+      this.realSchema = null;
+      this.verifiedCount = 0;
+      this.starters = [];
+      this.tourCompleted = false;
+      this.activeConversationId = null;
+    }
   }
 
   async setConnect(isSample: boolean, res: DbInfo) {

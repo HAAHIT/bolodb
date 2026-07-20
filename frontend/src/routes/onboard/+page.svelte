@@ -4,8 +4,6 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
 
-  let redirected = $state(false);
-
   onMount(() => {
     if (!appState.isLoaded) {
       appState.init(false);
@@ -14,10 +12,7 @@
 
   $effect(() => {
     if (appState.isLoaded) {
-      if (!appState.dbInfo && !redirected) {
-        redirected = true;
-        goto('/connect');
-      } else if (appState.dbInfo?.has_knowledge && !appState.onboardingActive) {
+      if (appState.dbInfo?.has_knowledge && !appState.onboardingActive) {
         // Only bounce users who *land* here with existing knowledge — an
         // active onboarding run (incl. sample DBs, which ship pre-seeded)
         // stays on this page until it completes.
