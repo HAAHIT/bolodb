@@ -39,118 +39,136 @@ export function useStreamQuery() {
         isStreaming: true,
       });
 
+      const accumulated = {
+        thinkingArtifacts: [] as ThinkingArtifact[],
+        sql: "",
+        rows: null as number | null,
+        error: null as string | null,
+        confidence: null as string | null,
+      };
+
       const onEvent = (event: StreamEvent) => {
         // Convert each event kind to a ThinkingArtifact and update state
         switch (event.kind) {
           case "schema_linked":
-            setState((prev) => ({
-              ...prev,
-              thinkingArtifacts: [
-                ...prev.thinkingArtifacts,
-                {
-                  kind: "schema",
-                  data: {
-                    tables: event.tables,
-                    linked: event.linked,
-                  } as unknown as Record<string, unknown>,
-                },
-              ],
-            }));
+            {
+              const artifact = {
+                kind: "schema" as const,
+                data: {
+                  tables: event.tables,
+                  linked: event.linked,
+                } as unknown as Record<string, unknown>,
+              };
+              accumulated.thinkingArtifacts.push(artifact);
+              setState((prev) => ({
+                ...prev,
+                thinkingArtifacts: [...prev.thinkingArtifacts, artifact],
+              }));
+            }
             break;
           case "hint":
-            setState((prev) => ({
-              ...prev,
-              thinkingArtifacts: [
-                ...prev.thinkingArtifacts,
-                {
-                  kind: "hint",
-                  data: { message: event.message } as unknown as Record<
-                    string,
-                    unknown
-                  >,
-                },
-              ],
-            }));
+            {
+              const artifact = {
+                kind: "hint" as const,
+                data: { message: event.message } as unknown as Record<
+                  string,
+                  unknown
+                >,
+              };
+              accumulated.thinkingArtifacts.push(artifact);
+              setState((prev) => ({
+                ...prev,
+                thinkingArtifacts: [...prev.thinkingArtifacts, artifact],
+              }));
+            }
             break;
           case "sql":
-            setState((prev) => ({
-              ...prev,
-              sql: event.sql,
-              thinkingArtifacts: [
-                ...prev.thinkingArtifacts,
-                {
-                  kind: "sql",
-                  data: {
-                    attempt: event.attempt,
-                  } as unknown as Record<string, unknown>,
-                },
-              ],
-            }));
+            {
+              const artifact = {
+                kind: "sql" as const,
+                data: {
+                  attempt: event.attempt,
+                } as unknown as Record<string, unknown>,
+              };
+              accumulated.sql = event.sql;
+              accumulated.thinkingArtifacts.push(artifact);
+              setState((prev) => ({
+                ...prev,
+                sql: event.sql,
+                thinkingArtifacts: [...prev.thinkingArtifacts, artifact],
+              }));
+            }
             break;
           case "validation":
-            setState((prev) => ({
-              ...prev,
-              thinkingArtifacts: [
-                ...prev.thinkingArtifacts,
-                {
-                  kind: "validation",
-                  data: {
-                    passed: event.passed,
-                    checks: event.checks,
-                  } as unknown as Record<string, unknown>,
-                },
-              ],
-            }));
+            {
+              const artifact = {
+                kind: "validation" as const,
+                data: {
+                  passed: event.passed,
+                  checks: event.checks,
+                } as unknown as Record<string, unknown>,
+              };
+              accumulated.thinkingArtifacts.push(artifact);
+              setState((prev) => ({
+                ...prev,
+                thinkingArtifacts: [...prev.thinkingArtifacts, artifact],
+              }));
+            }
             break;
           case "repair":
-            setState((prev) => ({
-              ...prev,
-              thinkingArtifacts: [
-                ...prev.thinkingArtifacts,
-                {
-                  kind: "repair",
-                  data: {
-                    attempt: event.attempt,
-                    total: event.total,
-                    suggestion: event.suggestion,
-                  } as unknown as Record<string, unknown>,
-                },
-              ],
-            }));
+            {
+              const artifact = {
+                kind: "repair" as const,
+                data: {
+                  attempt: event.attempt,
+                  total: event.total,
+                  suggestion: event.suggestion,
+                } as unknown as Record<string, unknown>,
+              };
+              accumulated.thinkingArtifacts.push(artifact);
+              setState((prev) => ({
+                ...prev,
+                thinkingArtifacts: [...prev.thinkingArtifacts, artifact],
+              }));
+            }
             break;
           case "execution":
-            setState((prev) => ({
-              ...prev,
-              rows: event.rows,
-              thinkingArtifacts: [
-                ...prev.thinkingArtifacts,
-                {
-                  kind: "execution",
-                  data: {
-                    rows: event.rows,
-                    elapsed: event.elapsed,
-                    truncated: event.truncated,
-                  } as unknown as Record<string, unknown>,
-                },
-              ],
-            }));
+            {
+              const artifact = {
+                kind: "execution" as const,
+                data: {
+                  rows: event.rows,
+                  elapsed: event.elapsed,
+                  truncated: event.truncated,
+                } as unknown as Record<string, unknown>,
+              };
+              accumulated.rows = event.rows;
+              accumulated.thinkingArtifacts.push(artifact);
+              setState((prev) => ({
+                ...prev,
+                rows: event.rows,
+                thinkingArtifacts: [...prev.thinkingArtifacts, artifact],
+              }));
+            }
             break;
           case "confidence":
-            setState((prev) => ({
-              ...prev,
-              confidence: event.level,
-              thinkingArtifacts: [
-                ...prev.thinkingArtifacts,
-                {
-                  kind: "confidence",
-                  data: {
-                    level: event.level,
-                    reason: event.reason,
-                    based_on_verified: event.based_on_verified,
-                  } as unknown as Record<string, unknown>,
-                },
-              ],
-            }));
+            {
+              const artifact = {
+                kind: "confidence" as const,
+                data: {
+                  level: event.level,
+                  reason: event.reason,
+                  based_on_verified: event.based_on_verified,
+                } as unknown as Record<string, unknown>,
+              };
+              accumulated.confidence = event.level;
+              accumulated.thinkingArtifacts.push(artifact);
+              setState((prev) => ({
+                ...prev,
+                confidence: event.level,
+                thinkingArtifacts: [...prev.thinkingArtifacts, artifact],
+              }));
+            }
             break;
           case "result":
             // result data is a flat record — store it
@@ -160,6 +178,7 @@ export function useStreamQuery() {
             }));
             break;
           case "error":
+            accumulated.error = event.message;
             setState((prev) => ({
               ...prev,
               error: event.message,
@@ -174,6 +193,7 @@ export function useStreamQuery() {
       };
 
       const onError = (err: Error) => {
+        accumulated.error = err.message;
         setState((prev) => ({
           ...prev,
           error: err.message,
@@ -189,6 +209,8 @@ export function useStreamQuery() {
         onError,
         controller.signal,
       );
+
+      return accumulated;
     },
     [],
   );

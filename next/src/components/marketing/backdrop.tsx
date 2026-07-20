@@ -43,6 +43,7 @@ export function Backdrop() {
     }
 
     function resize() {
+      if (!canvas) return;
       w = canvas.width = Math.floor(window.innerWidth * dpr);
       h = canvas.height = Math.floor(window.innerHeight * dpr);
     }

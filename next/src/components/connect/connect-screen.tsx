@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { apiCall, isExpectedClientError } from "@/lib/api";
 import { humanError } from "@/lib/utils";
 import { useAppState } from "@/lib/app-state";
@@ -26,6 +26,7 @@ export function ConnectScreen({ onConnect }: ConnectScreenProps) {
   const [error, setError] = useState("");
   const [recentConnections, setRecentConnections] = useState<any[]>([]);
   const [reconnecting, setReconnecting] = useState<string | null>(null);
+  const [now] = useState(() => Date.now());
 
   useEffect(() => {
     apiCall("/api/connections")
@@ -129,7 +130,7 @@ export function ConnectScreen({ onConnect }: ConnectScreenProps) {
   }
 
   function timeAgo(iso: string): string {
-    const diff = Date.now() - new Date(iso).getTime();
+    const diff = now - new Date(iso).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "just now";
     if (mins < 60) return `${mins}m ago`;

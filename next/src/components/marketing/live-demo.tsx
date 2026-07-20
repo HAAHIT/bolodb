@@ -43,11 +43,12 @@ function addRow(rowsEl: HTMLElement, r: [string, string], animate: boolean) {
 }
 
 export function LiveDemo() {
-  const [typedText, setTypedText] = useState("");
-  const [answerHidden, setAnswerHidden] = useState(true);
-  const [thinkingHidden, setThinkingHidden] = useState(false);
-  const [sqlHidden, setSqlHidden] = useState(true);
-  const [resultHidden, setResultHidden] = useState(true);
+  const isReducedMotion = motionPrefs.reduced;
+  const [typedText, setTypedText] = useState(isReducedMotion ? QUESTIONS[0] : "");
+  const [answerHidden, setAnswerHidden] = useState(!isReducedMotion);
+  const [thinkingHidden, setThinkingHidden] = useState(isReducedMotion);
+  const [sqlHidden, setSqlHidden] = useState(!isReducedMotion);
+  const [resultHidden, setResultHidden] = useState(!isReducedMotion);
   const [skip, setSkip] = useState(false);
   const [qi, setQi] = useState(0);
 
@@ -56,6 +57,7 @@ export function LiveDemo() {
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const runningRef = useRef(false);
   const mountedRef = useRef(true);
+  const initializedRef = useRef(false);
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
@@ -82,16 +84,16 @@ export function LiveDemo() {
   }, []);
 
   useEffect(() => {
-    if (motionPrefs.reduced) {
-      setTypedText(QUESTIONS[0]);
-      setAnswerHidden(false);
-      setThinkingHidden(true);
-      setSqlHidden(false);
-      setResultHidden(false);
+    if (isReducedMotion && !initializedRef.current) {
       const tbody = tbodyRef.current;
       if (tbody) {
         ROWS.forEach((row) => addRow(tbody, row, false));
       }
+      initializedRef.current = true;
+      return;
+    }
+
+    if (isReducedMotion) {
       return;
     }
 

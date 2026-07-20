@@ -50,7 +50,22 @@ export function AskScreen() {
       setLocalTurns((prev) => [...prev, newTurn]);
     }
 
-    await stream.startStream(q, conversationId || undefined);
+    const finalData = await stream.startStream(q, conversationId || undefined);
+
+    setLocalTurns((prev) => {
+      const updated = [...prev];
+      const lastIndex = updated.length - 1;
+      if (lastIndex >= 0) {
+        updated[lastIndex] = {
+          ...updated[lastIndex],
+          thinkingArtifacts: finalData.thinkingArtifacts,
+          sql: finalData.sql,
+          confidence: finalData.confidence as Turn["confidence"],
+          executionError: finalData.error || undefined,
+        };
+      }
+      return updated;
+    });
   };
 
   const handleSelectConversation = (id: string) => {
@@ -64,19 +79,18 @@ export function AskScreen() {
 
   const allTurns = useMemo(() => {
     const base = hasServerTurns ? serverTurns : localTurns;
-    if (stream.isStreaming) {
-      return [
-        ...base,
-        {
-          id: "",
-          question: "",
-          thinking: stream.thinkingArtifacts.length > 0,
-          thinkingArtifacts: stream.thinkingArtifacts,
-          sql: stream.sql,
-          confidence: undefined,
-          executionError: stream.error || undefined,
-        } as Turn,
-      ];
+    if (stream.isStreaming && base.length > 0) {
+      const merged = [...base];
+      const lastIndex = merged.length - 1;
+      merged[lastIndex] = {
+        ...merged[lastIndex],
+        thinking: stream.thinkingArtifacts.length > 0,
+        thinkingArtifacts: stream.thinkingArtifacts,
+        sql: stream.sql,
+        confidence: stream.confidence as Turn["confidence"],
+        executionError: stream.error || undefined,
+      };
+      return merged;
     }
     return base;
   }, [hasServerTurns, serverTurns, localTurns, stream]);
