@@ -8,7 +8,7 @@ from difflib import SequenceMatcher
 from sqlalchemy import select, delete, func
 from sqlalchemy.exc import IntegrityError
 
-from backend.app.pgdatabase.models import (
+from backend.app.models.catalog import (
     VerifiedQA,
     Glossary,
     CatalogColumn,

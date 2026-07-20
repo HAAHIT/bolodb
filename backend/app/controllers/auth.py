@@ -19,7 +19,7 @@ from backend.app.pgdatabase import (
     update_user,
     UserAlreadyExistsError,
 )
-from backend.app.pgdatabase.models import PasswordResetToken
+from backend.app.models.auth_token import PasswordResetToken
 from backend.app.pgdatabase.engine import get_engine
 import jwt
 from jwt import PyJWKClient
