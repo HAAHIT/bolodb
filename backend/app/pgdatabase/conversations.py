@@ -6,7 +6,8 @@ from datetime import datetime
 from sqlalchemy import select, delete, update, text
 
 from backend.app.pgdatabase.engine import async_session
-from backend.app.pgdatabase.models import Conversation, QueryHistory, _utcnow
+from backend.app.models.conversation import Conversation, QueryHistory
+from backend.app.models.base import _utcnow
 from backend.app.pgdatabase.serialization import _to_uuid, serialize_doc
 
 # Max result rows returned per turn when restoring a conversation.

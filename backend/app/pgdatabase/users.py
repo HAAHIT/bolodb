@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from backend.app.models.user import UserInDB
 from backend.app.pgdatabase.engine import async_session
-from backend.app.pgdatabase.models import User
+from backend.app.models.orm_user import User
 from backend.app.pgdatabase.serialization import _to_uuid, serialize_doc
 
 logger = logging.getLogger(__name__)

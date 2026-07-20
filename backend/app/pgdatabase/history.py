@@ -3,7 +3,7 @@
 from sqlalchemy import select, delete, func, text
 
 from backend.app.pgdatabase.engine import async_session
-from backend.app.pgdatabase.models import QueryHistory
+from backend.app.models.conversation import QueryHistory
 from backend.app.pgdatabase.serialization import _to_uuid, serialize_doc
 
 
