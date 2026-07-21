@@ -12,9 +12,13 @@ async def get_glossary(user_id, db, providers):
     if not db.connected(user_id):
         raise HTTPException(409, "No database connected")
     try:
-        terms = await generate_glossary(
-            providers.get(user_id), db.schema_as_text(user_id)
+        schema_text = db.schema_as_text(user_id)
+        log.info(
+            "get_glossary: schema_text len=%d preview=%s",
+            len(schema_text),
+            schema_text[:300],
         )
+        terms = await generate_glossary(providers.get(user_id), schema_text)
         return {"glossary": terms}
     except Exception:
         log.exception("Failed to generate glossary")
@@ -25,9 +29,15 @@ async def get_starters(user_id, db, providers):
     if not db.connected(user_id):
         raise HTTPException(409, "No database connected")
     try:
-        starters = await generate_starters(
-            providers.get(user_id), db.schema_as_text(user_id), db.get_dialect(user_id)
+        schema_text = db.schema_as_text(user_id)
+        dialect = db.get_dialect(user_id)
+        log.info(
+            "get_starters: dialect=%s schema_text len=%d preview=%s",
+            dialect,
+            len(schema_text),
+            schema_text[:300],
         )
+        starters = await generate_starters(providers.get(user_id), schema_text, dialect)
 
         async def _run_starter(s):
             res = await run_in_threadpool(db.execute, user_id, s.get("sql", ""))

@@ -675,6 +675,11 @@ async def suggest_catalog(provider, schema_text):
 
 
 async def generate_glossary(provider, schema_text):
+    log.info(
+        "generate_glossary: schema_text len=%d, preview=%s",
+        len(schema_text),
+        schema_text[:300],
+    )
     system = (
         "Answer in English\n"
         f"You are a database analyst.\n{schema_text}\n\n"
@@ -689,10 +694,22 @@ async def generate_glossary(provider, schema_text):
         schema=GLOSSARY_SCHEMA,
     )
     obj = raw if isinstance(raw, dict) else parse_json(raw)
-    return obj.get("glossary", [])
+    terms = obj.get("glossary", [])
+    log.info(
+        "generate_glossary: got %d terms, response preview=%s",
+        len(terms),
+        str(terms)[:200],
+    )
+    return terms
 
 
 async def generate_starters(provider, schema_text, dialect):
+    log.info(
+        "generate_starters: dialect=%s schema_text len=%d, preview=%s",
+        dialect,
+        len(schema_text),
+        schema_text[:300],
+    )
     system = (
         "Answer in English\n"
         f"You are a database analyst. {dialect} database.\n{schema_text}\n\n"
@@ -707,4 +724,10 @@ async def generate_starters(provider, schema_text, dialect):
         schema=STARTERS_SCHEMA,
     )
     obj = raw if isinstance(raw, dict) else parse_json(raw)
-    return obj.get("starters", [])
+    starters = obj.get("starters", [])
+    log.info(
+        "generate_starters: got %d starters, response preview=%s",
+        len(starters),
+        str(starters)[:200],
+    )
+    return starters
