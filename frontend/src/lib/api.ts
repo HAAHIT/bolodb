@@ -204,10 +204,25 @@ export async function supabaseGoogleLogin(accessToken: string): Promise<any> {
   });
 }
 
+export async function updateProfile(fields: any): Promise<any> {
+  return apiCall("/api/auth/me", fields, "PATCH");
+}
+
 // --- Workspaces ---
 
 export async function createWorkspace(name: string): Promise<any> {
   return apiCall("/api/workspaces", { name });
+}
+
+export async function updateWorkspace(id: string, name: string): Promise<any> {
+  return apiCall(`/api/workspaces/${id}`, { name }, "PATCH");
+}
+
+export async function updateConnectionAlias(
+  id: string,
+  aliasName: string,
+): Promise<any> {
+  return apiCall(`/api/connections/${id}`, { alias_name: aliasName }, "PATCH");
 }
 
 export async function getWorkspaceMembers(id: string): Promise<any> {
