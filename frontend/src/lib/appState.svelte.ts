@@ -18,32 +18,14 @@ class AppState {
   activeWorkspace = $state<any | null>(null);
   invites = $state<any[]>([]);
   tourCompleted = $state(false);
-  // True while a freshly connected user is walking the onboarding flow —
-  // stops /onboard's has_knowledge redirect from kicking them out (sample
-  // databases ship with seeded knowledge, so has_knowledge alone can't
-  // distinguish "already onboarded" from "just connected").
-  onboardingActive = $state(false);
+  tourCompleted = $state(false);
 
   constructor() {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("bolodb_theme");
       // Normalize legacy theme names to the two-theme system (dark / light)
       this.theme = stored === "dark" ? "dark" : stored ? "light" : "dark";
-      // Survive a page reload mid-onboarding: sample DBs ship with seeded
-      // knowledge, so without this /onboard would bounce a refreshed user
-      // straight to /chat before they finished.
-      this.onboardingActive =
-        sessionStorage.getItem("bolodb_onboarding_active") === "1";
-    }
-  }
 
-  private setOnboardingActive(active: boolean) {
-    this.onboardingActive = active;
-    if (typeof window !== "undefined") {
-      if (active) sessionStorage.setItem("bolodb_onboarding_active", "1");
-      else sessionStorage.removeItem("bolodb_onboarding_active");
-    }
-  }
 
   applyTheme(theme: string) {
     const next = theme === "dark" ? "dark" : "light";
@@ -106,10 +88,8 @@ class AppState {
         if (redirect) {
           if (this.workspaces.length === 0) {
             goto("/workspaces/setup");
-          } else if (this.dbInfo?.has_knowledge) {
-            goto("/chat");
           } else {
-            goto("/onboard");
+            goto("/chat");
           }
         }
       } else {
@@ -154,10 +134,7 @@ class AppState {
       posthog.reset();
     }
     try {
-      this.setOnboardingActive(false);
-      // Navigate to the landing page BEFORE clearing dbInfo. Clearing it while
-      // still on /chat (or /dashboard/onboard) would trip those pages' own
-      // "no database → /connect" redirect effect and race it to /connect.
+      // Navigate to the landing page BEFORE clearing dbInfo.
       await goto("/");
     } finally {
       this.dbInfo = null;
@@ -171,6 +148,9 @@ class AppState {
 
   async setConnect(isSample: boolean, res: DbInfo) {
     if (res) {
+      if (typeof window !== "undefined" && res.db_id) {
+        localStorage.setItem("bolodb_active_db_id", res.db_id);
+      }
       this.dbInfo = res;
       this.verifiedCount = res.trust?.verified || 0;
       if (res.starters) this.starters = res.starters;
@@ -180,16 +160,9 @@ class AppState {
       } catch (e) {
         console.error("Failed to load schema:", e);
       }
-      // Sample databases always walk through onboarding (they ship with
-      // seeded knowledge, so has_knowledge can't mean "already onboarded").
-      // Own databases with existing knowledge (reconnects) skip straight in.
-      if (!isSample && res.has_knowledge) {
-        goto("/chat");
-        return;
-      }
+      // Always go to chat
+      goto("/chat");
     }
-    this.setOnboardingActive(true);
-    goto("/onboard");
   }
 
   async setOnboardDone(seedCount: number) {
@@ -209,7 +182,6 @@ class AppState {
         dialect: this.dbInfo?.dialect,
       });
     }
-    this.setOnboardingActive(false);
     goto("/chat");
   }
 
@@ -257,17 +229,14 @@ class AppState {
   }
 
   async disconnect() {
-    try {
-      await apiCall("/api/disconnect", {});
-    } catch (e) {
-      console.error("Failed to disconnect:", e);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("bolodb_active_db_id");
     }
     this.dbInfo = null;
     this.realSchema = null;
     this.verifiedCount = 0;
     this.starters = [];
     this.activeConversationId = null;
-    this.setOnboardingActive(false);
     goto("/connect");
   }
 

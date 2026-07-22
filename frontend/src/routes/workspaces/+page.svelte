@@ -12,6 +12,7 @@
   import { appState } from '$lib/appState.svelte';
   import { goto } from '$app/navigation';
   import LoadingScreen from '$lib/components/ui/LoadingScreen.svelte';
+  import ActivityLog from '$lib/components/ActivityLog.svelte';
 
   let loading = $state(true);
   let error = $state('');
@@ -95,6 +96,7 @@
 
   async function switchWorkspace(ws: any) {
     localStorage.setItem("bolodb_active_workspace_id", ws.id);
+    localStorage.removeItem("bolodb_active_db_id");
     appState.activeWorkspace = ws;
     appState.dbInfo = null;
     appState.isLoaded = false;
@@ -208,6 +210,10 @@
             {/each}
           </div>
         </div>
+
+        {#if isAdmin}
+          <ActivityLog />
+        {/if}
       {:else}
         <div class="empty-state">
           <h3>No Active Workspace</h3>

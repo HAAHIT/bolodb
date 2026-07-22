@@ -14,8 +14,13 @@ export async function apiCall(
     typeof window !== "undefined"
       ? localStorage.getItem("bolodb_active_workspace_id")
       : null;
+  const activeDbId =
+    typeof window !== "undefined"
+      ? localStorage.getItem("bolodb_active_db_id")
+      : null;
   const headers: Record<string, string> = {};
   if (activeWorkspaceId) headers["X-Workspace-Id"] = activeWorkspaceId;
+  if (activeDbId) headers["X-Db-Id"] = activeDbId;
 
   if (body) {
     headers["Content-Type"] = "application/json";
@@ -60,10 +65,15 @@ export async function streamApiCall(
       typeof window !== "undefined"
         ? localStorage.getItem("bolodb_active_workspace_id")
         : null;
+    const activeDbId =
+      typeof window !== "undefined"
+        ? localStorage.getItem("bolodb_active_db_id")
+        : null;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
     if (activeWorkspaceId) headers["X-Workspace-Id"] = activeWorkspaceId;
+    if (activeDbId) headers["X-Db-Id"] = activeDbId;
 
     const response = await fetch(path, {
       method: "POST",
@@ -262,6 +272,22 @@ export async function removeWorkspaceMember(
 
 export async function acceptWorkspaceInvite(token: string): Promise<any> {
   return apiCall(`/api/workspaces/invites/${token}/accept`, undefined, "POST");
+}
+
+export async function getWorkspaceActivity(workspaceId: string, page: number = 1): Promise<any> {
+  const limit = 50;
+  const offset = (page - 1) * limit;
+  return apiCall(`/api/workspaces/${workspaceId}/activity?limit=${limit}&offset=${offset}`);
+}
+
+// --- Databases ---
+
+export async function listDatabases(): Promise<any[]> {
+  return apiCall("/api/databases");
+}
+
+export async function removeDatabase(): Promise<any> {
+  return apiCall("/api/disconnect", undefined, "POST");
 }
 
 /** Convert API rows (array of objects) to 2D string arrays for ResultTable */
