@@ -71,7 +71,7 @@
       alert("Please select a query");
       return;
     }
-    const sq = savedQueries.find(q => q.id === selectedQueryId);
+    const sq = savedQueries.find((q: any) => q.id === selectedQueryId);
 
     // Auto-place at bottom
     let maxY = 0;

@@ -11,6 +11,7 @@
     Conversation,
     ConversationTurn,
   } from "$lib/types";
+  import { goto } from "$app/navigation";
   import Sidebar from "$lib/components/Sidebar.svelte";
   import AnswerCard from "$lib/components/AnswerCard.svelte";
   import DashboardTab from "$lib/components/DashboardTab.svelte";
@@ -59,6 +60,7 @@
   let openCatalogTrigger = $state(0);
 
   let databases = $state<any[]>([]);
+  let isSwitchingDb = $state(false);
   let showDbDropdown = $state(false);
 
   onMount(async () => {
@@ -562,7 +564,7 @@
 
     abortController?.abort();
     loading = true;
-    convLoading = true;
+    isSwitchingDb = true;
     turns = [];
     activeConversationId = null;
     onActiveConversationChange(null);
@@ -570,7 +572,7 @@
       await appState.switchDatabase(dbId);
     } finally {
       loading = false;
-      convLoading = false;
+      isSwitchingDb = false;
     }
   }
 
@@ -604,12 +606,13 @@
     {verifiedCount}
     schema={realSchema}
     {dbInfo}
+    {databases}
     {conversationTrigger}
     {activeConversationId}
     onConversationSelect={handleConversationSelect}
     onNewChat={handleNewConversation}
     {userEmail}
-    theme={appState.theme}
+    theme={appState.theme as "light" | "dark"}
     onToggleTheme={() => appState.toggleTheme()}
     onLogout={() => appState.logout()}
     mobileOpen={mobileNavOpen}
@@ -676,6 +679,12 @@
             message="Opening conversation…"
             submessage="Fetching your previous results"
             variant="default"
+          />
+        {:else if isSwitchingDb}
+          <LoadingScreen
+            message="Switching database…"
+            submessage="Connecting securely to your data"
+            variant="connect"
           />
         {:else}
         <div class="feed-inner">
