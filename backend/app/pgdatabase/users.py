@@ -7,7 +7,6 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from backend.app.models.user import UserInDB
-from backend.app.models.workspace import Workspace, WorkspaceMember
 from backend.app.pgdatabase.engine import async_session
 from backend.app.models.orm_user import User
 from backend.app.pgdatabase.serialization import _to_uuid, serialize_doc
@@ -86,22 +85,6 @@ async def create_user(user_data: UserInDB) -> str:
                 email_verified=user_data.email_verified,
             )
             session.add(user)
-            await session.flush()
-
-            # Create default workspace
-            base_slug = "workspace"
-            import random
-
-            slug = f"{base_slug}-{random.randint(1000, 9999)}"
-            workspace = Workspace(name="My Workspace", slug=slug, created_by=user.id)
-            session.add(workspace)
-            await session.flush()
-
-            member = WorkspaceMember(
-                workspace_id=workspace.id, user_id=user.id, role="owner"
-            )
-            session.add(member)
-
             await session.commit()
             return str(user.id)
         except IntegrityError as exc:
@@ -133,6 +116,9 @@ _ALLOWED_USER_FIELDS = frozenset(
         "email_verified",
         "email",
         "tour_completed",
+        "first_name",
+        "last_name",
+        "avatar_url",
     }
 )
 
