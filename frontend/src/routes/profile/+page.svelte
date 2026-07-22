@@ -23,7 +23,11 @@
     try {
       const res = await apiCall('/api/auth/me');
       user = res?.content || null;
-      if (user?.metadata?.name) editName = user.metadata.name;
+      if (user?.first_name) {
+        editName = user.first_name + (user.last_name ? ' ' + user.last_name : '');
+      } else if (user?.metadata?.name) {
+        editName = user.metadata.name;
+      }
     } catch (e: any) {
       error = e.message || 'Could not load your profile';
       if (e.status === 401) {
@@ -38,9 +42,11 @@
     saving = true;
     error = '';
     try {
-      // In a real app we'd save all prefs, but the backend only expects `name` in metadata currently
-      await updateProfile({ metadata: { name: editName, themePref, densityPref, analyticsOptIn } });
-      user.metadata = { ...user.metadata, name: editName, themePref, densityPref, analyticsOptIn };
+      const parts = editName.trim().split(' ');
+      const first_name = parts[0] || '';
+      const last_name = parts.slice(1).join(' ') || '';
+      await updateProfile({ first_name, last_name });
+      user = { ...user, first_name, last_name, metadata: { ...user.metadata, themePref, densityPref, analyticsOptIn } };
       appState.showToast({ title: 'Profile saved', body: 'Your settings have been updated.' });
     } catch (e: any) {
       error = e.message || 'Could not update profile';
@@ -64,7 +70,7 @@
     <div class="header-logo">
       <div class="avatar-large">{initials}</div>
       <div class="header-title-stack">
-        <h1>{user?.metadata?.name || 'Account Settings'}</h1>
+        <h1>{user?.first_name ? user.first_name + (user.last_name ? ' ' + user.last_name : '') : (user?.metadata?.name || 'Account Settings')}</h1>
         <span class="user-email">{user?.email || ''}</span>
       </div>
     </div>

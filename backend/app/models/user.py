@@ -51,6 +51,7 @@ class UserInDB(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    metadata: Optional[dict] = None
 
 
 class UserPublic(BaseModel):
@@ -60,6 +61,7 @@ class UserPublic(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    metadata: Optional[dict] = None
 
 
 class SupabaseLogin(BaseModel):
@@ -75,3 +77,4 @@ class UpdateProfile(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    metadata: Optional[dict] = None

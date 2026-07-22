@@ -93,7 +93,8 @@ async def update_saved_query(
 async def delete_saved_query(query_id: str, workspace=Depends(get_current_workspace)):
     try:
         # Check permissions - only admin/owner
-        if workspace["role"] not in ["admin", "owner"]:
+        role = workspace.get("role", "").lower()
+        if role not in ["admin", "owner"]:
             raise HTTPException(403, "Only admins can delete saved queries")
 
         success = await ctrl.delete_saved_query(workspace["workspace_id"], query_id)

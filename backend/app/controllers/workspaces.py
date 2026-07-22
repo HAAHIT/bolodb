@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
+from backend.app.services.email import send_workspace_invite_email
 from backend.app.pgdatabase.engine import async_session
 from backend.app.models.workspace import Workspace, WorkspaceMember, WorkspaceInvite
 from backend.app.models.orm_user import User
@@ -221,6 +222,12 @@ async def invite_user(workspace_id: str, email: str, role: str, inviter_id: str)
 
         try:
             await session.commit()
+
+            # Fetch workspace name for email
+            ws = await session.get(Workspace, wid)
+            if ws:
+                await send_workspace_invite_email(email, ws.name, token)
+
             await log_activity(
                 workspace_id,
                 inviter_id,

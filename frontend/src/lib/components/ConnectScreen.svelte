@@ -122,8 +122,8 @@
 
   async function removeRecent(conn: any) {
     try {
-      await apiCall(`/api/connections/${conn._id}`, undefined, "DELETE");
-      recentConnections = recentConnections.filter((c) => c._id !== conn._id);
+      await apiCall(`/api/connections/${conn.id}`, undefined, "DELETE");
+      recentConnections = recentConnections.filter((c) => c.id !== conn.id);
     } catch (e) {
       console.error("Failed to remove recent connection:", e);
     }
@@ -181,21 +181,21 @@
           {#each recentConnections as conn}
             <div class="source-card">
               <div class="source-header">
-                {#if editingAliasId === conn._id}
+                {#if editingAliasId === conn.id}
                   <input
                     type="text"
                     bind:value={editAliasValue}
-                    onblur={() => handleRenameAlias(conn._id)}
-                    onkeydown={(e) => { if (e.key === 'Enter') handleRenameAlias(conn._id); if (e.key === 'Escape') editingAliasId = null; }}
+                    onblur={() => handleRenameAlias(conn.id)}
+                    onkeydown={(e) => { if (e.key === 'Enter') handleRenameAlias(conn.id); if (e.key === 'Escape') editingAliasId = null; }}
                     class="alias-edit"
                     autofocus
                   />
                 {:else}
-                  <span class="source-title" title={conn.db_url}>
-                    {conn.alias_name || conn.db_url.split('@').pop()?.split('/')[0] || conn.dialect}
+                  <span class="source-title" title={conn.display_url}>
+                    {conn.alias_name || conn.display_url?.split('@').pop()?.split('/')[0] || conn.dialect}
                   </span>
                   {#if isAdmin}
-                    <button class="icon-btn edit-btn" onclick={(e) => { e.stopPropagation(); editingAliasId = conn._id; editAliasValue = conn.alias_name || ''; }} aria-label="Edit alias">
+                    <button class="icon-btn edit-btn" onclick={(e) => { e.stopPropagation(); editingAliasId = conn.id; editAliasValue = conn.alias_name || ''; }} aria-label="Edit alias">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                     </button>
                   {/if}

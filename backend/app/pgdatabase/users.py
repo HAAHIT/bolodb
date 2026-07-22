@@ -40,6 +40,10 @@ def _user_to_dict(user) -> dict:
             "email_verified": user.email_verified,
             "tour_completed": user.tour_completed,
             "created_at": user.created_at,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "avatar_url": user.avatar_url,
+            "metadata": user.metadata_,
         }
     )
 
@@ -119,6 +123,7 @@ _ALLOWED_USER_FIELDS = frozenset(
         "first_name",
         "last_name",
         "avatar_url",
+        "metadata",
     }
 )
 
@@ -128,6 +133,10 @@ async def update_user(user_id: str, **fields):
     if unexpected:
         logger.warning("Blocked update of disallowed user fields: %s", unexpected)
         return False
+
+    if "metadata" in fields:
+        fields["metadata_"] = fields.pop("metadata")
+
     try:
         uid = _to_uuid(user_id)
     except (ValueError, TypeError):

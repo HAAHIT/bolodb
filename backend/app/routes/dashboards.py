@@ -56,7 +56,8 @@ async def create_dashboard(
     user=Depends(get_current_user),
 ):
     try:
-        if workspace["role"] not in ["admin", "owner"]:
+        role = workspace.get("role", "").lower()
+        if role not in ["admin", "owner"]:
             raise HTTPException(403, "Only admins can create dashboards")
 
         dash = await ctrl.create_dashboard(
@@ -89,7 +90,8 @@ async def update_dashboard(
     dashboard_id: str, req: UpdateDashboardReq, workspace=Depends(get_current_workspace)
 ):
     try:
-        if workspace["role"] not in ["admin", "owner"]:
+        role = workspace.get("role", "").lower()
+        if role not in ["admin", "owner"]:
             raise HTTPException(403, "Only admins can edit dashboards")
 
         success = await ctrl.update_dashboard(
@@ -108,7 +110,8 @@ async def update_dashboard(
 @router.delete("/{dashboard_id}")
 async def delete_dashboard(dashboard_id: str, workspace=Depends(get_current_workspace)):
     try:
-        if workspace["role"] not in ["admin", "owner"]:
+        role = workspace.get("role", "").lower()
+        if role not in ["admin", "owner"]:
             raise HTTPException(403, "Only admins can delete dashboards")
 
         success = await ctrl.delete_dashboard(workspace["workspace_id"], dashboard_id)
@@ -149,7 +152,8 @@ async def add_panel(
     dashboard_id: str, req: AddPanelReq, workspace=Depends(get_current_workspace)
 ):
     try:
-        if workspace["role"] not in ["admin", "owner"]:
+        role = workspace.get("role", "").lower()
+        if role not in ["admin", "owner"]:
             raise HTTPException(403, "Only admins can edit dashboards")
 
         panel = await ctrl.add_panel(dashboard_id, req.model_dump(exclude_unset=True))
@@ -168,7 +172,8 @@ async def batch_update_panels(
     workspace=Depends(get_current_workspace),
 ):
     try:
-        if workspace["role"] not in ["admin", "owner"]:
+        role = workspace.get("role", "").lower()
+        if role not in ["admin", "owner"]:
             raise HTTPException(403, "Only admins can edit dashboards")
 
         await ctrl.update_panels_batch(
@@ -190,7 +195,8 @@ async def update_panel(
     workspace=Depends(get_current_workspace),
 ):
     try:
-        if workspace["role"] not in ["admin", "owner"]:
+        role = workspace.get("role", "").lower()
+        if role not in ["admin", "owner"]:
             raise HTTPException(403, "Only admins can edit dashboards")
 
         success = await ctrl.update_panel(
@@ -211,7 +217,8 @@ async def delete_panel(
     dashboard_id: str, panel_id: str, workspace=Depends(get_current_workspace)
 ):
     try:
-        if workspace["role"] not in ["admin", "owner"]:
+        role = workspace.get("role", "").lower()
+        if role not in ["admin", "owner"]:
             raise HTTPException(403, "Only admins can edit dashboards")
 
         success = await ctrl.delete_panel(dashboard_id, panel_id)

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { schema as defaultSchema, trustFor, formatTime } from '$lib/data';
   import type { SchemaTable, DbInfo, Conversation } from '$lib/types';
-  import { getConversations, deleteConversation, clearConversations, renameConversation } from '$lib/api';
+  import { getConversations, deleteConversation, clearConversations, renameConversation, createWorkspace } from '$lib/api';
   import { appState } from '$lib/appState.svelte';
   import { goto } from '$app/navigation';
 
@@ -46,6 +46,11 @@
   let sidePanel: 'chats' | 'schema' = $state('chats');
   let openTable: string | null = $state(null);
   let profileOpen = $state(false);
+  let wsMenuOpen = $state(false);
+  let wsAddMenuOpen = $state(false);
+  let showCreateWsModal = $state(false);
+  let newWorkspaceName = $state('');
+  let creatingWorkspace = $state(false);
   let conversations: Conversation[] = $state([]);
   let loadingConvs = $state(true);
 
@@ -145,8 +150,29 @@
     }
   }
 
+  async function handleCreateWorkspace() {
+    if (!newWorkspaceName.trim()) return;
+    creatingWorkspace = true;
+    try {
+      await createWorkspace(newWorkspaceName);
+      await appState.loadWorkspaces();
+      showCreateWsModal = false;
+      newWorkspaceName = '';
+    } catch (e: any) {
+      console.error(e);
+      appState.showError(e.message || "Couldn't create workspace.");
+    } finally {
+      creatingWorkspace = false;
+    }
+  }
+
   // Selecting a destination on mobile should dismiss the drawer.
   function selectTab(t: Tab) {
+    if (t === 'dash') {
+      goto('/dashboards');
+      onClose?.();
+      return;
+    }
     onTab(t);
     onClose?.();
   }
@@ -179,14 +205,48 @@
     appState.activeConversationId = null;
     await appState.init(true);
   }
-
-  let wsMenuOpen = $state(false);
-
   function closeMenus(e: MouseEvent) {
     wsMenuOpen = false;
+    wsAddMenuOpen = false;
     profileOpen = false;
   }
 </script>
+
+{#if showCreateWsModal}
+  <div class="modal-backdrop" onclick={() => showCreateWsModal = false}>
+    <div class="modal-content" onclick={(e) => e.stopPropagation()} style="max-width:400px;">
+      <div class="modal-header">
+        <h3>Create Workspace</h3>
+        <button class="close-btn" onclick={() => showCreateWsModal = false}>✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group">
+          <label>Workspace Name</label>
+          <input
+            type="text"
+            placeholder="e.g. Acme Corp"
+            bind:value={newWorkspaceName}
+            onkeydown={(e) => {
+              if (e.key === 'Enter' && newWorkspaceName.trim()) {
+                handleCreateWorkspace();
+              }
+            }}
+          />
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: flex-end;">
+        <button class="btn btn-ghost" onclick={() => showCreateWsModal = false}>Cancel</button>
+        <button
+          class="btn btn-primary"
+          onclick={handleCreateWorkspace}
+          disabled={!newWorkspaceName.trim() || creatingWorkspace}
+        >
+          {creatingWorkspace ? 'Creating...' : 'Create'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <svelte:window onclick={closeMenus} />
 
@@ -226,7 +286,15 @@
       </div>
     {/each}
     <div class="ws-divider"></div>
-    <button class="ws-avatar ws-add" onclick={() => goto('/workspaces')} title="Manage Workspaces">+</button>
+    <div style="position:relative">
+      <button class="ws-avatar ws-add" onclick={(e) => { e.stopPropagation(); wsAddMenuOpen = !wsAddMenuOpen; wsMenuOpen = false; }} title="Add Workspace">+</button>
+      {#if wsAddMenuOpen}
+        <div class="ws-popover" onclick={(e) => e.stopPropagation()} style="bottom: 0; top: auto; left: 52px; transform: none;">
+          <button class="ws-p-item" onclick={() => { wsAddMenuOpen = false; showCreateWsModal = true; }}>✨ Create a Workspace</button>
+          <button class="ws-p-item" onclick={() => { wsAddMenuOpen = false; goto('/workspaces'); }}>🤝 Join a Workspace</button>
+        </div>
+      {/if}
+    </div>
   </div>
 
   <aside class="sidebar">
@@ -265,9 +333,6 @@
     <button class="new-chat" aria-label="New chat" title="New chat" onclick={newChat}>+</button>
   </div>
 
-  <button class="nav-item" onclick={() => { goto('/dashboards'); onClose?.(); }} style="margin: 0 16px 12px; font-weight: 600;">
-    <span class="nav-icon" style="color:var(--brand)">📊</span>Custom Dashboards
-  </button>
 
   <!-- panel body -->
   <div class="panel-body">

@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import Boolean, String, DateTime
-from sqlalchemy.dialects.postgresql import UUID as PgUUID
+from sqlalchemy.dialects.postgresql import UUID as PgUUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.models.base import Base, _utcnow, _uuid7
@@ -25,6 +25,9 @@ class User(Base):
     first_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     last_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     avatar_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    metadata_: Mapped[Optional[dict]] = mapped_column(
+        "metadata", JSONB, nullable=True, default=dict
+    )
     tour_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow

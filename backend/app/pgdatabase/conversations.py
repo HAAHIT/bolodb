@@ -33,6 +33,7 @@ async def create_conversation(workspace_id, title="", database_id=None):
             raise
         d = {
             "id": conv.id,
+            "_id": conv.id,
             "workspace_id": conv.workspace_id,
             "title": conv.title,
             "database_id": conv.database_id,
@@ -103,6 +104,7 @@ async def get_conversations(workspace_id: str):
         for conv in convs:
             d = {
                 "id": conv.id,
+                "_id": conv.id,
                 "workspace_id": conv.workspace_id,
                 "title": conv.title,
                 "database_id": conv.database_id,
@@ -133,6 +135,7 @@ async def get_conversation(workspace_id: str, conversation_id: str):
             return None
         d = {
             "id": conv.id,
+            "_id": conv.id,
             "workspace_id": conv.workspace_id,
             "title": conv.title,
             "database_id": conv.database_id,
@@ -158,6 +161,7 @@ async def get_conversation(workspace_id: str, conversation_id: str):
             truncated = len(result) > MAX_RESTORED_ROWS
             td = {
                 "id": turn.id,
+                "_id": turn.id,
                 "workspace_id": turn.workspace_id,
                 "question": turn.question,
                 "sql": turn.sql,

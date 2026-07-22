@@ -17,6 +17,7 @@
   let loading = $state(true);
   let error = $state('');
   let newWorkspaceName = $state('');
+  let joinToken = $state('');
   let inviteEmail = $state('');
   let inviteRole = $state('member');
   let members = $state<any[]>([]);
@@ -280,6 +281,14 @@
           <div class="form-row">
             <input type="text" class="input" placeholder="Workspace name" bind:value={newWorkspaceName} />
             <button class="btn btn-primary" onclick={handleCreateWorkspace} disabled={!newWorkspaceName.trim()}>Create</button>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-2)">
+          <h4 style="margin:0 0 8px;font-size:13px;font-weight:600;color:var(--ink)">Join Workspace</h4>
+          <div class="form-row">
+            <input type="text" class="input" placeholder="Invite code" bind:value={joinToken} />
+            <button class="btn btn-primary" onclick={() => { handleAcceptInvite(joinToken); joinToken = ''; }} disabled={!joinToken.trim()}>Join</button>
           </div>
         </div>
       </div>

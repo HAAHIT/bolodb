@@ -6,9 +6,7 @@
 
   let dashboards = $state<any[]>([]);
   let loading = $state(true);
-  let showCreateModal = $state(false);
-  let newName = $state('');
-  let newDescription = $state('');
+  // let loading = $state(true);
 
   onMount(async () => {
     await fetchDashboards();
@@ -29,69 +27,71 @@
   }
 
   async function createDashboard() {
-    if (!newName.trim()) return;
     try {
       const res = await apiCall('/api/dashboards', {
-        name: newName,
-        description: newDescription
+        name: 'Untitled Dashboard',
+        description: ''
       }, 'POST');
-      showCreateModal = false;
-      newName = '';
-      newDescription = '';
       await fetchDashboards();
-      goto(`/dashboards/${res.id}/edit`);
-    } catch (e) {
+      goto(`/dashboards/${res._id || res.id}/edit`);
+    } catch (e: any) {
       console.error(e);
-      alert('Failed to create dashboard. Only admins can create them.');
+      appState.showError(e.message || 'Failed to create dashboard.');
     }
   }
 </script>
 
-<div class="h-full bg-gray-50 flex flex-col p-8 overflow-y-auto">
-  <div class="max-w-6xl w-full mx-auto">
-    <div class="flex justify-between items-center mb-8">
-      <div>
-        <h1 class="text-3xl font-bold text-gray-900">Dashboards</h1>
-        <p class="text-gray-500 mt-2">Saved reports and visual analytics for your workspace.</p>
+<div class="dash-layout">
+  <div class="dash-header glass-panel">
+    <div class="dash-header-left">
+      <div class="dash-icon-hero">📊</div>
+      <div class="dash-title-stack">
+        <h1>Dashboards</h1>
+        <p>Analytics, charts, and metrics for your workspace</p>
       </div>
+    </div>
+    <div class="dash-header-actions">
+      <button class="btn-secondary" onclick={() => goto('/chat')}>Back to Chat</button>
       {#if appState.activeWorkspace?.role === 'admin' || appState.activeWorkspace?.role === 'owner'}
-        <button
-          onclick={() => showCreateModal = true}
-          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none"
-        >
-          <svg class="mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        <button class="btn-primary-glow" onclick={createDashboard}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
           New Dashboard
         </button>
       {/if}
     </div>
+  </div>
 
+  <div class="dash-content">
     {#if loading}
-      <div class="flex justify-center py-12">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div class="loading-state">
+        <div class="spinner"></div>
       </div>
     {:else if dashboards.length === 0}
-      <div class="text-center py-12 bg-white rounded-lg border border-gray-200 border-dashed">
-        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
-        </svg>
-        <h3 class="mt-2 text-sm font-medium text-gray-900">No dashboards</h3>
-        <p class="mt-1 text-sm text-gray-500">Get started by creating a new dashboard.</p>
+      <div class="empty-state glass-panel">
+        <div class="empty-icon">📈</div>
+        <h3>No dashboards yet</h3>
+        <p>Get started by creating your first dashboard to visualize data.</p>
+        {#if appState.activeWorkspace?.role === 'admin' || appState.activeWorkspace?.role === 'owner'}
+          <button class="btn-primary-glow" style="margin-top:20px" onclick={createDashboard}>
+            Create Dashboard
+          </button>
+        {/if}
       </div>
     {:else}
-      <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="dash-grid">
         {#each dashboards as dash}
-          <a
-            href="/dashboards/{dash.id}"
-            class="group relative bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
-          >
-            <h3 class="text-lg font-medium text-gray-900 mb-2 truncate group-hover:text-blue-600">{dash.name}</h3>
-            {#if dash.description}
-              <p class="text-sm text-gray-500 line-clamp-2 mb-4">{dash.description}</p>
-            {/if}
-            <div class="mt-auto flex items-center text-xs text-gray-400">
-              Updated {new Date(dash.updated_at).toLocaleDateString()}
+          <a href="/dashboards/{dash._id || dash.id}" class="dash-card group">
+            <div class="card-icon">📊</div>
+            <div class="card-content">
+              <h3>{dash.name}</h3>
+              <p>{dash.description || 'No description provided.'}</p>
+            </div>
+            <div class="card-footer">
+              <span>Updated {new Date(dash.updated_at).toLocaleDateString()}</span>
+              <div class="card-arrow group-hover-arrow">→</div>
             </div>
           </a>
         {/each}
@@ -100,34 +100,256 @@
   </div>
 </div>
 
-{#if showCreateModal}
-  <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-      <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onclick={() => showCreateModal = false}></div>
-      <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-      <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-        <div>
-          <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">Create Dashboard</h3>
-          <div class="mt-4 space-y-4">
-            <div>
-              <label for="dash-name" class="block text-sm font-medium text-gray-700">Name</label>
-              <input type="text" id="dash-name" bind:value={newName} class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="e.g. Sales KPIs">
-            </div>
-            <div>
-              <label for="dash-desc" class="block text-sm font-medium text-gray-700">Description (optional)</label>
-              <textarea id="dash-desc" bind:value={newDescription} rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>
-            </div>
-          </div>
-        </div>
-        <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse">
-          <button type="button" onclick={createDashboard} class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
-            Create
-          </button>
-          <button type="button" onclick={() => showCreateModal = false} class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm">
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-{/if}
+
+
+<style>
+  /* Base Layout */
+  .dash-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--bg);
+    overflow-y: auto;
+  }
+
+  /* Glassmorphism Header */
+  .dash-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 32px 48px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .glass-panel {
+    background: rgba(var(--surface-rgb), 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .dash-header-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .dash-icon-hero {
+    font-size: 32px;
+    background: linear-gradient(135deg, var(--brand), #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background-color: rgba(var(--brand-rgb), 0.1);
+    box-shadow: 0 4px 12px rgba(var(--brand-rgb), 0.2);
+  }
+
+  .dash-title-stack h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--ink);
+  }
+
+  .dash-title-stack p {
+    margin: 4px 0 0;
+    font-size: 15px;
+    color: var(--muted);
+  }
+
+  .dash-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  /* Modern Buttons */
+  .btn-primary-glow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(135deg, var(--brand), #6366f1);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(var(--brand-rgb), 0.4);
+    transition: all 0.2s ease;
+  }
+
+  .btn-primary-glow:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(var(--brand-rgb), 0.5);
+  }
+
+  .btn-primary-glow:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-secondary:hover {
+    background: var(--border);
+  }
+
+  /* Content Area */
+  .dash-content {
+    flex: 1;
+    padding: 48px;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  /* Grid & Cards */
+  .dash-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 24px;
+  }
+
+  .dash-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .dash-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--brand), #8b5cf6);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .dash-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+    border-color: transparent;
+  }
+
+  .dash-card:hover::before {
+    opacity: 1;
+  }
+
+  .card-icon {
+    font-size: 24px;
+    margin-bottom: 16px;
+    background: rgba(var(--brand-rgb), 0.1);
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+  }
+
+  .card-content {
+    flex: 1;
+  }
+
+  .card-content h3 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .card-content p {
+    margin: 0 0 24px;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .group-hover-arrow {
+    transform: translateX(-10px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    color: var(--brand);
+    font-weight: bold;
+    font-size: 16px;
+  }
+
+  .dash-card:hover .group-hover-arrow {
+    transform: translateX(0);
+    opacity: 1;
+  }
+
+  /* Empty State */
+  .empty-state {
+    text-align: center;
+    padding: 80px 40px;
+    border-radius: 24px;
+    border: 2px dashed var(--border);
+    max-width: 500px;
+    margin: 40px auto;
+  }
+
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: 24px;
+    opacity: 0.8;
+  }
+
+  .empty-state h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--ink);
+  }
+
+  .empty-state p {
+    font-size: 15px;
+    color: var(--muted);
+    margin-bottom: 0;
+  }
+
+</style>

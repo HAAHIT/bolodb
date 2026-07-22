@@ -20,7 +20,7 @@ _CONNECTIONS_KEY_FILE = CONFIG_DIR / "connections.key"
 
 
 def _recent_connections_master_cipher():
-    master = os.getenv("RECENT_CONNECTIONS_MASTER_KEY")
+    master = os.getenv("RECENT_CONNECTIONS_MASTER_KEY") or os.getenv("JWT_SECRET")
     if not master:
         return None
     master_key = base64.urlsafe_b64encode(hashlib.sha256(master.encode()).digest())

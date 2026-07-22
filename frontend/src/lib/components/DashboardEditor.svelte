@@ -95,51 +95,52 @@
   }
 </script>
 
-<div class="mb-4">
+<div style="display:flex; gap:12px; margin-bottom:24px;">
   <button
     onclick={() => showAddModal = true}
-    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700"
+    class="btn-primary-glow"
   >
-    + Add Chart Panel
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path></svg>
+    Add Chart Panel
   </button>
   <button
     onclick={savePositions}
-    class="ml-3 inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+    class="btn-secondary"
   >
-    Force Save Layout
+    Save Layout Order
   </button>
 </div>
 
-<div class="grid grid-cols-12 gap-4" style="grid-auto-rows: minmax(100px, auto);">
+<div style="display:grid;grid-template-columns:repeat(12, 1fr);gap:16px;width:100%;grid-auto-rows:minmax(100px, auto);">
   {#each dashboard.panels as panel (panel.id)}
     {@const x = panel.position?.x || 0}
     {@const y = panel.position?.y || 0}
     {@const w = panel.position?.w || 4}
     {@const h = panel.position?.h || 4}
     <div
-      class="relative rounded-lg shadow-sm border border-gray-200 overflow-hidden bg-white cursor-move hover:border-blue-500 transition-colors"
-      style="grid-column: span {w}; grid-row: span {h}; min-height: {h * 80}px;"
+      class="dash-panel-card"
+      style="grid-column: span {w}; grid-row: span {h}; cursor:move; position:relative; opacity: {draggedPanelId === panel.id ? 0.5 : 1};"
       draggable="true"
       ondragstart={(e) => handleDragStart(e, panel)}
       ondragover={handleDragOver}
       ondrop={(e) => handleDrop(e, panel)}
       ondragend={handleDragEnd}
-      class:opacity-50={draggedPanelId === panel.id}
     >
        <!-- Delete button overlay -->
        <button
-         class="absolute top-2 right-2 z-10 bg-red-100 text-red-600 rounded-full p-1 hover:bg-red-200"
+         class="icon-btn"
+         style="position:absolute;top:8px;right:8px;z-index:10;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px;color:var(--danger)"
          onclick={(e) => { e.stopPropagation(); onRemove(panel.id); }}
        >
-         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
          </svg>
        </button>
 
        <!-- Intercept clicks so chart doesn't eat them during drag -->
-       <div class="absolute inset-0 z-0 bg-transparent"></div>
+       <div style="position:absolute;inset:0;z-index:0;background:transparent;"></div>
 
-       <div class="h-full w-full pointer-events-none">
+       <div style="height:100%;width:100%;pointer-events:none;">
          <ChartPanel {panel} data={panelData[panel.saved_query_id]} />
        </div>
     </div>
@@ -147,58 +148,58 @@
 </div>
 
 {#if showAddModal}
-  <div class="fixed inset-0 z-50 overflow-y-auto">
-    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-      <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick={() => showAddModal = false}></div>
-      <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-      <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-        <div>
-          <h3 class="text-lg leading-6 font-medium text-gray-900">Add Chart to Dashboard</h3>
-          <div class="mt-4 space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700">Saved Query</label>
-              <select bind:value={selectedQueryId} class="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
-                <option value="">-- Select Query --</option>
-                {#each savedQueries as sq}
-                  <option value={sq.id}>{sq.name}</option>
-                {/each}
-              </select>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700">Panel Title (Optional)</label>
-              <input type="text" bind:value={panelTitle} placeholder="Inherit from query if blank" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700">Visualization Type</label>
-              <select bind:value={vizType} class="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
-                <option value="table">Data Table</option>
-                <option value="bar">Bar Chart</option>
-                <option value="line">Line Chart</option>
-                <option value="pie">Pie Chart</option>
-                <option value="area">Area Chart</option>
-                <option value="number">Single Number Card</option>
-              </select>
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700">Width (1-12)</label>
-                <input type="number" min="1" max="12" bind:value={panelW} class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700">Height (rows)</label>
-                <input type="number" min="2" max="12" bind:value={panelH} class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-              </div>
-            </div>
+  <div class="modal-backdrop" onclick={() => showAddModal = false}>
+    <div class="modal-content glass-modal" onclick={(e) => e.stopPropagation()} style="max-width:500px;">
+      <div class="modal-header">
+        <h3>Add Chart Panel</h3>
+        <button class="close-btn" onclick={() => showAddModal = false}>✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="input-group" style="margin-bottom:16px">
+          <label>Saved Query</label>
+          <select bind:value={selectedQueryId} class="input">
+            <option value="">-- Select Query --</option>
+            {#each savedQueries as sq}
+              <option value={sq.id}>{sq.name}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div class="input-group" style="margin-bottom:16px">
+          <label>Panel Title (Optional)</label>
+          <input type="text" class="input" bind:value={panelTitle} placeholder="Inherit from query if blank" />
+        </div>
+
+        <div class="input-group" style="margin-bottom:16px">
+          <label>Visualization Type</label>
+          <select bind:value={vizType} class="input">
+            <option value="table">Data Table</option>
+            <option value="bar">Bar Chart</option>
+            <option value="line">Line Chart</option>
+            <option value="pie">Pie Chart</option>
+            <option value="area">Area Chart</option>
+            <option value="number">Single Number Card</option>
+          </select>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="input-group">
+            <label>Width (1-12)</label>
+            <input type="number" min="1" max="12" class="input" bind:value={panelW} />
+          </div>
+          <div class="input-group">
+            <label>Height (rows)</label>
+            <input type="number" min="2" max="12" class="input" bind:value={panelH} />
           </div>
         </div>
-        <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse">
-          <button type="button" onclick={submitAddPanel} class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
-            Add
-          </button>
-          <button type="button" onclick={() => showAddModal = false} class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm">
-            Cancel
-          </button>
-        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick={() => showAddModal = false}>Cancel</button>
+        <button class="btn-primary-glow" onclick={submitAddPanel}>
+          Add Panel
+        </button>
       </div>
     </div>
   </div>

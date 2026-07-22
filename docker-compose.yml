@@ -1,19 +1,9 @@
-# ──────────────────────────────────────────────
-#  BoloDB  ·  Docker Compose
-# ──────────────────────────────────────────────
-#  Usage:
-#    docker compose up --build        # build & start
-#    docker compose up --build -d     # detached
-#    docker compose down              # stop & remove
-# ──────────────────────────────────────────────
-
 services:
   # ── Backend: FastAPI / Uvicorn ──
   backend:
     build:
       context: .
       dockerfile: backend/DOCKERFILE
-    # container_name: bolodb-backend
     restart: unless-stopped
     expose:
       - "4321"
@@ -26,12 +16,18 @@ services:
       - DATABASE_URL=${DATABASE_URL:? Database URL must be set}
       - PYTHONUNBUFFERED=1
       - RUNNING_IN_DOCKER=true
-      # - OLLAMA_URL=http://host.docker.internal:11434
+      - SKIP_DB_LOCK=true
       - SUPABASE_URL=${SUPABASE_URL:?SUPABASE_URL must be set}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY must be set}
       - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET:?SUPABASE_JWT_SECRET must be set}
       - MYEMAILVERIFIER_API_KEY=${MYEMAILVERIFIER_API_KEY}
       - RESEND_API_KEY=${RESEND_API_KEY}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import httpx; httpx.get('http://localhost:4321/api/health', timeout=3).raise_for_status()\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -42,7 +38,6 @@ services:
     build:
       context: ./frontend
       dockerfile: DOCKERFILE.dev
-    # container_name: bolodb-frontend
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -65,10 +60,9 @@ services:
     build:
       context: ./nginx
       dockerfile: DOCKERFILE
-    # container_name: bolodb-nginx
     restart: unless-stopped
-    expose:
-      - '80'
+    ports:
+      - "80:80"
     depends_on:
       frontend:
         condition: service_started
