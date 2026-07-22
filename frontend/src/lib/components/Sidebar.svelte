@@ -17,15 +17,16 @@
     onNewChat,
     activeConversationId,
     conversationTrigger = 0,
-    userEmail = '',
-    theme = 'dark',
+    userEmail,
+    theme,
     onToggleTheme,
     onLogout,
-    mobileOpen = false,
+    mobileOpen,
     onClose,
+    databases = [],
   }: {
-    activeTab: Tab;
-    onTab: (t: Tab) => void;
+    activeTab: 'ask' | 'dash' | 'settings';
+    onTab: (t: 'ask' | 'dash' | 'settings') => void;
     verifiedCount: number;
     schema: SchemaTable[] | null;
     dbInfo: DbInfo | null;
@@ -34,17 +35,19 @@
     activeConversationId?: string | null;
     conversationTrigger?: number;
     userEmail?: string;
-    theme?: string;
-    onToggleTheme?: () => void;
-    onLogout?: () => void;
+    theme: 'light' | 'dark';
+    onToggleTheme: () => void;
+    onLogout: () => void;
     mobileOpen?: boolean;
     onClose?: () => void;
+    databases?: any[];
   } = $props();
 
   let sidePanel: 'chats' | 'schema' = $state('chats');
   let openTable: string | null = $state(null);
   let profileOpen = $state(false);
   let conversations: Conversation[] = $state([]);
+  let loadingConvs = $state(true);
 
   const schemaData = $derived(schema && schema.length ? schema : defaultSchema);
   const trust = $derived(trustFor(verifiedCount));
@@ -68,11 +71,15 @@
 
   $effect(() => {
     conversationTrigger;
+    loadingConvs = true;
     getConversations()
       .then((res) => {
         if (res && res.conversations) conversations = res.conversations;
       })
-      .catch((e) => console.error(e));
+      .catch((e) => console.error(e))
+      .finally(() => {
+        loadingConvs = false;
+      });
   });
 
   async function handleClearConvs() {
@@ -258,6 +265,10 @@
     <button class="new-chat" aria-label="New chat" title="New chat" onclick={newChat}>+</button>
   </div>
 
+  <button class="nav-item" onclick={() => { goto('/dashboards'); onClose?.(); }} style="margin: 0 16px 12px; font-weight: 600;">
+    <span class="nav-icon" style="color:var(--brand)">📊</span>Custom Dashboards
+  </button>
+
   <!-- panel body -->
   <div class="panel-body">
     {#if sidePanel === 'chats'}
@@ -276,7 +287,15 @@
                 />
               {:else}
                 <button class="convo" class:active={activeConversationId === cv._id} onclick={() => selectConversation(cv._id)}>
-                  <span class="convo-title">{cv.title || cv.last_question || 'New conversation'}</span>
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span class="convo-title">{cv.title || cv.last_question || 'New conversation'}</span>
+                    {#if cv.database_id}
+                      {@const dbMatch = databases.find(d => d.db_id === cv.database_id)}
+                      {#if dbMatch}
+                        <span style="font-size:10px;padding:2px 4px;border-radius:3px;background:var(--border);color:var(--text-light);white-space:nowrap;margin-left:4px;">{dbMatch.alias_name || dbMatch.dialect}</span>
+                      {/if}
+                    {/if}
+                  </div>
                   <span class="convo-meta">{cv.turn_count} turn{cv.turn_count === 1 ? '' : 's'} · {formatTime(cv.updated_at)}</span>
                 </button>
                 <button class="convo-ren opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label="Rename conversation" title="Rename" onclick={(e) => startRename(cv, e)}>
@@ -287,6 +306,13 @@
             </div>
           {/each}
           <button class="clear-all" onclick={handleClearConvs}>Clear all</button>
+        </div>
+      {:else if loadingConvs}
+        <div style="display:flex;align-items:center;justify-content:center;padding:24px 0;color:var(--text-light);font-size:12px;gap:6px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin">
+            <path d="M21 12a9 9 0 11-6.219-8.56"/>
+          </svg>
+          Loading chats...
         </div>
       {:else}
         <span class="empty-hint">No chats yet.<br />Press + to start one.</span>
@@ -813,5 +839,12 @@
       pointer-events: auto;
     }
     .mobile-close { display: inline-flex; align-items: center; justify-content: center; }
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .spin {
+    animation: spin 1s linear infinite;
   }
 </style>
