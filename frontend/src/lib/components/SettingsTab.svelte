@@ -1,6 +1,8 @@
 <script lang="ts">
   import DataCatalog from '$lib/components/DataCatalog.svelte';
   import type { DbInfo } from '$lib/types';
+  import { appState } from '$lib/appState.svelte';
+  import { removeDatabase } from '$lib/api';
 
   let {
     dbInfo,
@@ -25,6 +27,20 @@
   $effect(() => {
     if (openCatalogTrigger > 0) showCatalog = true;
   });
+
+  const isAdmin = $derived(
+    appState.activeWorkspace?.role === 'admin' || appState.activeWorkspace?.role === 'owner'
+  );
+
+  async function handleDelete() {
+    if (!confirm("Are you sure you want to remove this database connection from the workspace?")) return;
+    try {
+      await removeDatabase();
+      appState.disconnect();
+    } catch (e: any) {
+      appState.showError("Failed to remove database: " + e.message);
+    }
+  }
 </script>
 
 <div class="wrap">
@@ -37,15 +53,24 @@
         <span class="conn-name"><span class="dot"></span>{dbLabel}</span>
         <span class="conn-flag">READ-ONLY ENFORCED</span>
       </div>
-      {#if onDisconnect}
-        <button class="ghost" onclick={onDisconnect}>Change database…</button>
-      {/if}
+      <div style="display:flex;gap:12px">
+        {#if onDisconnect}
+          <button class="ghost" onclick={onDisconnect}>Clear active connection</button>
+        {/if}
+        {#if isAdmin}
+          <button class="ghost danger" onclick={handleDelete}>Delete connection</button>
+        {/if}
+      </div>
     </div>
 
     <div class="card">
       <span class="label">DATA CATALOG</span>
       <p class="muted">Teach BoloDB your business terms, metrics and value meanings so answers get more accurate.</p>
-      <button class="ghost" onclick={() => (showCatalog = true)}>Manage data catalog →</button>
+      {#if isAdmin}
+        <button class="ghost" onclick={() => (showCatalog = true)}>Manage data catalog →</button>
+      {:else}
+        <p class="muted" style="margin-top:-6px;font-style:italic">Only workspace admins can modify the data catalog.</p>
+      {/if}
     </div>
 
     <div class="card">
@@ -103,6 +128,8 @@
     transition: all 0.15s;
   }
   .ghost:hover { color: var(--ink); border-color: var(--muted); }
+  .ghost.danger { color: var(--red, #e11d48); border-color: rgba(225,29,72,0.3); }
+  .ghost.danger:hover { background: rgba(225,29,72,0.1); border-color: var(--red, #e11d48); }
   .appearance { display: flex; align-items: center; justify-content: space-between; }
   .appearance-text { font-size: 14.5px; color: var(--ink-2); }
   .pill {
