@@ -19,3 +19,5 @@ credentials.json
 .credentials
 docker-compose.override.yml
 venv/
+
+.opencode/
