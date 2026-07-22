@@ -269,6 +269,7 @@ class OpenRouterProvider(LLMProvider):
                 "Set OPENROUTER_API_KEY in the server environment.",
                 detail="empty api_key",
             )
+        temperature = kwargs.get("temperature", 0.1)
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
@@ -277,7 +278,7 @@ class OpenRouterProvider(LLMProvider):
         completion_kwargs = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.1,
+            "temperature": temperature if temperature is not None else 0.1,
             "max_tokens": 4096,
         }
         if json_mode and schema:
@@ -692,6 +693,7 @@ async def generate_glossary(provider, schema_text):
         "Produce the glossary.",
         json_mode=True,
         schema=GLOSSARY_SCHEMA,
+        temperature=0.7,
     )
     obj = raw if isinstance(raw, dict) else parse_json(raw)
     terms = obj.get("glossary", [])

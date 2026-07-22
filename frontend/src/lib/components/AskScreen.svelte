@@ -16,7 +16,8 @@
   import DashboardTab from "$lib/components/DashboardTab.svelte";
   import SettingsTab from "$lib/components/SettingsTab.svelte";
   import TrustToast from "$lib/components/TrustToast.svelte";
-  import Spinner from "$lib/components/ui/Spinner.svelte";
+  import Spinner from '$lib/components/ui/Spinner.svelte';
+  import LoadingScreen from '$lib/components/ui/LoadingScreen.svelte';
   import SlashCommandMenu from "$lib/components/ui/SlashCommandMenu.svelte";
   import type { SlashCommand } from "$lib/components/ui/SlashCommandMenu.svelte";
   import { appState } from "$lib/appState.svelte";
@@ -82,6 +83,7 @@
   let showScrollBtn = $state(false);
   let lastTurnCount = 0;
   let convLoadSeq = 0;
+  let convLoading = $state(false); // true only while fetching a past conversation
   let mobileNavOpen = $state(false);
 
   const trust = $derived(trustFor(verifiedCount));
@@ -519,6 +521,8 @@
     abortController?.abort();
     const seq = ++convLoadSeq;
     loading = true;
+    convLoading = true;
+    turns = [];
     try {
       const conv = await getConversation(convId);
       if (seq !== convLoadSeq) return;
@@ -539,7 +543,7 @@
         appState.showError("Couldn't open that conversation — please try again.");
       }
     } finally {
-      if (seq === convLoadSeq) loading = false;
+      if (seq === convLoadSeq) { loading = false; convLoading = false; }
     }
   }
 
@@ -616,6 +620,13 @@
 
       <!-- feed -->
       <div bind:this={feedRef} onscroll={onFeedScroll} class="feed">
+        {#if convLoading}
+          <LoadingScreen
+            message="Opening conversation…"
+            submessage="Fetching your previous results"
+            variant="default"
+          />
+        {:else}
         <div class="feed-inner">
           {#if turns.length === 0}
             <div class="empty rise">
@@ -648,7 +659,8 @@
             {/each}
           {/if}
         </div>
-        {#if showScrollBtn}
+        {/if}
+        {#if showScrollBtn && !convLoading}
           <button onclick={scrollToBottom} aria-label="Scroll to latest" class="scroll-btn">↓</button>
         {/if}
       </div>
@@ -750,7 +762,7 @@
     transition: all 0.15s;
   }
   .switch-db:hover { color: var(--ink); border-color: var(--muted); }
-  .feed { flex: 1; overflow-y: auto; padding: 36px 32px 20px; }
+  .feed { flex: 1; overflow-y: auto; padding: 36px 32px 20px; position: relative; }
   .feed-inner { max-width: 760px; margin: 0 auto; }
   .empty {
     display: flex;
