@@ -96,7 +96,7 @@
 
   async function switchWorkspace(ws: any) {
     localStorage.setItem("bolodb_active_workspace_id", ws.id);
-    localStorage.removeItem("bolodb_active_db_id");
+    // localStorage.removeItem("bolodb_active_db_id"); // Persist per workspace
     appState.activeWorkspace = ws;
     appState.dbInfo = null;
     appState.isLoaded = false;

@@ -49,13 +49,17 @@
     }
   }
 
-  onMount(async () => {
+  async function loadRecentConnections() {
     try {
       const data = await apiCall("/api/connections");
       recentConnections = data.connections || [];
     } catch (e) {
       console.error("Failed to load recent connections:", e);
     }
+  }
+
+  onMount(() => {
+    loadRecentConnections();
   });
 
   async function start() {
@@ -202,7 +206,7 @@
                 <span class="tag">{conn.table_count} tables</span>
               </div>
               <div class="source-footer">
-                <span class="time">Last used {timeAgo(conn.updated_at)}</span>
+                <span class="time">Last used {timeAgo(conn.connected_at)}</span>
                 <div class="source-actions">
                   {#if isAdmin}
                     <button class="icon-btn del-btn" onclick={(e) => { e.stopPropagation(); removeRecent(conn); }} aria-label="Remove connection" title="Remove connection">
