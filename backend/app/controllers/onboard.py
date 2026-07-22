@@ -96,7 +96,7 @@ async def generate_starters_async(user_id, db, kb, providers):
                 await session.commit()
 
         # Return the generated list of questions
-        return {"starters": [s["question"] for s in valid_starters]}
+        return {"starters": [s["question"] for s in deduped] or [s["question"] for s in valid_starters]}
     except Exception:
         log.exception("Failed to generate async starters")
         return {"starters": []}
