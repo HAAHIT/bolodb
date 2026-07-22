@@ -37,12 +37,14 @@ async def get_state(user_id, workspace_id, db_id, db, cfg, kb):
     }
     if workspace_id and db.connected(workspace_id, db_id):
         actual_db_id = db_id or db.get_db_id(workspace_id, db_id)
+        conn = await mdb.get_recent_connection_by_db_id(workspace_id, actual_db_id)
         s["database"] = {
             "url": db.get_info(workspace_id, actual_db_id)["url"],
             "dialect": db.get_dialect(workspace_id, actual_db_id),
             "db_id": actual_db_id,
             "tables": db.get_info(workspace_id, actual_db_id)["tables"],
             "has_knowledge": (await kb.count_verified(workspace_id, actual_db_id)) > 0,
+            "alias_name": conn.get("alias_name") if conn else None,
         }
         s["trust"] = await kb.trust_level(workspace_id, actual_db_id)
         s["glossary"] = await kb.get_glossary(workspace_id, actual_db_id)

@@ -38,6 +38,7 @@ export interface DbInfo {
   url?: string;
   dialect?: string;
   db_id?: string;
+  alias_name?: string;
   tables?: number;
   ok?: boolean;
   has_knowledge?: boolean;

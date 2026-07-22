@@ -86,18 +86,17 @@ class AppState {
           console.error("Failed to load schema:", e);
         }
         this.isLoaded = true;
-        if (redirect) {
-          if (this.workspaces.length === 0) {
-            goto("/workspaces/setup");
-          } else {
-            goto("/chat");
-          }
+        if (this.workspaces.length === 0) {
+          goto("/workspaces/setup");
+        } else if (redirect) {
+          goto("/chat");
         }
       } else {
         this.isLoaded = true;
-        if (redirect) {
-          if (this.workspaces.length === 0) goto("/workspaces/setup");
-          else goto("/connect");
+        if (this.workspaces.length === 0) {
+          goto("/workspaces/setup");
+        } else if (redirect) {
+          goto("/connect");
         }
       }
     } catch (e: any) {
@@ -150,7 +149,11 @@ class AppState {
   async setConnect(isSample: boolean, res: DbInfo) {
     if (res) {
       if (typeof window !== "undefined" && res.db_id) {
-        localStorage.setItem("bolodb_active_db_id", res.db_id);
+        if (this.activeWorkspace)
+          localStorage.setItem(
+            `bolodb_active_db_id_${this.activeWorkspace.id}`,
+            res.db_id,
+          );
       }
       this.dbInfo = res;
       this.verifiedCount = res.trust?.verified || 0;
@@ -168,7 +171,11 @@ class AppState {
 
   async switchDatabase(dbId: string) {
     if (typeof window !== "undefined") {
-      localStorage.setItem("bolodb_active_db_id", dbId);
+      if (this.activeWorkspace)
+        localStorage.setItem(
+          `bolodb_active_db_id_${this.activeWorkspace.id}`,
+          dbId,
+        );
     }
     try {
       const res = await apiCall("/api/reconnect", { db_id: dbId });
@@ -252,7 +259,10 @@ class AppState {
 
   async disconnect() {
     if (typeof window !== "undefined") {
-      localStorage.removeItem("bolodb_active_db_id");
+      if (this.activeWorkspace)
+        localStorage.removeItem(
+          `bolodb_active_db_id_${this.activeWorkspace.id}`,
+        );
     }
     this.dbInfo = null;
     this.realSchema = null;

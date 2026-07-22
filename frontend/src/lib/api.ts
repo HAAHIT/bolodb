@@ -15,8 +15,8 @@ export async function apiCall(
       ? localStorage.getItem("bolodb_active_workspace_id")
       : null;
   const activeDbId =
-    typeof window !== "undefined"
-      ? localStorage.getItem("bolodb_active_db_id")
+    typeof window !== "undefined" && activeWorkspaceId
+      ? localStorage.getItem(`bolodb_active_db_id_${activeWorkspaceId}`)
       : null;
   const headers: Record<string, string> = {};
   if (activeWorkspaceId) headers["X-Workspace-Id"] = activeWorkspaceId;
@@ -66,8 +66,8 @@ export async function streamApiCall(
         ? localStorage.getItem("bolodb_active_workspace_id")
         : null;
     const activeDbId =
-      typeof window !== "undefined"
-        ? localStorage.getItem("bolodb_active_db_id")
+      typeof window !== "undefined" && activeWorkspaceId
+        ? localStorage.getItem(`bolodb_active_db_id_${activeWorkspaceId}`)
         : null;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
