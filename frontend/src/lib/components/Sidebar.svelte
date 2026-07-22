@@ -3,6 +3,7 @@
   import type { SchemaTable, DbInfo, Conversation } from '$lib/types';
   import { getConversations, deleteConversation, clearConversations, renameConversation } from '$lib/api';
   import { appState } from '$lib/appState.svelte';
+  import { goto } from '$app/navigation';
 
   type Tab = 'ask' | 'dash' | 'settings';
 
@@ -153,11 +154,77 @@
     sidePanel = 'chats';
     onClose?.();
   }
+
+  function getAvatar(name: string) {
+    if (!name) return 'W';
+    return name.substring(0, 2).toUpperCase();
+  }
+
+  async function selectWorkspace(ws: any) {
+    if (appState.activeWorkspace?.id === ws.id) return;
+    localStorage.setItem("bolodb_active_workspace_id", ws.id);
+    appState.activeWorkspace = ws;
+    // We should reload to fetch new dbInfo for the new workspace
+    // The easiest way is to let the user pick a DB from /connect if this ws doesn't have an active one,
+    // or we can just call appState.init().
+    appState.dbInfo = null;
+    appState.isLoaded = false;
+    appState.activeConversationId = null;
+    await appState.init(true);
+  }
+
+  let wsMenuOpen = $state(false);
+
+  function closeMenus(e: MouseEvent) {
+    wsMenuOpen = false;
+    profileOpen = false;
+  }
 </script>
 
-<aside class="sidebar" class:mobile-open={mobileOpen}>
-  <!-- brand -->
-  <div class="brand">
+<svelte:window onclick={closeMenus} />
+
+<div class="sidebar-wrapper" class:mobile-open={mobileOpen}>
+  <!-- workspace rail -->
+  <div class="ws-rail">
+    {#each appState.workspaces || [] as ws}
+      <div style="position:relative">
+        <button
+          class="ws-avatar"
+          class:ws-active={appState.activeWorkspace?.id === ws.id}
+          onclick={(e) => {
+            e.stopPropagation();
+            if (appState.activeWorkspace?.id === ws.id) {
+              wsMenuOpen = !wsMenuOpen;
+            } else {
+              selectWorkspace(ws);
+            }
+          }}
+          title={ws.name}
+        >
+          {getAvatar(ws.name)}
+        </button>
+        {#if wsMenuOpen && appState.activeWorkspace?.id === ws.id}
+          <div class="ws-popover" onclick={(e) => e.stopPropagation()}>
+            <div class="ws-popover-header">
+              <span class="ws-p-name">{ws.name}</span>
+              <span class="ws-p-role">{ws.role}</span>
+            </div>
+            <button class="ws-p-item" onclick={() => { wsMenuOpen = false; goto('/workspaces'); }}>⚙ Workspace Settings</button>
+            <button class="ws-p-item" onclick={() => { wsMenuOpen = false; goto('/connect'); }}>🗄 Manage Databases</button>
+            {#if ws.role === 'admin' || ws.role === 'owner'}
+              <button class="ws-p-item" onclick={() => { wsMenuOpen = false; goto('/workspaces'); }}>👥 Invite People</button>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    {/each}
+    <div class="ws-divider"></div>
+    <button class="ws-avatar ws-add" onclick={() => goto('/workspaces')} title="Manage Workspaces">+</button>
+  </div>
+
+  <aside class="sidebar">
+    <!-- brand -->
+    <div class="brand">
     <svg width="22" height="22" viewBox="0 0 256 256" fill="none">
       <path d="M 52 44 Q 52 30 66 30 L 190 30 Q 204 30 204 44 L 204 138 Q 204 152 190 152 L 116 152 L 88 176 L 92 152 L 66 152 Q 52 152 52 138 Z" stroke="var(--brand)" stroke-width="6" fill="none" />
       <g stroke="var(--brand)" stroke-width="6" stroke-linecap="round" fill="none">
@@ -258,18 +325,19 @@
     <!-- profile -->
     <div style="position:relative">
       {#if profileOpen}
-        <div class="pmenu">
+        <div class="pmenu" onclick={(e) => e.stopPropagation()}>
           <div class="pmenu-head">
             <span class="pmenu-name">{name}</span>
             <span class="pmenu-email">{userEmail || '—'}</span>
             <span class="pmenu-plan">FREE PLAN</span>
           </div>
-          <button class="pmenu-item" onclick={() => { profileOpen = false; selectTab('settings'); }}>⚙ Settings</button>
+          <button class="pmenu-item" onclick={() => { profileOpen = false; goto('/profile'); }}>👤 Profile & Account</button>
+          <button class="pmenu-item" onclick={() => { profileOpen = false; selectTab('settings'); }}>⚙ App Settings</button>
           <button class="pmenu-item" onclick={() => { profileOpen = false; onToggleTheme?.(); }}>{theme === 'dark' ? '☀' : '☾'} {theme === 'dark' ? 'Light mode' : 'Dark mode'}</button>
           <button class="pmenu-item danger" onclick={() => { profileOpen = false; onLogout?.(); }}>↪ Log out</button>
         </div>
       {/if}
-      <button class="profile-btn" data-testid="profile-menu-button" onclick={() => (profileOpen = !profileOpen)}>
+      <button class="profile-btn" data-testid="profile-menu-button" onclick={(e) => { e.stopPropagation(); profileOpen = !profileOpen; }}>
         <span class="pleft">
           <span class="avatar">{initials}</span>
           <span class="pinfo">
@@ -280,10 +348,110 @@
         <span class="pchev" style="transform:{profileOpen ? 'rotate(180deg)' : 'rotate(0deg)'}">▲</span>
       </button>
     </div>
-  </div>
-</aside>
+  </aside>
+</div>
 
 <style>
+  .sidebar-wrapper {
+    display: flex;
+    height: 100%;
+    flex-shrink: 0;
+    box-sizing: border-box;
+  }
+  .ws-rail {
+    width: 60px;
+    background: var(--surface-1);
+    border-right: 1px solid var(--border-2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0;
+    gap: 12px;
+    z-index: 10;
+  }
+  .ws-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--surface-3);
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .ws-avatar:hover {
+    border-radius: 8px;
+    color: var(--ink);
+    background: var(--card-hover);
+  }
+  .ws-avatar.ws-active {
+    border-radius: 8px;
+    background: var(--brand);
+    color: var(--on-brand);
+  }
+  .ws-add {
+    background: transparent;
+    border: 2px dashed var(--border);
+    color: var(--faint);
+    font-size: 20px;
+    font-weight: 400;
+  }
+  .ws-add:hover {
+    border-color: var(--brand);
+    color: var(--brand);
+  }
+  .ws-divider {
+    width: 32px;
+    height: 2px;
+    background: var(--border-2);
+    border-radius: 1px;
+    margin: 4px 0;
+  }
+  .ws-popover {
+    position: absolute;
+    left: 56px;
+    top: 0;
+    width: 220px;
+    background: var(--card);
+    border: 1px solid var(--border-2);
+    border-radius: 12px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.4);
+    animation: rise 0.2s var(--ease) both;
+    z-index: 100;
+  }
+  .ws-popover-header {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 8px 10px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+  .ws-p-name { font-size: 14px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ws-p-role { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-top: 2px; }
+  .ws-p-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    border: none;
+    color: var(--ink-2);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+  }
+  .ws-p-item:hover { background: var(--surface-2); color: var(--ink); }
   .sidebar {
     width: 232px;
     flex-shrink: 0;
@@ -625,20 +793,20 @@
 
   /* ── Mobile: sidebar becomes an off-canvas drawer ── */
   @media (max-width: 768px) {
-    .sidebar {
+    .sidebar-wrapper {
       position: fixed;
       top: 0;
       left: 0;
       bottom: 0;
       z-index: 60;
-      width: min(84vw, 300px);
+      width: min(84vw, 360px);
       transform: translateX(-100%);
       transition: transform 0.25s var(--ease, ease);
       box-shadow: none;
       visibility: hidden;
       pointer-events: none;
     }
-    .sidebar.mobile-open {
+    .sidebar-wrapper.mobile-open {
       transform: translateX(0);
       box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
       visibility: visible;
