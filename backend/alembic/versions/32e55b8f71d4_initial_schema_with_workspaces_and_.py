@@ -1,8 +1,8 @@
-"""initial workspace schema
+"""Initial schema with workspaces and multi DBs
 
-Revision ID: d7e8d1eb5a70
+Revision ID: 32e55b8f71d4
 Revises:
-Create Date: 2026-07-22 16:32:10.562009
+Create Date: 2026-07-22 17:57:49.765868
 """
 
 from typing import Sequence, Union
@@ -10,7 +10,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision: str = "d7e8d1eb5a70"
+revision: str = "32e55b8f71d4"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -27,6 +27,9 @@ def upgrade() -> None:
         sa.Column("google_id", sa.String(), nullable=True),
         sa.Column("supabase_id", sa.String(), nullable=True),
         sa.Column("email_verified", sa.Boolean(), nullable=False),
+        sa.Column("first_name", sa.String(), nullable=True),
+        sa.Column("last_name", sa.String(), nullable=True),
+        sa.Column("avatar_url", sa.String(), nullable=True),
         sa.Column("tour_completed", sa.Boolean(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
@@ -192,6 +195,7 @@ def upgrade() -> None:
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("db_url", sa.Text(), nullable=False),
         sa.Column("display_url", sa.String(), nullable=False),
+        sa.Column("alias_name", sa.String(), nullable=True),
         sa.Column("dialect", sa.String(), nullable=False),
         sa.Column("db_id", sa.String(), nullable=False),
         sa.Column("table_count", sa.Integer(), nullable=False),
