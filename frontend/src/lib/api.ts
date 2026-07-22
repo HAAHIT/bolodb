@@ -274,10 +274,15 @@ export async function acceptWorkspaceInvite(token: string): Promise<any> {
   return apiCall(`/api/workspaces/invites/${token}/accept`, undefined, "POST");
 }
 
-export async function getWorkspaceActivity(workspaceId: string, page: number = 1): Promise<any> {
+export async function getWorkspaceActivity(
+  workspaceId: string,
+  page: number = 1,
+): Promise<any> {
   const limit = 50;
   const offset = (page - 1) * limit;
-  return apiCall(`/api/workspaces/${workspaceId}/activity?limit=${limit}&offset=${offset}`);
+  return apiCall(
+    `/api/workspaces/${workspaceId}/activity?limit=${limit}&offset=${offset}`,
+  );
 }
 
 // --- Databases ---

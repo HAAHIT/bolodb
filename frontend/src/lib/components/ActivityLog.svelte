@@ -18,14 +18,14 @@
       } else {
         page += 1;
       }
-      
+
       const res = await getWorkspaceActivity(appState.activeWorkspace.id, page);
       if (loadMore) {
         activities = [...activities, ...res];
       } else {
         activities = res;
       }
-      
+
       hasMore = res.length === 50; // if it returned exactly limit, there might be more
     } catch (e: any) {
       error = e.message || 'Could not load activity log';
@@ -49,7 +49,7 @@
   function formatEvent(a: any) {
     const actor = a.actor_email || 'System';
     const type = a.event_type;
-    
+
     // Formatting logic
     if (type === 'workspace.created') return `${actor} created this workspace`;
     if (type === 'workspace.updated') return `${actor} updated workspace settings`;
@@ -61,16 +61,16 @@
     if (type === 'db.disconnected') return `${actor} disconnected a database`;
     if (type === 'query.executed') return `${actor} ran a query`;
     if (type === 'knowledge.verified') return `${actor} verified an answer for knowledge base`;
-    
+
     return `${actor} performed ${type}`;
   }
-  
+
   function timeAgo(dateStr: string) {
     const d = new Date(dateStr);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
     const diffMins = Math.round(diffMs / 60000);
-    
+
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     const diffHours = Math.round(diffMins / 60);
@@ -83,7 +83,7 @@
 
 <div class="activity-container">
   <h2>Activity Log (Last 30 Days)</h2>
-  
+
   {#if error}
     <div class="error-msg">{error}</div>
   {/if}
@@ -123,7 +123,7 @@
         </div>
       {/each}
     </div>
-    
+
     {#if hasMore}
       <button class="load-more-btn" onclick={() => loadActivity(true)} disabled={loading}>
         {#if loading}
