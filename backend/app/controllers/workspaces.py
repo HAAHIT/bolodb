@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import select, delete
 from backend.app.pgdatabase.engine import async_session
 from backend.app.models.workspace import Workspace, WorkspaceMember, WorkspaceInvite
-from backend.app.models.user import UserInDB
+from backend.app.models.orm_user import User
 from backend.app.pgdatabase.serialization import _to_uuid
 
 
@@ -94,10 +94,8 @@ async def list_members(workspace_id: str):
     wid = _to_uuid(workspace_id)
     async with async_session() as session:
         result = await session.execute(
-            select(
-                WorkspaceMember, UserInDB.email, UserInDB.first_name, UserInDB.last_name
-            )
-            .join(UserInDB, WorkspaceMember.user_id == UserInDB.id)
+            select(WorkspaceMember, User.email)
+            .join(User, WorkspaceMember.user_id == User.id)
             .where(WorkspaceMember.workspace_id == wid)
         )
         rows = result.all()
@@ -105,10 +103,9 @@ async def list_members(workspace_id: str):
             {
                 "user_id": str(r[0].user_id),
                 "email": r[1],
-                "first_name": r[2],
-                "last_name": r[3],
                 "role": r[0].role,
                 "joined_at": r[0].joined_at,
+                "created_at": r[0].joined_at,
             }
             for r in rows
         ]
@@ -119,9 +116,7 @@ async def invite_user(workspace_id: str, email: str, role: str, inviter_id: str)
     uid = _to_uuid(inviter_id)
     async with async_session() as session:
         # Check if already a member
-        user_exists = await session.execute(
-            select(UserInDB).where(UserInDB.email == email)
-        )
+        user_exists = await session.execute(select(User).where(User.email == email))
         user = user_exists.scalar_one_or_none()
         if user:
             member = await session.execute(
