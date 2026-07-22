@@ -104,7 +104,9 @@ class AppState {
         }
         this.isLoaded = true;
         if (redirect) {
-          if (this.dbInfo?.has_knowledge) {
+          if (this.workspaces.length === 0) {
+            goto("/workspaces/setup");
+          } else if (this.dbInfo?.has_knowledge) {
             goto("/chat");
           } else {
             goto("/onboard");
@@ -112,7 +114,10 @@ class AppState {
         }
       } else {
         this.isLoaded = true;
-        if (redirect) goto("/connect");
+        if (redirect) {
+          if (this.workspaces.length === 0) goto("/workspaces/setup");
+          else goto("/connect");
+        }
       }
     } catch (e: any) {
       this.isLoaded = true;
