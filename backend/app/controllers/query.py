@@ -65,14 +65,74 @@ def _failure_payload(message, tables=None):
     }
 
 
+def _is_connected(db, workspace_id, db_id=None):
+    if db_id is not None:
+        try:
+            return db.connected(workspace_id, db_id=db_id)
+        except TypeError:
+            pass
+        try:
+            return db.connected(workspace_id, db_id)
+        except TypeError:
+            pass
+    return db.connected(workspace_id)
+
+
+def _db_get_schema(db, workspace_id, db_id=None):
+    if db_id is not None:
+        try:
+            return db.get_schema(workspace_id, db_id=db_id)
+        except TypeError:
+            pass
+        try:
+            return db.get_schema(workspace_id, db_id)
+        except TypeError:
+            pass
+    return db.get_schema(workspace_id)
+
+
+def _db_get_dialect(db, workspace_id, db_id=None):
+    if db_id is not None:
+        try:
+            return db.get_dialect(workspace_id, db_id=db_id)
+        except TypeError:
+            pass
+        try:
+            return db.get_dialect(workspace_id, db_id)
+        except TypeError:
+            pass
+    return db.get_dialect(workspace_id)
+
+
+def _db_execute(db, workspace_id, sql, db_id=None):
+    if db_id is not None:
+        try:
+            return db.execute(workspace_id, sql, db_id=db_id)
+        except TypeError:
+            pass
+        try:
+            return db.execute(workspace_id, sql, db_id)
+        except TypeError:
+            pass
+    return db.execute(workspace_id, sql)
+
+
 async def run_query(
-    workspace_id, db, kb, cfg, providers, session_log, req_data, db_id=None
+    workspace_id,
+    db,
+    kb,
+    cfg,
+    providers,
+    session_log,
+    req_data,
+    db_id=None,
+    user_id=None,
 ):
     """
     Generate, validate, and execute SQL for a user's question, with confidence scoring and repair attempts.
 
     Parameters:
-        workspace_id: Identifier of the user whose database and knowledge base are used.
+        workspace_id: Workspace scoping unit whose database and knowledge base are used.
         db: Database connection and schema provider.
         kb: Knowledge base used for glossary, catalog, and verified-answer retrieval.
         cfg: Application configuration.
@@ -86,7 +146,7 @@ async def run_query(
     Raises:
         HTTPException: If no database is connected or the question is empty.
     """
-    if not db.connected(workspace_id, db_id=db_id):
+    if not _is_connected(db, workspace_id, db_id):
         raise HTTPException(409, "No database connected")
     q = req_data.question.strip()
     if not q:
@@ -101,8 +161,8 @@ async def run_query(
 
     # Step 2 — schema linking: budget for the configured model, then pick tables.
     budget = model_budget()
-    full_schema = db.get_schema(workspace_id, db_id=db_id)
-    dialect = db.get_dialect(workspace_id, db_id=db_id)
+    full_schema = _db_get_schema(db, workspace_id, db_id)
+    dialect = _db_get_dialect(db, workspace_id, db_id)
     context_tables = (
         extract_table_names_from_prev_query(context[-1].sql, dialect)
         if context
@@ -160,7 +220,7 @@ async def run_query(
         )
 
     async def _execute(sql):
-        return await run_in_threadpool(db.execute, workspace_id, sql, db_id=db_id)
+        return await run_in_threadpool(_db_execute, db, workspace_id, sql, db_id)
 
     def _on_failure(sql, errors):
         nonlocal linked
@@ -225,7 +285,7 @@ async def run_query(
 
 async def explain(workspace_id, db, providers, req_data, db_id=None):
     """Translate a SQL query into plain English (trust feature)."""
-    if not db.connected(workspace_id, db_id=db_id):
+    if not _is_connected(db, workspace_id, db_id):
         raise HTTPException(409, "No database connected")
     sql = (req_data.sql or "").strip()
     if not sql:
@@ -243,7 +303,7 @@ async def feedback(workspace_id, db, kb, session_log, req_data, db_id=None):
     Record feedback for a query and update verified knowledge when the feedback is positive.
 
     Parameters:
-        workspace_id: Identifier of the user submitting the feedback.
+        workspace_id: Workspace scoping unit submitting the feedback.
         db: Database connection manager used to identify the connected database.
         kb: Knowledge base used to store verified queries and retrieve trust information.
         session_log: Session logger used to record the feedback.
@@ -255,7 +315,7 @@ async def feedback(workspace_id, db, kb, session_log, req_data, db_id=None):
     Raises:
         HTTPException: If no database is connected for the user.
     """
-    if not db.connected(workspace_id, db_id=db_id):
+    if not _is_connected(db, workspace_id, db_id):
         raise HTTPException(409, "No database connected")
     session_log.log_feedback(req_data.query_id, req_data.verdict, req_data.reason)
     if req_data.verdict == "correct":
@@ -284,7 +344,7 @@ async def verify(workspace_id, db, kb, req_data, db_id=None):
     """Mark a question and its SQL explanation as verified.
 
     Parameters:
-        workspace_id: Identifier of the user verifying the query.
+        workspace_id: Workspace scoping unit verifying the query.
         db: Database connection used to determine the active database.
         kb: Knowledge base used to store the verified query and calculate trust.
         req_data: Request containing the question, SQL statement, and restatement.
@@ -295,7 +355,7 @@ async def verify(workspace_id, db, kb, req_data, db_id=None):
     Raises:
         HTTPException: If no database is connected for the user.
     """
-    if not db.connected(workspace_id, db_id=db_id):
+    if not _is_connected(db, workspace_id, db_id):
         raise HTTPException(409, "No database connected")
     await kb.add_verified(
         workspace_id,
@@ -315,7 +375,7 @@ async def execute(workspace_id, db, req_data, db_id=None):
     Execute the requested SQL statement against the user's connected database.
 
     Parameters:
-        workspace_id: Identifier of the user whose database connection should be used.
+        workspace_id: Workspace scoping unit whose database connection should be used.
         db: Database service used to execute the statement.
         req_data: Request containing the SQL statement.
 
@@ -325,7 +385,7 @@ async def execute(workspace_id, db, req_data, db_id=None):
     Raises:
         HTTPException: If no database is connected or the SQL execution returns an error.
     """
-    if not db.connected(workspace_id, db_id=db_id):
+    if not _is_connected(db, workspace_id, db_id):
         raise HTTPException(409, "No database connected")
     res = await run_in_threadpool(db.execute, workspace_id, req_data.sql)
     if "error" in res:
@@ -412,13 +472,21 @@ def _build_checks(verdict, schema=None):
 
 
 async def run_query_stream(
-    workspace_id, db, kb, cfg, providers, session_log, req_data, db_id=None
+    workspace_id,
+    db,
+    kb,
+    cfg,
+    providers,
+    session_log,
+    req_data,
+    db_id=None,
+    user_id=None,
 ):
     """
     Stream the SQL generation, validation, execution, confidence, and result events for a question.
 
     Parameters:
-        workspace_id: Identifier of the requesting user.
+        workspace_id: Workspace scoping unit.
         db: Database connection and schema provider.
         kb: Knowledge base used for glossary, catalog, and verified-answer retrieval.
         cfg: Application configuration.
@@ -430,7 +498,7 @@ async def run_query_stream(
         dict: Progress, error, or final-result event. The final result includes generated SQL,
             execution data, confidence information, and the recorded query identifier.
     """
-    if not db.connected(workspace_id, db_id=db_id):
+    if not _is_connected(db, workspace_id, db_id):
         yield {"kind": "error", "message": "No database connected"}
         return
     q = req_data.question.strip()
@@ -445,10 +513,10 @@ async def run_query_stream(
     catalog = await kb.get_catalog(workspace_id, dbid)
     retrieved = await kb.retrieve_similar(workspace_id, dbid, q, k=3)
     budget = model_budget()
-    full_schema = db.get_schema(workspace_id, db_id=db_id)
+    full_schema = _db_get_schema(db, workspace_id, db_id)
     context_tables = (
         extract_table_names_from_prev_query(
-            context[-1].sql, db.get_dialect(workspace_id)
+            context[-1].sql, _db_get_dialect(db, workspace_id, db_id)
         )
         if context
         else set()
@@ -493,7 +561,7 @@ async def run_query_stream(
             provider_obj,
             q,
             schema_text,
-            db.get_dialect(workspace_id),
+            _db_get_dialect(db, workspace_id, db_id),
             glossary,
             retrieved,
             budget["max_examples"],
@@ -541,7 +609,9 @@ async def run_query_stream(
 
         yield {"kind": "sql", "attempt": attempt, "sql": sql}
 
-        verdict = validate_sql(sql, full_schema, db.get_dialect(workspace_id))
+        verdict = validate_sql(
+            sql, full_schema, _db_get_dialect(db, workspace_id, db_id)
+        )
         checks = _build_checks(verdict, full_schema)
         passed = verdict.get("ok", False)
 
@@ -583,7 +653,9 @@ async def run_query_stream(
         # a query that only breaks at execution still gets another attempt.
         exec_start = time.monotonic()
         try:
-            exec_result = await run_in_threadpool(db.execute, workspace_id, sql)
+            exec_result = await run_in_threadpool(
+                _db_execute, db, workspace_id, sql, db_id
+            )
         except Exception:
             log.warning("Query execution failed during streaming", exc_info=True)
             exec_result = {"error": "The query could not be run against the database."}
@@ -676,6 +748,7 @@ async def run_query_stream(
         try:
             await mdb.save_query(
                 workspace_id=workspace_id,
+                user_id=user_id,
                 question=q,
                 sql=out["sql"],
                 result=out.get("rows", []),

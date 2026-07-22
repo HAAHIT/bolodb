@@ -45,8 +45,17 @@ async def query(
 ) -> dict:
     try:
         workspace_id = workspace["workspace_id"]
+        user_id = workspace.get("user_id")
         out = await ctrl.run_query(
-            workspace_id, db, kb, cfg, providers, session_log, req, db_id=db_id
+            workspace_id,
+            db,
+            kb,
+            cfg,
+            providers,
+            session_log,
+            req,
+            db_id=db_id,
+            user_id=user_id,
         )
 
         if out.get("answered") and out.get("sql"):
@@ -62,6 +71,7 @@ async def query(
             try:
                 await mdb.save_query(
                     workspace_id=workspace_id,
+                    user_id=user_id,
                     question=req.question,
                     sql=out["sql"],
                     result=out.get("rows", []),
@@ -96,8 +106,17 @@ async def query_stream(
 ) -> StreamingResponse:
     try:
         workspace_id = workspace["workspace_id"]
+        user_id = workspace.get("user_id")
         stream = ctrl.run_query_stream(
-            workspace_id, db, kb, cfg, providers, session_log, req, db_id=db_id
+            workspace_id,
+            db,
+            kb,
+            cfg,
+            providers,
+            session_log,
+            req,
+            db_id=db_id,
+            user_id=user_id,
         )
 
         return StreamingResponse(
@@ -163,6 +182,7 @@ async def execute(
 ) -> dict:
     try:
         workspace_id = workspace["workspace_id"]
+        user_id = workspace.get("user_id")
         out = await ctrl.execute(workspace_id, db, req, db_id=db_id)
 
         conversation_id = req.conversation_id
@@ -173,6 +193,7 @@ async def execute(
         try:
             await mdb.save_query(
                 workspace_id=workspace_id,
+                user_id=user_id,
                 question=req.sql,
                 sql=req.sql,
                 result=(out.get("rows") or [])[:MAX_SAVED_ROWS],
