@@ -223,7 +223,7 @@ class DatabaseManager:
             return f"`{n.replace('`', '``')}`"
         return f'"{n.replace(chr(34), chr(34) * 2)}"'
 
-    def get_schema(self, workspace_id, refresh=False):
+    def get_schema(self, workspace_id, db_id=None, refresh=False):
         """Introspect the connected database into the schema dict.
 
         STRUCTURE (columns, primary/foreign keys) is collected for EVERY table
@@ -232,7 +232,7 @@ class DatabaseManager:
         distinct values) is capped, at ENRICH_MAX tables, preferring the
         largest tables when row counts are known.
         """
-        c = self._get(workspace_id)
+        c = self._get(workspace_id, db_id=db_id)
         if c["_schema_cache"] and not refresh:
             return c["_schema_cache"]
         inspector = inspect(c["engine"])
