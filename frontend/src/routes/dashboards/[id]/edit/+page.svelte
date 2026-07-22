@@ -47,7 +47,7 @@
 
   async function saveDashboard(updates: any[]) {
     try {
-      await apiCall(`/api/dashboards/${dashboardId}/panels/batch`, 'PATCH', { updates });
+      await apiCall(`/api/dashboards/${dashboardId}/panels/batch`, { updates }, 'PATCH');
       alert('Dashboard saved!');
     } catch (e) {
       console.error(e);
@@ -57,7 +57,7 @@
 
   async function addPanel(panelConfig: any) {
     try {
-      await apiCall(`/api/dashboards/${dashboardId}/panels`, 'POST', panelConfig);
+      await apiCall(`/api/dashboards/${dashboardId}/panels`, panelConfig, 'POST');
       await loadDashboard(); // reload to get new ID and data
     } catch (e) {
       console.error(e);
@@ -68,7 +68,7 @@
   async function deletePanel(panelId: string) {
     if (!confirm('Remove this panel?')) return;
     try {
-      await apiCall(`/api/dashboards/${dashboardId}/panels/${panelId}`, 'DELETE');
+      await apiCall(`/api/dashboards/${dashboardId}/panels/${panelId}`, undefined, 'DELETE');
       dashboard.panels = dashboard.panels.filter((p: any) => p.id !== panelId);
     } catch (e) {
       console.error(e);
