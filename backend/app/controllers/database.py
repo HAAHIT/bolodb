@@ -3,11 +3,12 @@ from backend.app.database import sanitize_url
 from backend.sample_data import ensure_sample_db
 import backend.app.pgdatabase as mdb
 import logging
+from backend.app.controllers.activity import log_activity
 
 logger = logging.getLogger(__name__)
 
 
-async def connect(db, kb, cfg, req_data, workspace_id=None):
+async def connect(db, kb, cfg, req_data, workspace_id=None, user_id=None):
     result = db.connect(workspace_id, req_data.db_url)
     if not result["ok"]:
         raise HTTPException(400, result["error"])
@@ -32,11 +33,19 @@ async def connect(db, kb, cfg, req_data, workspace_id=None):
             )
         except Exception as e:
             logger.warning("Failed to save recent connection: %s", e)
+        await log_activity(
+            workspace_id,
+            user_id,
+            "db.connected",
+            "connection",
+            str(result.get("db_id", "")),
+            {"db_url": sanitize_url(req_data.db_url), "dialect": result.get("dialect")},
+        )
 
     return result
 
 
-async def connect_sample(db, kb, cfg, workspace_id=None):
+async def connect_sample(db, kb, cfg, workspace_id=None, user_id=None):
     """
     Connect to the sample database and return its connection details and knowledge metadata.
 
@@ -74,12 +83,23 @@ async def connect_sample(db, kb, cfg, workspace_id=None):
             )
         except Exception as e:
             logger.warning("Failed to save recent connection: %s", e)
+        await log_activity(
+            workspace_id,
+            user_id,
+            "db.connected",
+            "connection",
+            str(result.get("db_id", "")),
+            {"is_sample": True, "dialect": result.get("dialect")},
+        )
 
     return result
 
 
-async def disconnect(workspace_id, db, cfg, db_id=None):
+async def disconnect(workspace_id, db, cfg, db_id=None, user_id=None):
     db.disconnect(workspace_id, db_id)
+    await log_activity(
+        workspace_id, user_id, "db.disconnected", "connection", db_id, {}
+    )
     return {"ok": True}
 
 

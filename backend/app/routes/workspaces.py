@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from backend.app.dependencies import get_current_user, require_role
 from backend.app.models.workspace_api import (
     WorkspaceCreate,
@@ -6,6 +6,7 @@ from backend.app.models.workspace_api import (
     WorkspaceInviteCreate,
 )
 import backend.app.controllers.workspaces as ctrl
+import backend.app.controllers.activity as activity_ctrl
 
 router = APIRouter()
 
@@ -79,3 +80,16 @@ async def accept_invite(token: str, user=Depends(get_current_user)):
     if not email:
         raise HTTPException(400, "User email not found in token")
     return await ctrl.accept_invite(token, user_id, email)
+
+
+@router.get("/api/workspaces/{workspace_id}/activity")
+async def get_activity_log(
+    workspace_id: str,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    event_type: str = Query(None),
+    workspace=Depends(require_role("admin")),
+):
+    return await activity_ctrl.get_workspace_activity(
+        workspace["workspace_id"], limit, offset, event_type
+    )

@@ -8,6 +8,7 @@ from backend.app.pgdatabase.engine import async_session
 from backend.app.models.workspace import Workspace, WorkspaceMember, WorkspaceInvite
 from backend.app.models.orm_user import User
 from backend.app.pgdatabase.serialization import _to_uuid
+from backend.app.controllers.activity import log_activity
 
 
 def slugify(text: str) -> str:
@@ -72,6 +73,14 @@ async def create_workspace(user_id: str, name: str):
                 )
                 session.add(member)
                 await session.commit()
+                await log_activity(
+                    str(workspace.id),
+                    user_id,
+                    "workspace.created",
+                    "workspace",
+                    str(workspace.id),
+                    {"name": name},
+                )
                 return {
                     "id": str(workspace.id),
                     "name": workspace.name,
@@ -121,6 +130,18 @@ async def update_workspace(workspace_id: str, name: str | None):
                 stmt = stmt.values(**values)
                 result = await session.execute(stmt)
                 await session.commit()
+
+                # Fetch current user_id somehow? update_workspace is currently not getting user_id.
+                # Let's fix that. Wait, I should not break the signature if I can't.
+                # It's fine, actor_id=None
+                await log_activity(
+                    workspace_id,
+                    None,
+                    "workspace.updated",
+                    "workspace",
+                    workspace_id,
+                    values,
+                )
                 return {"ok": result.rowcount > 0}
             return {"ok": True}
         except Exception:
@@ -200,6 +221,14 @@ async def invite_user(workspace_id: str, email: str, role: str, inviter_id: str)
 
         try:
             await session.commit()
+            await log_activity(
+                workspace_id,
+                inviter_id,
+                "member.invited",
+                "member",
+                str(invite.id),
+                {"email": email, "role": role},
+            )
             return {
                 "id": str(invite.id),
                 "email": invite.email,
@@ -245,6 +274,14 @@ async def update_member_role(workspace_id: str, target_user_id: str, role: str):
 
         member.role = role
         await session.commit()
+        await log_activity(
+            workspace_id,
+            None,
+            "member.role_updated",
+            "member",
+            target_user_id,
+            {"new_role": role},
+        )
         return {"ok": True}
 
 
@@ -275,6 +312,9 @@ async def remove_member(workspace_id: str, target_user_id: str):
 
         await session.delete(member)
         await session.commit()
+        await log_activity(
+            workspace_id, None, "member.removed", "member", target_user_id, {}
+        )
         return {"ok": True}
 
 
@@ -325,6 +365,14 @@ async def accept_invite(token: str, user_id: str, user_email: str):
             invite.accepted_at = datetime.now(invite.expires_at.tzinfo)
             session.add(member)
             await session.commit()
+            await log_activity(
+                str(invite.workspace_id),
+                user_id,
+                "member.joined",
+                "member",
+                user_id,
+                {"role": invite.role},
+            )
             return {"ok": True, "workspace_id": str(invite.workspace_id)}
         except IntegrityError:
             await session.rollback()

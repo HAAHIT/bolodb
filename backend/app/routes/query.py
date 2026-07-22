@@ -16,6 +16,7 @@ from backend.app.ratelimit import limiter
 import backend.app.controllers.query as ctrl
 import backend.app.pgdatabase as mdb
 from backend.app.pgdatabase.conversations import MAX_SAVED_ROWS
+from backend.app.controllers.activity import log_activity
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -81,6 +82,14 @@ async def query(
                 )
                 if conversation_id:
                     await mdb.touch_conversation(conversation_id)
+                await log_activity(
+                    workspace_id,
+                    user_id,
+                    "query.executed",
+                    "query",
+                    None,
+                    {"question": req.question, "db_id": db_id, "confidence": conf_str},
+                )
             except Exception:
                 log.warning("Failed to persist query history", exc_info=True)
         return out
@@ -163,7 +172,16 @@ async def verify(
 ) -> dict:
     try:
         workspace_id = workspace["workspace_id"]
-        return await ctrl.verify(workspace_id, db, kb, req, db_id=db_id)
+        result = await ctrl.verify(workspace_id, db, kb, req, db_id=db_id)
+        await log_activity(
+            workspace_id,
+            workspace.get("user_id"),
+            "knowledge.verified",
+            "knowledge",
+            None,
+            {"question": req.question, "db_id": db_id},
+        )
+        return result
     except HTTPException:
         raise
     except Exception:
@@ -203,6 +221,14 @@ async def execute(
             )
             if conversation_id:
                 await mdb.touch_conversation(conversation_id)
+            await log_activity(
+                workspace_id,
+                user_id,
+                "query.executed",
+                "query",
+                None,
+                {"is_raw_sql": True, "db_id": db_id, "confidence": "High"},
+            )
         except Exception:
             log.warning("Failed to persist direct SQL history", exc_info=True)
         return out
