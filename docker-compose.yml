@@ -15,8 +15,8 @@ services:
       dockerfile: backend/DOCKERFILE
     container_name: bolodb-backend
     restart: unless-stopped
-    ports:
-      - "4321:4321"
+    expose:
+      - "4321"
     volumes:
       - bolodb-data:/home/bolodb/.bolodb
       - ./data:/app/data
@@ -46,8 +46,8 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    ports:
-      - "5173:5173"
+    expose:
+      - "5173"
     environment:
       - BACKEND_URL=http://backend:4321
       - PUBLIC_POSTHOG_PROJECT_TOKEN=${PUBLIC_POSTHOG_PROJECT_TOKEN}
