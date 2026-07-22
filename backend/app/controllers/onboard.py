@@ -5,6 +5,7 @@ import logging
 from backend.app.semantic import suggest_from_schema
 from backend.app.llm import generate_starters
 from backend.app.pgdatabase.models import VerifiedQA
+from sqlalchemy.dialects.postgresql import insert
 
 log = logging.getLogger(__name__)
 
@@ -64,22 +65,35 @@ async def generate_starters_async(user_id, db, kb, providers):
         # Filter out starters that failed to execute
         valid_starters = [s for s in starters if not s.get("error")]
 
-        async with kb._session_factory() as session:
-            for s in valid_starters:
-                session.add(
-                    VerifiedQA(
-                        user_id=user_id,
-                        db_id=db_id,
-                        question=s["question"],
-                        sql=s["sql"],
-                        restatement=s["restatement"],
+        seen_q = set()
+        deduped = []
+        for s in valid_starters:
+            if s["question"] not in seen_q:
+                seen_q.add(s["question"])
+                deduped.append(s)
+
+        if deduped:
+            async with kb._session_factory() as session:
+                stmt = (
+                    insert(VerifiedQA)
+                    .values(
+                        [
+                            {
+                                "user_id": user_id,
+                                "db_id": db_id,
+                                "question": s["question"],
+                                "sql": s["sql"],
+                                "restatement": s["restatement"],
+                            }
+                            for s in deduped
+                        ]
+                    )
+                    .on_conflict_do_nothing(
+                        index_elements=["user_id", "db_id", "question"]
                     )
                 )
-            try:
+                await session.execute(stmt)
                 await session.commit()
-            except Exception:
-                await session.rollback()
-                raise
 
         # Return the generated list of questions
         return {"starters": [s["question"] for s in valid_starters]}
