@@ -25,41 +25,6 @@
 </svelte:head>
 
 <div class="connect-scroll">
-  {#if isConnected}
-    <div class="connected-banner">
-      <div class="connected-banner-inner">
-        <div class="connected-info">
-          <span class="connected-dot"></span>
-          <span class="connected-label">
-            Connected to <strong>{appState.dbInfo!.dialect || 'database'}</strong>
-            {#if appState.dbInfo!.tables} · {appState.dbInfo!.tables} table{appState.dbInfo!.tables === 1 ? '' : 's'}{/if}
-          </span>
-        </div>
-        <div class="connected-actions">
-          <button class="btn btn-ghost btn-sm" onclick={() => goto('/chat')}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-            Back to chat
-          </button>
-          {#if !showSwitchConfirm}
-            <button class="btn btn-ghost btn-sm" onclick={() => showSwitchConfirm = true}>
-              Switch database
-            </button>
-          {:else}
-            <div class="switch-confirm">
-              <span class="switch-confirm-text">Switch? This will disconnect the current database.</span>
-              <button class="btn btn-sm" style="background:var(--c-low);color:#fff;" onclick={handleDisconnect}>
-                Confirm switch
-              </button>
-              <button class="btn btn-ghost btn-sm" onclick={() => showSwitchConfirm = false}>
-                Cancel
-              </button>
-            </div>
-          {/if}
-        </div>
-      </div>
-    </div>
-  {/if}
-
   <ConnectScreen
     onConnect={(isSample, res) => appState.setConnect(isSample, res)}
   />
