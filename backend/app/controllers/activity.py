@@ -1,10 +1,17 @@
-from sqlalchemy import select, desc
+import asyncio
+import logging
+from sqlalchemy import select, desc, delete
 from datetime import datetime, timedelta, timezone
 from backend.app.pgdatabase.engine import async_session
 from backend.app.models.activity import WorkspaceActivityLog
 from backend.app.models.orm_user import User
 from backend.app.pgdatabase.serialization import _to_uuid
-from backend.app.config import ACTIVITY_LOG_RETENTION_DAYS
+from backend.app.config import (
+    ACTIVITY_CLEANUP_INTERVAL_HOURS,
+    ACTIVITY_LOG_RETENTION_DAYS,
+)
+
+log = logging.getLogger(__name__)
 
 
 async def log_activity(
@@ -103,3 +110,44 @@ async def iter_workspace_activity(workspace_id: str, event_type: str = None):
         if len(batch) < EXPORT_PAGE_SIZE:
             return
         offset += EXPORT_PAGE_SIZE
+
+
+async def delete_old_activity(retention_days: int | None = None) -> int:
+    """Prune activity rows past the retention window.
+
+    Reads beyond the window are already filtered out by
+    ``get_workspace_activity``; this reclaims the storage behind them. Returns
+    the number of rows removed.
+    """
+    days = retention_days if retention_days is not None else ACTIVITY_LOG_RETENTION_DAYS
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    async with async_session() as session:
+        result = await session.execute(
+            delete(WorkspaceActivityLog).where(WorkspaceActivityLog.created_at < cutoff)
+        )
+        await session.commit()
+        return result.rowcount or 0
+
+
+async def activity_cleanup_loop(interval_hours: float | None = None):
+    """Run ``delete_old_activity`` forever on a fixed interval.
+
+    Started from the app lifespan. Every failure is swallowed and retried on the
+    next tick — a pruning job must never be able to take the server down.
+    """
+    interval = (
+        interval_hours
+        if interval_hours is not None
+        else ACTIVITY_CLEANUP_INTERVAL_HOURS
+    ) * 3600
+    while True:
+        try:
+            removed = await delete_old_activity()
+            if removed:
+                log.info("activity cleanup removed %d expired rows", removed)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("activity cleanup failed; retrying next interval")
+        await asyncio.sleep(interval)

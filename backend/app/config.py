@@ -23,6 +23,15 @@ SECRET_FILE = CONFIG_DIR / ".secret"
 _DB_URL_KEY_FILE = CONFIG_DIR / "db_url.key"
 
 ACTIVITY_LOG_RETENTION_DAYS = int(os.environ.get("ACTIVITY_LOG_RETENTION_DAYS", "30"))
+# Periodic pruning of activity rows past the retention window. Safe to run
+# in-process because BoloDB is deployed single-process; set the flag to "false"
+# if that ever stops being true and the job moves to a dedicated worker.
+ACTIVITY_CLEANUP_ENABLED = os.environ.get(
+    "ACTIVITY_CLEANUP_ENABLED", "true"
+).lower() not in ("false", "0", "no")
+ACTIVITY_CLEANUP_INTERVAL_HOURS = float(
+    os.environ.get("ACTIVITY_CLEANUP_INTERVAL_HOURS", "24")
+)
 
 DEFAULTS = {
     "openrouter_key": "",

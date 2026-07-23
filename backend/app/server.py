@@ -1,10 +1,11 @@
 """FastAPI application."""
 
+import asyncio
 import logging
 import os
 import sys
 from pathlib import Path
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
@@ -85,9 +86,23 @@ async def lifespan(app):
     else:
         from backend.app.pgdatabase import dispose_db
 
-    yield
+    # In-process periodic pruning of the activity log. Safe here because the
+    # deployment is single-process; a second worker would double up the work
+    # (harmless, but wasteful), so the flag exists to turn it off.
+    cleanup_task = None
+    if cfgmod.ACTIVITY_CLEANUP_ENABLED:
+        from backend.app.controllers.activity import activity_cleanup_loop
 
-    await dispose_db()
+        cleanup_task = asyncio.create_task(activity_cleanup_loop())
+
+    try:
+        yield
+    finally:
+        if cleanup_task:
+            cleanup_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await cleanup_task
+        await dispose_db()
 
 
 def create_app(initial_db_url="", readonly=True):

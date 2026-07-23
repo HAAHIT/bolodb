@@ -1,15 +1,25 @@
+import logging
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
+from pydantic import EmailStr, TypeAdapter, ValidationError
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import aliased
 from backend.app.services.email import send_workspace_invite_email
 from backend.app.pgdatabase.engine import async_session
 from backend.app.models.workspace import Workspace, WorkspaceMember, WorkspaceInvite
 from backend.app.models.orm_user import User
 from backend.app.pgdatabase.serialization import _to_uuid
 from backend.app.controllers.activity import log_activity
+
+
+log = logging.getLogger(__name__)
+
+INVITE_EXPIRY_DAYS = 7
+
+_EMAIL_ADAPTER = TypeAdapter(EmailStr)
 
 
 def slugify(text: str) -> str:
@@ -47,10 +57,20 @@ def normalize_invite_code(token: str) -> str:
 async def list_workspaces(user_id: str):
     uid = _to_uuid(user_id)
     async with async_session() as session:
+        # `member_count` powers the sidebar workspace pills. A correlated
+        # scalar subquery keeps this one round trip rather than one COUNT per
+        # workspace.
+        member_count = (
+            select(func.count())
+            .select_from(WorkspaceMember)
+            .where(WorkspaceMember.workspace_id == Workspace.id)
+            .scalar_subquery()
+        )
+        membership = aliased(WorkspaceMember)
         result = await session.execute(
-            select(Workspace, WorkspaceMember.role)
-            .join(WorkspaceMember, Workspace.id == WorkspaceMember.workspace_id)
-            .where(WorkspaceMember.user_id == uid)
+            select(Workspace, membership.role, member_count)
+            .join(membership, Workspace.id == membership.workspace_id)
+            .where(membership.user_id == uid)
             .order_by(Workspace.created_at.desc())
         )
         rows = result.all()
@@ -60,6 +80,7 @@ async def list_workspaces(user_id: str):
                 "name": r[0].name,
                 "slug": r[0].slug,
                 "role": r[1],
+                "member_count": r[2],
                 "created_at": r[0].created_at,
             }
             for r in rows
@@ -168,6 +189,68 @@ async def update_workspace(
             raise
 
 
+async def delete_workspace(workspace_id: str, actor_id: str | None = None):
+    """Delete a workspace and everything scoped to it.
+
+    Every workspace-scoped table declares ``ondelete="CASCADE"`` against
+    ``workspaces.id``, so removing this one row takes members, invites, activity,
+    catalog, conversations, dashboards and saved queries with it. That includes
+    the workspace's own activity log, so the deletion is recorded to the
+    application log rather than to an audit row that is about to vanish.
+    """
+    wid = _to_uuid(workspace_id)
+    async with async_session() as session:
+        workspace = await session.get(Workspace, wid)
+        if not workspace:
+            raise HTTPException(404, "Workspace not found")
+        name = workspace.name
+        await session.delete(workspace)
+        await session.commit()
+
+    log.info("workspace.deleted id=%s name=%r actor=%s", workspace_id, name, actor_id)
+    return {"ok": True}
+
+
+async def leave_workspace(workspace_id: str, user_id: str):
+    """Remove the calling user from a workspace.
+
+    A sole owner cannot leave — they must transfer ownership or delete the
+    workspace, otherwise it would be left with nobody able to administer it.
+    """
+    wid = _to_uuid(workspace_id)
+    uid = _to_uuid(user_id)
+    async with async_session() as session:
+        result = await session.execute(
+            select(WorkspaceMember).where(
+                WorkspaceMember.workspace_id == wid, WorkspaceMember.user_id == uid
+            )
+        )
+        member = result.scalar_one_or_none()
+        if not member:
+            raise HTTPException(404, "Member not found")
+
+        if member.role == "owner":
+            owners_count = await session.scalar(
+                select(func.count())
+                .select_from(WorkspaceMember)
+                .where(
+                    WorkspaceMember.workspace_id == wid,
+                    WorkspaceMember.role == "owner",
+                )
+            )
+            if owners_count <= 1:
+                raise HTTPException(
+                    400,
+                    "You are the sole owner — transfer ownership or delete the workspace first",
+                )
+
+        await session.delete(member)
+        await session.commit()
+
+    await log_activity(workspace_id, user_id, "member.left", "member", user_id, {})
+    return {"ok": True}
+
+
 async def list_members(workspace_id: str):
     wid = _to_uuid(workspace_id)
     async with async_session() as session:
@@ -210,7 +293,7 @@ async def invite_user(workspace_id: str, email: str, role: str, inviter_id: str)
                 raise HTTPException(400, "User is already a member")
 
         token = generate_invite_code()
-        expires = datetime.now(timezone.utc) + timedelta(days=7)
+        expires = datetime.now(timezone.utc) + timedelta(days=INVITE_EXPIRY_DAYS)
 
         # Query existing invite for this workspace + email
         existing = await session.execute(
@@ -329,6 +412,105 @@ async def update_member_role(
         return {"ok": True}
 
 
+async def transfer_ownership(
+    workspace_id: str, current_owner_id: str, target_user_id: str
+):
+    """Hand the owner role to another member, demoting the caller to admin.
+
+    Both role changes happen in one transaction so the workspace is never left
+    with two owners or none.
+    """
+    wid = _to_uuid(workspace_id)
+    if current_owner_id == target_user_id:
+        raise HTTPException(400, "You already own this workspace")
+    try:
+        tuid = _to_uuid(target_user_id)
+    except (ValueError, AttributeError, TypeError):
+        raise HTTPException(404, "Member not found")
+    cuid = _to_uuid(current_owner_id)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(WorkspaceMember).where(
+                WorkspaceMember.workspace_id == wid,
+                WorkspaceMember.user_id.in_([tuid, cuid]),
+            )
+        )
+        by_user = {m.user_id: m for m in result.scalars().all()}
+        target = by_user.get(tuid)
+        actor = by_user.get(cuid)
+        if not target:
+            raise HTTPException(404, "Member not found")
+        if not actor or actor.role != "owner":
+            raise HTTPException(403, "Only the owner can transfer ownership")
+
+        target.role = "owner"
+        actor.role = "admin"
+        await session.commit()
+
+    await log_activity(
+        workspace_id,
+        current_owner_id,
+        "member.ownership_transferred",
+        "member",
+        target_user_id,
+        {"previous_owner": current_owner_id},
+    )
+    return {"ok": True, "new_owner_id": target_user_id}
+
+
+def _normalize_email(raw: str) -> str | None:
+    """Return a validated, lower-cased address, or None if it isn't one.
+
+    Bulk invites report bad addresses per row instead of rejecting the whole
+    batch, so validation happens here rather than in the request model.
+    """
+    if not isinstance(raw, str):
+        return None
+    candidate = raw.strip().lower()
+    if not candidate:
+        return None
+    try:
+        return str(_EMAIL_ADAPTER.validate_python(candidate)).lower()
+    except ValidationError:
+        return None
+
+
+async def bulk_invite(
+    workspace_id: str, emails: list[str], role: str, inviter_id: str
+) -> dict:
+    """Invite many people at once, reporting the outcome for each address.
+
+    One bad or duplicate address must not sink the rest of the batch, so each
+    invite is attempted independently and its status recorded.
+    """
+    if role not in ["admin", "member"]:
+        raise HTTPException(400, "Invalid role for invite")
+
+    results: list[dict] = []
+    seen: set[str] = set()
+    for raw in emails:
+        email = _normalize_email(raw)
+        if not email:
+            results.append({"email": (raw or "").strip(), "status": "invalid"})
+            continue
+        if email in seen:
+            results.append({"email": email, "status": "duplicate"})
+            continue
+        seen.add(email)
+
+        try:
+            await invite_user(workspace_id, email, role, inviter_id)
+            results.append({"email": email, "status": "invited"})
+        except HTTPException as e:
+            detail = str(e.detail or "")
+            status = "already_member" if "already a member" in detail else "failed"
+            results.append({"email": email, "status": status, "detail": detail})
+
+    invited = sum(1 for r in results if r["status"] == "invited")
+    return {"invited": invited, "total": len(results), "results": results}
+
+
 async def remove_member(workspace_id: str, target_user_id: str):
     wid = _to_uuid(workspace_id)
     tuid = _to_uuid(target_user_id)
@@ -386,6 +568,112 @@ async def get_invites(user_email: str):
             }
             for r in rows
         ]
+
+
+async def list_pending_invites(workspace_id: str):
+    """Invites for this workspace that are neither accepted nor expired."""
+    wid = _to_uuid(workspace_id)
+    inviter = aliased(User)
+    async with async_session() as session:
+        now = datetime.now(timezone.utc)
+        result = await session.execute(
+            select(WorkspaceInvite, inviter.email)
+            .outerjoin(inviter, WorkspaceInvite.invited_by == inviter.id)
+            .where(
+                WorkspaceInvite.workspace_id == wid,
+                WorkspaceInvite.accepted_at.is_(None),
+                WorkspaceInvite.expires_at > now,
+            )
+            .order_by(WorkspaceInvite.expires_at.desc())
+        )
+        return [
+            {
+                "id": str(r[0].id),
+                "email": r[0].email,
+                "role": r[0].role,
+                "invited_by": r[1],
+                "expires_at": r[0].expires_at,
+            }
+            for r in result.all()
+        ]
+
+
+async def _get_invite(session, wid, invite_id: str) -> WorkspaceInvite:
+    try:
+        iid = _to_uuid(invite_id)
+    except (ValueError, AttributeError, TypeError):
+        raise HTTPException(404, "Invite not found")
+    result = await session.execute(
+        select(WorkspaceInvite).where(
+            WorkspaceInvite.id == iid,
+            WorkspaceInvite.workspace_id == wid,
+        )
+    )
+    invite = result.scalar_one_or_none()
+    if not invite:
+        raise HTTPException(404, "Invite not found")
+    return invite
+
+
+async def rescind_invite(
+    workspace_id: str, invite_id: str, actor_id: str | None = None
+):
+    wid = _to_uuid(workspace_id)
+    async with async_session() as session:
+        invite = await _get_invite(session, wid, invite_id)
+        if invite.accepted_at:
+            raise HTTPException(400, "Invite has already been accepted")
+        email = invite.email
+        await session.delete(invite)
+        await session.commit()
+
+    await log_activity(
+        workspace_id,
+        actor_id,
+        "member.invite_revoked",
+        "member",
+        invite_id,
+        {"email": email},
+    )
+    return {"ok": True}
+
+
+async def resend_invite(workspace_id: str, invite_id: str, actor_id: str | None = None):
+    """Re-send an invite email and push its expiry out.
+
+    The existing code is kept so any already-delivered email still works; only an
+    expired invite gets a fresh token.
+    """
+    wid = _to_uuid(workspace_id)
+    async with async_session() as session:
+        invite = await _get_invite(session, wid, invite_id)
+        if invite.accepted_at:
+            raise HTTPException(400, "Invite has already been accepted")
+
+        now = datetime.now(timezone.utc)
+        if invite.expires_at < now:
+            invite.token = generate_invite_code()
+        invite.expires_at = now + timedelta(days=INVITE_EXPIRY_DAYS)
+
+        workspace = await session.get(Workspace, wid)
+        workspace_name = workspace.name if workspace else None
+        await session.commit()
+
+        email, token, expires_at = invite.email, invite.token, invite.expires_at
+
+    sent = False
+    if workspace_name:
+        sent = await send_workspace_invite_email(email, workspace_name, token)
+
+    await log_activity(
+        workspace_id,
+        actor_id,
+        "member.invite_resent",
+        "member",
+        invite_id,
+        {"email": email},
+    )
+    return {"ok": True, "email_sent": sent, "expires_at": expires_at}
 
 
 async def accept_invite(token: str, user_id: str, user_email: str):

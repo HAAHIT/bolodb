@@ -6,9 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from backend.app.dependencies import get_current_user, require_role
 from backend.app.models.workspace_api import (
+    WorkspaceBulkInviteCreate,
     WorkspaceCreate,
     WorkspaceMemberRoleUpdate,
     WorkspaceInviteCreate,
+    WorkspaceOwnershipTransfer,
     WorkspaceUpdate,
 )
 import backend.app.controllers.workspaces as ctrl
@@ -46,6 +48,24 @@ async def update_workspace(
     )
 
 
+@router.delete("/api/workspaces/{workspace_id}")
+async def delete_workspace(
+    workspace_id: str,
+    workspace=Depends(require_role("owner")),
+):
+    return await ctrl.delete_workspace(
+        workspace["workspace_id"], actor_id=workspace["user_id"]
+    )
+
+
+@router.post("/api/workspaces/{workspace_id}/leave")
+async def leave_workspace(
+    workspace_id: str,
+    workspace=Depends(require_role("member")),
+):
+    return await ctrl.leave_workspace(workspace["workspace_id"], workspace["user_id"])
+
+
 @router.get("/api/workspaces/{workspace_id}/members")
 async def list_members(workspace_id: str, workspace=Depends(require_role("member"))):
     return await ctrl.list_members(workspace["workspace_id"])
@@ -59,6 +79,28 @@ async def invite_user(
 ):
     return await ctrl.invite_user(
         workspace["workspace_id"], req.email, req.role, workspace["user_id"]
+    )
+
+
+@router.post("/api/workspaces/{workspace_id}/members/bulk")
+async def bulk_invite_users(
+    workspace_id: str,
+    req: WorkspaceBulkInviteCreate,
+    workspace=Depends(require_role("admin")),
+):
+    return await ctrl.bulk_invite(
+        workspace["workspace_id"], req.emails, req.role, workspace["user_id"]
+    )
+
+
+@router.post("/api/workspaces/{workspace_id}/transfer-ownership")
+async def transfer_ownership(
+    workspace_id: str,
+    req: WorkspaceOwnershipTransfer,
+    workspace=Depends(require_role("owner")),
+):
+    return await ctrl.transfer_ownership(
+        workspace["workspace_id"], workspace["user_id"], req.user_id
     )
 
 
@@ -86,6 +128,31 @@ async def remove_member(
     if workspace["user_id"] != user_id and workspace["role"] not in ["admin", "owner"]:
         raise HTTPException(403, "Insufficient permissions to remove other members")
     return await ctrl.remove_member(workspace["workspace_id"], user_id)
+
+
+@router.get("/api/workspaces/{workspace_id}/invites")
+async def list_pending_invites(
+    workspace_id: str, workspace=Depends(require_role("admin"))
+):
+    return await ctrl.list_pending_invites(workspace["workspace_id"])
+
+
+@router.delete("/api/workspaces/{workspace_id}/invites/{invite_id}")
+async def rescind_invite(
+    workspace_id: str, invite_id: str, workspace=Depends(require_role("admin"))
+):
+    return await ctrl.rescind_invite(
+        workspace["workspace_id"], invite_id, actor_id=workspace["user_id"]
+    )
+
+
+@router.post("/api/workspaces/{workspace_id}/invites/{invite_id}/resend")
+async def resend_invite(
+    workspace_id: str, invite_id: str, workspace=Depends(require_role("admin"))
+):
+    return await ctrl.resend_invite(
+        workspace["workspace_id"], invite_id, actor_id=workspace["user_id"]
+    )
 
 
 @router.get("/api/workspaces/invites/me")
