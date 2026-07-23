@@ -88,9 +88,10 @@ async def execute_dashboard_queries(workspace_id: str, dashboard_id: str, db_man
     results = {}
 
     async def run_sq(sq_id):
-        sq = await mdb_sq.get_saved_query(workspace_id, sq_id)
+        sq = await mdb_sq.get_saved_query(workspace_id, str(sq_id))
         if not sq:
             return None
+        sq_key = str(sq.get("id") or sq.get("_id") or sq_id)
         try:
             # We call the target database
             sql = sq.get("sql")
@@ -102,13 +103,11 @@ async def execute_dashboard_queries(workspace_id: str, dashboard_id: str, db_man
 
                 # data comes back as dict: {"columns": [], "rows": [{}], "error": ""}
                 if data.get("error"):
-                    return {"id": sq["id"], "error": data["error"]}
+                    return {"id": sq_key, "error": data["error"]}
 
-                # Format the rows back into list-of-lists for charts/tables if needed,
-                # but wait, chart logic expects objects or array of arrays?
-                # Our charts assume array of objects `r[colName]`
+                # Charts assume array of objects keyed by column name
                 res = {
-                    "id": sq["id"],
+                    "id": sq_key,
                     "rows": data.get("rows", [])[:500],
                     "columns": [
                         {"name": c, "type_name": "string"}
@@ -121,7 +120,7 @@ async def execute_dashboard_queries(workspace_id: str, dashboard_id: str, db_man
                 return res
         except Exception as e:
             log.warning(f"Dashboard panel query failed sq_id={sq_id}: {e}")
-            return {"id": sq["id"], "error": str(e)}
+            return {"id": sq_key, "error": str(e)}
         return None
 
     tasks = [run_sq(sq_id) for sq_id in set(panel_sq_ids)]
