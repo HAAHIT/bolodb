@@ -6,6 +6,7 @@
   import { beforeNavigate } from '$app/navigation';
   import { updated } from '$app/state';
   import Navbar from '$lib/components/ui/Navbar.svelte';
+  import TrustToast from '$lib/components/TrustToast.svelte';
 
   let { children } = $props();
 
@@ -44,10 +45,24 @@
   {@render children()}
 </div>
 
+<!-- Mounted once here so showToast/showError are visible on every screen, not
+     just the chat page. -->
+{#if appState.toast}
+  <div class="toast-layer">
+    <TrustToast toast={appState.toast} />
+  </div>
+{/if}
+
 <style>
   .main-content {
     height: 100%;
     width: 100%;
+  }
+  .toast-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    pointer-events: none;
   }
   .has-navbar {
     padding-top: 60px;

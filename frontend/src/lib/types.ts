@@ -95,6 +95,8 @@ export interface Turn {
   thinkingArtifacts?: ThinkingArtifact[];
   /** The model's chart choice. Absent on turns from before charts existed. */
   chart?: ChartSpec | null;
+  /** Set when the turn's SQL was re-executed without regenerating it. */
+  lastRunAt?: string;
 }
 
 export type StreamEvent =

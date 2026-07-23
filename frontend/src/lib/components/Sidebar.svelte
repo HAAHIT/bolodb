@@ -4,6 +4,7 @@
   import { getConversations, deleteConversation, clearConversations, renameConversation, createWorkspace } from '$lib/api';
   import { appState } from '$lib/appState.svelte';
   import { goto } from '$app/navigation';
+  import { workspaceNameError, WORKSPACE_NAME_MAX } from '$lib/validation';
 
   type Tab = 'ask' | 'dash' | 'settings';
 
@@ -150,8 +151,12 @@
     }
   }
 
+  const newWorkspaceNameError = $derived(
+    newWorkspaceName.trim() ? workspaceNameError(newWorkspaceName) : null,
+  );
+
   async function handleCreateWorkspace() {
-    if (!newWorkspaceName.trim()) return;
+    if (!newWorkspaceName.trim() || newWorkspaceNameError) return;
     creatingWorkspace = true;
     try {
       await createWorkspace(newWorkspaceName);
@@ -199,6 +204,21 @@
     return name.substring(0, 2).toUpperCase();
   }
 
+  function memberLabel(ws: any): string {
+    const n = ws?.member_count;
+    if (typeof n !== 'number') return 'Members unknown';
+    return `${n} member${n === 1 ? '' : 's'}`;
+  }
+
+  /** Hover text for a workspace pill: name, size, and connection state. */
+  function wsTitle(ws: any): string {
+    const parts = [ws.name, memberLabel(ws)];
+    if (appState.activeWorkspace?.id === ws.id) {
+      parts.push(appState.dbInfo ? 'Database connected' : 'No database connected');
+    }
+    return parts.join(' · ');
+  }
+
   async function selectWorkspace(ws: any) {
     if (appState.activeWorkspace?.id === ws.id) return;
     localStorage.setItem("bolodb_active_workspace_id", ws.id);
@@ -232,12 +252,17 @@
             type="text"
             placeholder="e.g. Acme Corp"
             bind:value={newWorkspaceName}
+            maxlength={WORKSPACE_NAME_MAX}
+            aria-invalid={!!newWorkspaceNameError}
             onkeydown={(e) => {
               if (e.key === 'Enter' && newWorkspaceName.trim()) {
                 handleCreateWorkspace();
               }
             }}
           />
+          {#if newWorkspaceNameError}
+            <span class="ws-name-error">{newWorkspaceNameError}</span>
+          {/if}
         </div>
       </div>
       <div class="modal-footer" style="justify-content: flex-end;">
@@ -245,7 +270,7 @@
         <button
           class="btn btn-primary"
           onclick={handleCreateWorkspace}
-          disabled={!newWorkspaceName.trim() || creatingWorkspace}
+          disabled={!newWorkspaceName.trim() || !!newWorkspaceNameError || creatingWorkspace}
         >
           {creatingWorkspace ? 'Creating...' : 'Create'}
         </button>
@@ -272,15 +297,33 @@
               selectWorkspace(ws);
             }
           }}
-          title={ws.name}
+          title={wsTitle(ws)}
         >
           {getAvatar(ws.name)}
+          {#if appState.activeWorkspace?.id === ws.id}
+            <!-- Connection state is only known for the workspace currently
+                 loaded, so the dot is scoped to the active pill. -->
+            <span
+              class="ws-conn-dot"
+              class:connected={!!appState.dbInfo}
+              aria-hidden="true"
+            ></span>
+          {/if}
         </button>
         {#if wsMenuOpen && appState.activeWorkspace?.id === ws.id}
           <div class="ws-popover" onclick={(e) => e.stopPropagation()}>
             <div class="ws-popover-header">
               <span class="ws-p-name">{ws.name}</span>
               <span class="ws-p-role">{ws.role}</span>
+              <span class="ws-p-stats">
+                <span>{memberLabel(ws)}</span>
+                <span class="ws-p-sep">·</span>
+                <span class:ws-p-on={!!appState.dbInfo}>
+                  {appState.dbInfo
+                    ? appState.dbInfo.alias_name || 'Database connected'
+                    : 'No database connected'}
+                </span>
+              </span>
             </div>
             <button class="ws-p-item" onclick={() => { wsMenuOpen = false; goto('/workspaces'); }}>⚙ Workspace Settings</button>
             <button class="ws-p-item" onclick={() => { wsMenuOpen = false; goto('/connect'); }}>🗄 Manage Databases</button>
@@ -467,6 +510,7 @@
     z-index: 10;
   }
   .ws-avatar {
+    position: relative;
     width: 40px;
     height: 40px;
     border-radius: 12px;
@@ -533,6 +577,33 @@
   }
   .ws-p-name { font-size: 14px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ws-p-role { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-top: 2px; }
+  .ws-p-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .ws-p-sep { opacity: 0.5; }
+  .ws-p-on { color: var(--brand); }
+  .ws-conn-dot {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--faint);
+    border: 2px solid var(--bg);
+  }
+  .ws-conn-dot.connected { background: var(--brand); }
+  .ws-name-error {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--c-low-ink);
+  }
   .ws-p-item {
     display: flex;
     align-items: center;

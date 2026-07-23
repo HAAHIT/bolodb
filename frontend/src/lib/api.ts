@@ -228,6 +228,14 @@ export async function updateWorkspace(id: string, name: string): Promise<any> {
   return apiCall(`/api/workspaces/${id}`, { name }, "PATCH");
 }
 
+export async function deleteWorkspace(id: string): Promise<any> {
+  return apiCall(`/api/workspaces/${id}`, undefined, "DELETE");
+}
+
+export async function leaveWorkspace(id: string): Promise<any> {
+  return apiCall(`/api/workspaces/${id}/leave`, undefined, "POST");
+}
+
 export async function updateConnectionAlias(
   id: string,
   aliasName: string,
@@ -245,6 +253,30 @@ export async function inviteWorkspaceMember(
   role: string,
 ): Promise<any> {
   return apiCall(`/api/workspaces/${id}/members`, { email, role }, "POST");
+}
+
+/** Invite many people at once; the response reports a status per address. */
+export async function bulkInviteMembers(
+  id: string,
+  emails: string[],
+  role: string,
+): Promise<any> {
+  return apiCall(
+    `/api/workspaces/${id}/members/bulk`,
+    { emails, role },
+    "POST",
+  );
+}
+
+export async function transferOwnership(
+  workspaceId: string,
+  userId: string,
+): Promise<any> {
+  return apiCall(
+    `/api/workspaces/${workspaceId}/transfer-ownership`,
+    { user_id: userId },
+    "POST",
+  );
 }
 
 export async function updateWorkspaceMemberRole(
@@ -267,6 +299,33 @@ export async function removeWorkspaceMember(
     `/api/workspaces/${workspaceId}/members/${userId}`,
     undefined,
     "DELETE",
+  );
+}
+
+/** Invites sent from this workspace that are still awaiting acceptance. */
+export async function getPendingInvites(workspaceId: string): Promise<any> {
+  return apiCall(`/api/workspaces/${workspaceId}/invites`);
+}
+
+export async function rescindInvite(
+  workspaceId: string,
+  inviteId: string,
+): Promise<any> {
+  return apiCall(
+    `/api/workspaces/${workspaceId}/invites/${inviteId}`,
+    undefined,
+    "DELETE",
+  );
+}
+
+export async function resendInvite(
+  workspaceId: string,
+  inviteId: string,
+): Promise<any> {
+  return apiCall(
+    `/api/workspaces/${workspaceId}/invites/${inviteId}/resend`,
+    undefined,
+    "POST",
   );
 }
 

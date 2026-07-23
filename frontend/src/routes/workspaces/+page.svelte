@@ -8,13 +8,36 @@
     removeWorkspaceMember,
     acceptWorkspaceInvite,
     updateWorkspace,
+    deleteWorkspace,
+    leaveWorkspace,
+    getPendingInvites,
+    rescindInvite,
+    resendInvite,
+    bulkInviteMembers,
+    transferOwnership,
   } from '$lib/api';
+  import {
+    workspaceNameError,
+    parseEmailList,
+    WORKSPACE_NAME_MAX,
+  } from '$lib/validation';
   import { appState } from '$lib/appState.svelte';
   import { goto } from '$app/navigation';
   import LoadingScreen from '$lib/components/ui/LoadingScreen.svelte';
   import ActivityLog from '$lib/components/ActivityLog.svelte';
+  import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
 
   type Section = 'general' | 'members' | 'invites' | 'activity' | 'workspaces';
+
+  /** A pending destructive action, awaiting confirmation in the dialog. */
+  type Confirmation = {
+    title: string;
+    message: string;
+    confirmLabel: string;
+    tone?: 'default' | 'danger';
+    requireText?: string;
+    run: () => Promise<void>;
+  };
 
   let loading = $state(true);
   let error = $state('');
@@ -29,10 +52,58 @@
   let savingName = $state(false);
   let inviting = $state(false);
   let copied = $state(false);
+  let pendingInvites = $state<any[]>([]);
+  let inviteBusy = $state<string | null>(null);
+  let confirmation = $state<Confirmation | null>(null);
+  let confirmLoading = $state(false);
 
   const isAdmin = $derived(
     appState.activeWorkspace?.role === 'admin' ||
       appState.activeWorkspace?.role === 'owner',
+  );
+  let inviteResults = $state<any[] | null>(null);
+  const isOwner = $derived(appState.activeWorkspace?.role === 'owner');
+  const renameError = $derived(workspaceNameError(editWorkspaceName));
+  const createError = $derived(
+    newWorkspaceName.trim() ? workspaceNameError(newWorkspaceName) : null,
+  );
+  const inviteEmails = $derived(parseEmailList(inviteEmail));
+
+  /** Role capabilities, shown in the Members help tooltips. */
+  const ROLE_HELP = [
+    {
+      role: 'owner',
+      summary: 'Full control of the workspace.',
+      can: [
+        'Everything an admin can do',
+        'Transfer ownership to another member',
+        'Delete the workspace and all its data',
+      ],
+    },
+    {
+      role: 'admin',
+      summary: 'Runs the workspace day to day.',
+      can: [
+        'Invite, remove and re-role members',
+        'Manage database connections',
+        'Edit the catalog and dashboards',
+        'View and export the activity log',
+      ],
+    },
+    {
+      role: 'member',
+      summary: 'Uses the workspace.',
+      can: [
+        'Ask questions and run read-only queries',
+        'View shared dashboards and saved queries',
+      ],
+    },
+  ];
+  let openRoleHelp = $state<string | null>(null);
+  // A sole owner has nowhere to hand the workspace to, so leaving is blocked
+  // server-side — reflect that in the UI instead of failing after the click.
+  const isSoleOwner = $derived(
+    isOwner && members.filter((m) => m.role === 'owner').length <= 1,
   );
 
   const sections = $derived([
@@ -60,6 +131,12 @@
       if (appState.activeWorkspace) {
         editWorkspaceName = appState.activeWorkspace.name;
         members = await getWorkspaceMembers(appState.activeWorkspace.id);
+        pendingInvites = isAdmin
+          ? await getPendingInvites(appState.activeWorkspace.id)
+          : [];
+      } else {
+        members = [];
+        pendingInvites = [];
       }
       error = '';
     } catch (e: any) {
@@ -68,7 +145,7 @@
   }
 
   async function handleRename() {
-    if (!appState.activeWorkspace || !editWorkspaceName.trim() || !isAdmin) return;
+    if (!appState.activeWorkspace || !isAdmin || renameError) return;
     savingName = true;
     try {
       await updateWorkspace(appState.activeWorkspace.id, editWorkspaceName.trim());
@@ -82,7 +159,7 @@
   }
 
   async function handleCreateWorkspace() {
-    if (!newWorkspaceName.trim()) return;
+    if (!newWorkspaceName.trim() || createError) return;
     try {
       await createWorkspace(newWorkspaceName.trim());
       newWorkspaceName = '';
@@ -94,25 +171,83 @@
   }
 
   async function handleInvite() {
-    if (!inviteEmail.trim() || !appState.activeWorkspace) return;
+    const emails = inviteEmails;
+    if (emails.length === 0 || !appState.activeWorkspace) return;
     inviting = true;
+    inviteResults = null;
     try {
-      await inviteWorkspaceMember(
-        appState.activeWorkspace.id,
-        inviteEmail.trim(),
-        inviteRole,
-      );
-      inviteEmail = '';
-      appState.showToast({
-        title: 'Invite sent',
-        body: `Invitation emailed as ${inviteRole}.`,
-      });
+      if (emails.length === 1) {
+        await inviteWorkspaceMember(
+          appState.activeWorkspace.id,
+          emails[0],
+          inviteRole,
+        );
+        inviteEmail = '';
+        appState.showToast({
+          title: 'Invite sent',
+          body: `Invitation emailed as ${inviteRole}.`,
+        });
+      } else {
+        // A batch reports per-address outcomes instead of failing as a whole,
+        // so the summary stays on screen rather than becoming a toast.
+        const res = await bulkInviteMembers(
+          appState.activeWorkspace.id,
+          emails,
+          inviteRole,
+        );
+        inviteResults = res.results || [];
+        inviteEmail = '';
+        appState.showToast({
+          title: 'Invites processed',
+          body: `${res.invited} of ${res.total} invitation${res.total === 1 ? '' : 's'} sent.`,
+        });
+      }
       await loadData();
     } catch (e: any) {
       appState.showError(e.message || 'Could not send invite');
     } finally {
       inviting = false;
     }
+  }
+
+  /** Pull addresses out of a small CSV so a list can be dropped in wholesale. */
+  async function handleCsvUpload(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const found = parseEmailList(text.replace(/"/g, ''));
+      inviteEmail = found.join('\n');
+      if (found.length === 0) {
+        appState.showError('No email addresses found in that file');
+      }
+    } catch {
+      appState.showError('Could not read that file');
+    } finally {
+      input.value = '';
+    }
+  }
+
+  function handleTransferOwnership(member: any) {
+    const ws = appState.activeWorkspace;
+    if (!ws) return;
+    confirmation = {
+      title: 'Transfer ownership',
+      message: `${member.email || 'This member'} becomes the owner of ${ws.name}, and you are demoted to admin. Only they will be able to hand it back.`,
+      confirmLabel: 'Transfer ownership',
+      tone: 'danger',
+      requireText: ws.name,
+      run: async () => {
+        await transferOwnership(ws.id, member.user_id);
+        await appState.loadWorkspaces();
+        await loadData();
+        appState.showToast({
+          title: 'Ownership transferred',
+          body: `${member.email || 'The member'} now owns ${ws.name}.`,
+        });
+      },
+    };
   }
 
   async function handleAcceptInvite(token: string) {
@@ -146,14 +281,130 @@
     }
   }
 
-  async function handleRemoveMember(userId: string) {
-    if (!appState.activeWorkspace) return;
-    if (!confirm('Remove this member from the workspace?')) return;
+  function handleRemoveMember(member: any) {
+    const ws = appState.activeWorkspace;
+    if (!ws) return;
+    confirmation = {
+      title: 'Remove member',
+      message: `${member.email || 'This member'} will lose access to ${ws.name}. Their saved work stays in the workspace.`,
+      confirmLabel: 'Remove',
+      tone: 'danger',
+      run: async () => {
+        await removeWorkspaceMember(ws.id, member.user_id);
+        await loadData();
+        appState.showToast({
+          title: 'Member removed',
+          body: `${member.email || 'The member'} no longer has access.`,
+        });
+      },
+    };
+  }
+
+  /** Run the confirmed action, keeping the dialog up while it is in flight. */
+  async function runConfirmation() {
+    if (!confirmation) return;
+    confirmLoading = true;
     try {
-      await removeWorkspaceMember(appState.activeWorkspace.id, userId);
-      await loadData();
+      await confirmation.run();
+      confirmation = null;
     } catch (e: any) {
-      appState.showError(e.message || 'Could not remove member');
+      appState.showError(e.message || 'Could not complete that action');
+      confirmation = null;
+    } finally {
+      confirmLoading = false;
+    }
+  }
+
+  /**
+   * Re-point the app after the active workspace goes away (deleted or left).
+   * `loadWorkspaces` picks a replacement once the stored id is cleared; with
+   * none left the user goes back through first-run setup.
+   */
+  async function afterLeavingActiveWorkspace() {
+    localStorage.removeItem('bolodb_active_workspace_id');
+    appState.dbInfo = null;
+    appState.realSchema = null;
+    appState.activeConversationId = null;
+    appState.isLoaded = false;
+    await appState.loadWorkspaces();
+    if (!appState.activeWorkspace) {
+      goto('/workspaces/setup');
+      return;
+    }
+    await appState.init(true);
+  }
+
+  function handleLeaveWorkspace() {
+    const ws = appState.activeWorkspace;
+    if (!ws) return;
+    confirmation = {
+      title: 'Leave workspace',
+      message: `You will lose access to ${ws.name}. An admin can invite you back later.`,
+      confirmLabel: 'Leave workspace',
+      tone: 'danger',
+      run: async () => {
+        await leaveWorkspace(ws.id);
+        appState.showToast({ title: 'Left workspace', body: `You left ${ws.name}.` });
+        await afterLeavingActiveWorkspace();
+      },
+    };
+  }
+
+  function handleDeleteWorkspace() {
+    const ws = appState.activeWorkspace;
+    if (!ws) return;
+    confirmation = {
+      title: 'Delete workspace',
+      message: `This permanently deletes ${ws.name} for everyone — members, invitations, connections, catalog, conversations, dashboards and saved queries. This cannot be undone.`,
+      confirmLabel: 'Delete forever',
+      tone: 'danger',
+      requireText: ws.name,
+      run: async () => {
+        await deleteWorkspace(ws.id);
+        appState.showToast({
+          title: 'Workspace deleted',
+          body: `${ws.name} and all of its data were removed.`,
+        });
+        await afterLeavingActiveWorkspace();
+      },
+    };
+  }
+
+  function handleRescindInvite(invite: any) {
+    const ws = appState.activeWorkspace;
+    if (!ws) return;
+    confirmation = {
+      title: 'Revoke invitation',
+      message: `The invite code sent to ${invite.email} will stop working immediately.`,
+      confirmLabel: 'Revoke invite',
+      tone: 'danger',
+      run: async () => {
+        await rescindInvite(ws.id, invite.id);
+        await loadData();
+        appState.showToast({
+          title: 'Invitation revoked',
+          body: `${invite.email} can no longer join.`,
+        });
+      },
+    };
+  }
+
+  async function handleResendInvite(invite: any) {
+    if (!appState.activeWorkspace) return;
+    inviteBusy = invite.id;
+    try {
+      const res = await resendInvite(appState.activeWorkspace.id, invite.id);
+      await loadData();
+      appState.showToast({
+        title: 'Invitation resent',
+        body: res?.email_sent
+          ? `A fresh email is on its way to ${invite.email}.`
+          : `Expiry extended. Email delivery is not configured, so share the code manually.`,
+      });
+    } catch (e: any) {
+      appState.showError(e.message || 'Could not resend invite');
+    } finally {
+      inviteBusy = null;
     }
   }
 
@@ -239,17 +490,25 @@
                   <span>Shown in the sidebar and invite emails.</span>
                 </div>
                 <div class="field-control">
-                  <input
-                    id="ws-name"
-                    class="input"
-                    bind:value={editWorkspaceName}
-                    disabled={!isAdmin}
-                  />
+                  <div class="field-stack">
+                    <input
+                      id="ws-name"
+                      class="input"
+                      class:invalid={isAdmin && !!renameError}
+                      bind:value={editWorkspaceName}
+                      disabled={!isAdmin}
+                      maxlength={WORKSPACE_NAME_MAX}
+                      aria-invalid={isAdmin && !!renameError}
+                    />
+                    {#if isAdmin && renameError}
+                      <span class="hint error">{renameError}</span>
+                    {/if}
+                  </div>
                   {#if isAdmin}
                     <button
                       class="btn primary"
                       onclick={handleRename}
-                      disabled={savingName || !editWorkspaceName.trim()}
+                      disabled={savingName || !!renameError}
                     >
                       {savingName ? 'Saving…' : 'Save'}
                     </button>
@@ -310,6 +569,43 @@
               </div>
             </div>
           </section>
+
+          <section class="panel danger-panel">
+            <div class="panel-head">
+              <h2>Danger zone</h2>
+              <p>Irreversible actions. Take care.</p>
+            </div>
+            <div class="panel-body">
+              <div class="field-row">
+                <div class="field-info">
+                  <label>Leave workspace</label>
+                  <span>
+                    {isSoleOwner
+                      ? 'You are the sole owner — transfer ownership or delete the workspace instead.'
+                      : 'Give up your own access. Everything you created stays behind.'}
+                  </span>
+                </div>
+                <button
+                  class="btn danger"
+                  onclick={handleLeaveWorkspace}
+                  disabled={isSoleOwner}
+                >Leave</button>
+              </div>
+              {#if isOwner}
+                <div class="divider"></div>
+                <div class="field-row">
+                  <div class="field-info">
+                    <label>Delete workspace</label>
+                    <span>
+                      Removes the workspace and every member, connection, dashboard and
+                      conversation inside it.
+                    </span>
+                  </div>
+                  <button class="btn danger" onclick={handleDeleteWorkspace}>Delete</button>
+                </div>
+              {/if}
+            </div>
+          </section>
         {:else if section === 'members' && appState.activeWorkspace}
           <section class="panel">
             <div class="panel-head">
@@ -343,10 +639,16 @@
                         <option value="admin">Admin</option>
                         <option value="member">Member</option>
                       </select>
+                      {#if isOwner}
+                        <button
+                          class="btn ghost sm"
+                          onclick={() => handleTransferOwnership(member)}
+                        >Make owner</button>
+                      {/if}
                       <button
                         class="icon-btn"
                         aria-label="Remove member"
-                        onclick={() => handleRemoveMember(member.user_id)}
+                        onclick={() => handleRemoveMember(member)}
                       >✕</button>
                     {:else}
                       <span class="role-badge" data-role={member.role}>{member.role}</span>
@@ -356,26 +658,52 @@
               {/each}
             </div>
             <div class="roles-help">
-              <div><strong>Owner</strong> — full control, including billing-level actions.</div>
-              <div><strong>Admin</strong> — manage members, connections, catalog, dashboards.</div>
-              <div><strong>Member</strong> — ask questions and view shared resources.</div>
+              <span class="roles-help-label">What each role can do</span>
+              <div class="role-chips">
+                {#each ROLE_HELP as help}
+                  <span class="role-chip-wrap">
+                    <button
+                      class="role-chip"
+                      aria-expanded={openRoleHelp === help.role}
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        openRoleHelp = openRoleHelp === help.role ? null : help.role;
+                      }}
+                    >
+                      <span class="role-badge" data-role={help.role}>{help.role}</span>
+                      <span class="role-q" aria-hidden="true">?</span>
+                    </button>
+                    {#if openRoleHelp === help.role}
+                      <span class="role-tip" role="tooltip">
+                        <strong>{help.summary}</strong>
+                        <ul>
+                          {#each help.can as line}<li>{line}</li>{/each}
+                        </ul>
+                      </span>
+                    {/if}
+                  </span>
+                {/each}
+              </div>
             </div>
           </section>
         {:else if section === 'invites' && isAdmin && appState.activeWorkspace}
           <section class="panel">
             <div class="panel-head">
               <h2>Invite teammates</h2>
-              <p>Send an email invitation with a role. They’ll join after accepting.</p>
+              <p>
+                One address or many — separate them with commas, spaces or new lines.
+                They’ll join after accepting.
+              </p>
             </div>
             <div class="invite-form">
-              <label class="field">
-                <span>Email</span>
-                <input
-                  type="email"
-                  class="input"
-                  placeholder="name@company.com"
+              <label class="field wide">
+                <span>Email addresses</span>
+                <textarea
+                  class="input textarea"
+                  rows="3"
+                  placeholder="name@company.com, teammate@company.com"
                   bind:value={inviteEmail}
-                />
+                ></textarea>
               </label>
               <label class="field">
                 <span>Role</span>
@@ -384,14 +712,84 @@
                   <option value="member">Member</option>
                 </select>
               </label>
-              <button
-                class="btn primary"
-                onclick={handleInvite}
-                disabled={inviting || !inviteEmail.trim()}
-              >
-                {inviting ? 'Sending…' : 'Send invite'}
-              </button>
+              <div class="invite-actions">
+                <button
+                  class="btn primary"
+                  onclick={handleInvite}
+                  disabled={inviting || inviteEmails.length === 0}
+                >
+                  {inviting
+                    ? 'Sending…'
+                    : inviteEmails.length > 1
+                      ? `Send ${inviteEmails.length} invites`
+                      : 'Send invite'}
+                </button>
+                <label class="csv-btn">
+                  Import CSV
+                  <input type="file" accept=".csv,text/csv,text/plain" onchange={handleCsvUpload} />
+                </label>
+              </div>
             </div>
+            {#if inviteResults}
+              <div class="invite-results">
+                {#each inviteResults as r}
+                  <div class="invite-result">
+                    <span class="ir-email">{r.email || '(blank)'}</span>
+                    <span class="ir-status" data-status={r.status}>
+                      {r.status === 'invited'
+                        ? 'Invited'
+                        : r.status === 'already_member'
+                          ? 'Already a member'
+                          : r.status === 'duplicate'
+                            ? 'Duplicate'
+                            : r.status === 'invalid'
+                              ? 'Not a valid email'
+                              : r.detail || 'Failed'}
+                    </span>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Pending invitations</h2>
+              <p>Invites that haven’t been accepted yet. Resend to extend the expiry.</p>
+            </div>
+            {#if pendingInvites.length === 0}
+              <p class="empty-note">No outstanding invitations.</p>
+            {:else}
+              <div class="ws-list">
+                {#each pendingInvites as invite}
+                  <div class="ws-item">
+                    <div>
+                      <div class="ws-name">{invite.email}</div>
+                      <div class="ws-meta">
+                        {invite.role} · expires {new Date(
+                          invite.expires_at,
+                        ).toLocaleDateString()}{invite.invited_by
+                          ? ` · invited by ${invite.invited_by}`
+                          : ''}
+                      </div>
+                    </div>
+                    <div class="row-actions">
+                      <button
+                        class="btn ghost sm"
+                        onclick={() => handleResendInvite(invite)}
+                        disabled={inviteBusy === invite.id}
+                      >
+                        {inviteBusy === invite.id ? 'Sending…' : 'Resend'}
+                      </button>
+                      <button
+                        class="btn ghost sm danger-text"
+                        onclick={() => handleRescindInvite(invite)}
+                      >Revoke</button>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
           </section>
         {:else if section === 'activity' && isAdmin}
           <section class="panel">
@@ -433,8 +831,8 @@
                 {#each invites as invite}
                   <div class="ws-item">
                     <div>
-                      <div class="ws-name">Invited as {invite.role}</div>
-                      <div class="ws-meta">Workspace {invite.workspace_id?.substring(0, 8)}…</div>
+                      <div class="ws-name">{invite.workspace_name}</div>
+                      <div class="ws-meta">Invited as {invite.role}</div>
                     </div>
                     <button class="btn primary sm" onclick={() => handleAcceptInvite(invite.token)}>
                       Accept
@@ -451,15 +849,23 @@
               <p>Start a new isolated space for another team or environment.</p>
             </div>
             <div class="inline-form">
-              <input
-                class="input"
-                placeholder="e.g. Acme Analytics"
-                bind:value={newWorkspaceName}
-              />
+              <div class="field-stack" style="flex:1;min-width:0">
+                <input
+                  class="input"
+                  class:invalid={!!createError}
+                  placeholder="e.g. Acme Analytics"
+                  bind:value={newWorkspaceName}
+                  maxlength={WORKSPACE_NAME_MAX}
+                  aria-invalid={!!createError}
+                />
+                {#if createError}
+                  <span class="hint error">{createError}</span>
+                {/if}
+              </div>
               <button
                 class="btn primary"
                 onclick={handleCreateWorkspace}
-                disabled={!newWorkspaceName.trim()}
+                disabled={!newWorkspaceName.trim() || !!createError}
               >Create</button>
             </div>
           </section>
@@ -486,6 +892,18 @@
     </div>
   </div>
 {/if}
+
+<ConfirmDialog
+  open={!!confirmation}
+  title={confirmation?.title ?? ''}
+  message={confirmation?.message ?? ''}
+  confirmLabel={confirmation?.confirmLabel ?? 'Confirm'}
+  tone={confirmation?.tone ?? 'default'}
+  requireText={confirmation?.requireText ?? ''}
+  loading={confirmLoading}
+  onConfirm={runConfirmation}
+  onCancel={() => (confirmation = null)}
+/>
 
 <style>
   .settings-shell {
@@ -631,6 +1049,23 @@
   }
   .btn.ghost:hover { color: var(--ink); border-color: var(--border-2); }
   .btn.sm { padding: 7px 12px; font-size: 12.5px; }
+  .btn.danger {
+    background: var(--c-low-tint);
+    color: var(--c-low-ink);
+    border: 1px solid var(--c-low-tint);
+  }
+  .btn.danger:hover:not(:disabled) { background: var(--c-low); color: #fff; }
+  .btn.danger:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn.danger-text { color: var(--c-low-ink); }
+  .btn.danger-text:hover { color: var(--c-low-ink); border-color: var(--c-low); }
+  .danger-panel { border-color: var(--c-low-tint); }
+  .row-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+  .empty-note {
+    margin: 0;
+    padding: 18px 22px 22px;
+    font-size: 13px;
+    color: var(--muted);
+  }
   .role-badge {
     font-size: 11px;
     font-weight: 700;
@@ -705,12 +1140,58 @@
     border-top: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     font-size: 12.5px;
     color: var(--muted);
     background: var(--surface-2);
   }
-  .roles-help strong { color: var(--ink-2); }
+  .roles-help-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .role-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .role-chip-wrap { position: relative; display: inline-flex; }
+  .role-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+  .role-q {
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1px solid var(--border-2);
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 800;
+  }
+  .role-chip:hover .role-q { color: var(--ink); border-color: var(--ink); }
+  .role-tip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    z-index: 30;
+    width: 260px;
+    padding: 12px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .role-tip strong { display: block; color: var(--ink); margin-bottom: 6px; }
+  .role-tip ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 3px; }
   .invite-form {
     padding: 18px 22px 22px;
     display: grid;
@@ -718,6 +1199,56 @@
     gap: 12px;
     align-items: end;
   }
+  .invite-form .field.wide { grid-row: 1; }
+  .textarea {
+    min-height: 74px;
+    resize: vertical;
+    font-family: inherit;
+    line-height: 1.5;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .invite-actions { display: flex; flex-direction: column; gap: 8px; }
+  .csv-btn {
+    display: inline-flex;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    font-weight: 650;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .csv-btn:hover { color: var(--ink); border-color: var(--border-2); }
+  .csv-btn input { display: none; }
+  .invite-results {
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+  .invite-result {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 22px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .invite-result:first-child { border-top: none; }
+  .ir-email { color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+  .ir-status { font-size: 12px; font-weight: 650; color: var(--muted); flex-shrink: 0; }
+  .ir-status[data-status='invited'] { color: var(--brand-ink); }
+  .ir-status[data-status='invalid'],
+  .ir-status[data-status='failed'] { color: var(--c-low-ink); }
+  .field-stack { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .input.invalid { border-color: var(--c-low); }
+  .hint { font-size: 12px; color: var(--muted); }
+  .hint.error { color: var(--c-low-ink); }
   .field { display: flex; flex-direction: column; gap: 6px; }
   .field span {
     font-size: 11px;

@@ -4,6 +4,7 @@
   import { createWorkspace, acceptWorkspaceInvite } from '$lib/api';
   import Button from '$lib/components/ui/Button.svelte';
   import Logo from '$lib/components/ui/Logo.svelte';
+  import { workspaceNameError, WORKSPACE_NAME_MAX } from '$lib/validation';
 
   let mode = $state<'select' | 'create' | 'join'>('select');
   let workspaceName = $state('');
@@ -11,9 +12,20 @@
   let loading = $state(false);
   let error = $state('');
 
+  // Only nag once the user has typed something — an empty field on arrival
+  // isn't a mistake yet.
+  const nameError = $derived(
+    workspaceName.trim() ? workspaceNameError(workspaceName) : null,
+  );
+
   async function handleCreate(e: Event) {
     e.preventDefault();
     if (!workspaceName.trim()) return;
+    const invalid = workspaceNameError(workspaceName);
+    if (invalid) {
+      error = invalid;
+      return;
+    }
     loading = true;
     error = '';
     try {
@@ -77,10 +89,13 @@
           placeholder="e.g. Acme Corp Data"
           required
           disabled={loading}
+          maxlength={WORKSPACE_NAME_MAX}
+          aria-invalid={!!nameError}
           autofocus
         />
-        {#if error}<div class="err">{error}</div>{/if}
-        <Button kind="primary" disabled={!workspaceName.trim() || loading} style="width:100%;margin-top:12px">
+        {#if nameError}<div class="err">{nameError}</div>{/if}
+        {#if error && !nameError}<div class="err">{error}</div>{/if}
+        <Button kind="primary" disabled={!workspaceName.trim() || !!nameError || loading} style="width:100%;margin-top:12px">
           {loading ? 'Creating...' : 'Create workspace'}
         </Button>
         <button type="button" class="back-link" onclick={() => mode = 'select'} disabled={loading}>← Back</button>

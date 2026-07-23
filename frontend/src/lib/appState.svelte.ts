@@ -48,10 +48,18 @@ class AppState {
     return trustFor(this.verifiedCount).key;
   }
 
+  /**
+   * Invite ids already seen, so a refresh only announces genuinely new ones.
+   * `null` until the first load — the invitations waiting when you sign in are
+   * shown by the bell, not thrown at you as a toast.
+   */
+  private seenInviteIds: Set<string> | null = null;
+
   async loadWorkspaces() {
     try {
       this.workspaces = await apiCall("/api/workspaces");
       this.invites = await apiCall("/api/workspaces/invites/me");
+      this.announceNewInvites();
       const stored = localStorage.getItem("bolodb_active_workspace_id");
       if (stored && this.workspaces.find((w: any) => w.id === stored)) {
         this.activeWorkspace = this.workspaces.find(
@@ -70,6 +78,29 @@ class AppState {
     } catch (e) {
       console.error("Failed to load workspaces:", e);
     }
+  }
+
+  private announceNewInvites() {
+    const ids = new Set<string>((this.invites || []).map((i: any) => i.id));
+    if (this.seenInviteIds === null) {
+      this.seenInviteIds = ids;
+      return;
+    }
+    const fresh = (this.invites || []).filter(
+      (i: any) => !this.seenInviteIds!.has(i.id),
+    );
+    this.seenInviteIds = ids;
+    if (fresh.length === 0) return;
+    this.showToast({
+      title:
+        fresh.length === 1
+          ? "New workspace invitation"
+          : `${fresh.length} new workspace invitations`,
+      body:
+        fresh.length === 1
+          ? `You've been invited to ${fresh[0].workspace_name}. Open the bell to accept.`
+          : "Open the bell in the header to accept them.",
+    });
   }
 
   async init(redirect: boolean = true) {
