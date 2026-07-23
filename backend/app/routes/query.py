@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import StreamingResponse
 from backend.app.dependencies import (
-    get_current_workspace,
+    require_permission,
     get_db,
     get_kb,
     get_cfg,
@@ -36,7 +36,7 @@ async def _format_sse(stream):
 async def query(
     request: Request,
     req: QueryReq,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("queries.execute")),
     db=Depends(get_db),
     kb=Depends(get_kb),
     cfg=Depends(get_cfg),
@@ -106,7 +106,7 @@ async def query(
 async def query_stream(
     request: Request,
     req: QueryReq,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("queries.execute")),
     db=Depends(get_db),
     kb=Depends(get_kb),
     cfg=Depends(get_cfg),
@@ -147,7 +147,7 @@ async def query_stream(
 @router.post("/api/feedback")
 async def feedback(
     req: FeedbackReq,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("queries.execute")),
     db=Depends(get_db),
     kb=Depends(get_kb),
     session_log=Depends(get_session_log),
@@ -166,7 +166,7 @@ async def feedback(
 @router.post("/api/verify")
 async def verify(
     req: VerifyReq,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("catalog.manage")),
     db=Depends(get_db),
     kb=Depends(get_kb),
     db_id=Depends(get_current_db_id),
@@ -195,7 +195,7 @@ async def verify(
 async def execute(
     request: Request,
     req: RawSQLReq,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("queries.execute")),
     db=Depends(get_db),
     db_id=Depends(get_current_db_id),
 ) -> dict:
@@ -251,7 +251,7 @@ async def execute(
 async def explain(
     request: Request,
     req: RawSQLReq,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("queries.explain")),
     db=Depends(get_db),
     providers=Depends(get_providers),
     db_id=Depends(get_current_db_id),

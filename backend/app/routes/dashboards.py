@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
-from backend.app.dependencies import get_current_workspace, get_current_user
+from backend.app.dependencies import require_permission, get_current_user
 import backend.app.controllers.dashboards as ctrl
 
 log = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ class BatchUpdatePanelPositionReq(BaseModel):
 
 
 @router.get("")
-async def list_dashboards(workspace=Depends(get_current_workspace)):
+async def list_dashboards(workspace=Depends(require_permission("dashboards.view"))):
     try:
         dashboards = await ctrl.list_dashboards(workspace["workspace_id"])
         return JSONResponse({"dashboards": dashboards})
@@ -52,14 +52,10 @@ async def list_dashboards(workspace=Depends(get_current_workspace)):
 @router.post("")
 async def create_dashboard(
     req: CreateDashboardReq,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("dashboards.create")),
     user=Depends(get_current_user),
 ):
     try:
-        role = workspace.get("role", "").lower()
-        if role not in ["admin", "owner"]:
-            raise HTTPException(403, "Only admins can create dashboards")
-
         dash = await ctrl.create_dashboard(
             workspace["workspace_id"], user["user_id"], req.name, req.description
         )
@@ -72,7 +68,9 @@ async def create_dashboard(
 
 
 @router.get("/{dashboard_id}")
-async def get_dashboard(dashboard_id: str, workspace=Depends(get_current_workspace)):
+async def get_dashboard(
+    dashboard_id: str, workspace=Depends(require_permission("dashboards.view"))
+):
     try:
         dash = await ctrl.get_dashboard(workspace["workspace_id"], dashboard_id)
         if not dash:
@@ -87,13 +85,11 @@ async def get_dashboard(dashboard_id: str, workspace=Depends(get_current_workspa
 
 @router.patch("/{dashboard_id}")
 async def update_dashboard(
-    dashboard_id: str, req: UpdateDashboardReq, workspace=Depends(get_current_workspace)
+    dashboard_id: str,
+    req: UpdateDashboardReq,
+    workspace=Depends(require_permission("dashboards.manage")),
 ):
     try:
-        role = workspace.get("role", "").lower()
-        if role not in ["admin", "owner"]:
-            raise HTTPException(403, "Only admins can edit dashboards")
-
         success = await ctrl.update_dashboard(
             workspace["workspace_id"], dashboard_id, req.model_dump(exclude_unset=True)
         )
@@ -108,12 +104,10 @@ async def update_dashboard(
 
 
 @router.delete("/{dashboard_id}")
-async def delete_dashboard(dashboard_id: str, workspace=Depends(get_current_workspace)):
+async def delete_dashboard(
+    dashboard_id: str, workspace=Depends(require_permission("dashboards.manage"))
+):
     try:
-        role = workspace.get("role", "").lower()
-        if role not in ["admin", "owner"]:
-            raise HTTPException(403, "Only admins can delete dashboards")
-
         success = await ctrl.delete_dashboard(workspace["workspace_id"], dashboard_id)
         if not success:
             raise HTTPException(404, "Dashboard not found")
@@ -127,7 +121,9 @@ async def delete_dashboard(dashboard_id: str, workspace=Depends(get_current_work
 
 @router.get("/{dashboard_id}/data")
 async def get_dashboard_data(
-    dashboard_id: str, request: Request, workspace=Depends(get_current_workspace)
+    dashboard_id: str,
+    request: Request,
+    workspace=Depends(require_permission("dashboards.view")),
 ):
     try:
         db_manager = request.app.state.db
@@ -149,13 +145,11 @@ async def get_dashboard_data(
 
 @router.post("/{dashboard_id}/panels")
 async def add_panel(
-    dashboard_id: str, req: AddPanelReq, workspace=Depends(get_current_workspace)
+    dashboard_id: str,
+    req: AddPanelReq,
+    workspace=Depends(require_permission("dashboards.manage")),
 ):
     try:
-        role = workspace.get("role", "").lower()
-        if role not in ["admin", "owner"]:
-            raise HTTPException(403, "Only admins can edit dashboards")
-
         panel = await ctrl.add_panel(
             workspace["workspace_id"], dashboard_id, req.model_dump(exclude_unset=True)
         )
@@ -171,13 +165,9 @@ async def add_panel(
 async def batch_update_panels(
     dashboard_id: str,
     req: BatchUpdatePanelPositionReq,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("dashboards.manage")),
 ):
     try:
-        role = workspace.get("role", "").lower()
-        if role not in ["admin", "owner"]:
-            raise HTTPException(403, "Only admins can edit dashboards")
-
         await ctrl.update_panels_batch(
             workspace["workspace_id"],
             dashboard_id,
@@ -196,13 +186,9 @@ async def update_panel(
     dashboard_id: str,
     panel_id: str,
     req: UpdatePanelReq,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("dashboards.manage")),
 ):
     try:
-        role = workspace.get("role", "").lower()
-        if role not in ["admin", "owner"]:
-            raise HTTPException(403, "Only admins can edit dashboards")
-
         success = await ctrl.update_panel(
             workspace["workspace_id"],
             dashboard_id,
@@ -221,13 +207,11 @@ async def update_panel(
 
 @router.delete("/{dashboard_id}/panels/{panel_id}")
 async def delete_panel(
-    dashboard_id: str, panel_id: str, workspace=Depends(get_current_workspace)
+    dashboard_id: str,
+    panel_id: str,
+    workspace=Depends(require_permission("dashboards.manage")),
 ):
     try:
-        role = workspace.get("role", "").lower()
-        if role not in ["admin", "owner"]:
-            raise HTTPException(403, "Only admins can edit dashboards")
-
         success = await ctrl.delete_panel(
             workspace["workspace_id"], dashboard_id, panel_id
         )

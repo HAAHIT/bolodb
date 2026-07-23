@@ -2,8 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from backend.app.dependencies import (
-    get_current_workspace,
-    require_role,
+    require_permission,
     get_db,
     get_kb,
     get_cfg,
@@ -18,14 +17,14 @@ router = APIRouter()
 
 
 @router.get("/api/databases")
-async def list_databases(workspace=Depends(get_current_workspace)):
+async def list_databases(workspace=Depends(require_permission("connections.view"))):
     return await mdb.get_recent_connections(workspace["workspace_id"], limit=50)
 
 
 @router.post("/api/connect")
 async def connect(
     req: ConnectReq,
-    workspace=Depends(require_role("admin")),
+    workspace=Depends(require_permission("connections.manage")),
     db=Depends(get_db),
     kb=Depends(get_kb),
     cfg=Depends(get_cfg),
@@ -42,7 +41,7 @@ async def connect(
 
 @router.post("/api/connect-sample")
 async def connect_sample(
-    workspace=Depends(require_role("admin")),
+    workspace=Depends(require_permission("connections.manage")),
     db=Depends(get_db),
     kb=Depends(get_kb),
     cfg=Depends(get_cfg),
@@ -58,7 +57,7 @@ async def connect_sample(
 
 @router.post("/api/disconnect")
 async def disconnect(
-    workspace=Depends(require_role("admin")),
+    workspace=Depends(require_permission("connections.manage")),
     db_id: str = Depends(get_current_db_id),
     db=Depends(get_db),
     cfg=Depends(get_cfg),
@@ -75,7 +74,7 @@ async def disconnect(
 @router.get("/api/schema")
 async def schema(
     refresh: bool = False,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("connections.view_schema")),
     db_id: str = Depends(get_current_db_id),
     db=Depends(get_db),
 ):
@@ -85,7 +84,7 @@ async def schema(
 @router.post("/api/reconnect")
 async def reconnect(
     request_body: dict,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("connections.manage")),
     db=Depends(get_db),
     kb=Depends(get_kb),
     cfg=Depends(get_cfg),

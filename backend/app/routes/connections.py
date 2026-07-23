@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from backend.app.dependencies import get_current_workspace
+from backend.app.dependencies import require_permission
 from pydantic import BaseModel
 import backend.app.pgdatabase as mdb
 
@@ -16,7 +16,7 @@ router = APIRouter()
 
 
 @router.get("/api/connections")
-async def get_connections(workspace=Depends(get_current_workspace)):
+async def get_connections(workspace=Depends(require_permission("connections.view"))):
     try:
         connections = await mdb.get_recent_connections(workspace["workspace_id"])
         for c in connections:
@@ -29,7 +29,7 @@ async def get_connections(workspace=Depends(get_current_workspace)):
 
 @router.delete("/api/connections/{connection_id}")
 async def delete_connection(
-    connection_id: str, workspace=Depends(get_current_workspace)
+    connection_id: str, workspace=Depends(require_permission("connections.manage"))
 ):
     try:
         deleted = await mdb.delete_recent_connection(
@@ -43,7 +43,9 @@ async def delete_connection(
 
 @router.patch("/api/connections/{connection_id}")
 async def update_connection(
-    connection_id: str, req: ConnectionUpdate, workspace=Depends(get_current_workspace)
+    connection_id: str,
+    req: ConnectionUpdate,
+    workspace=Depends(require_permission("connections.manage")),
 ):
     try:
         updated = await mdb.update_recent_connection_alias(

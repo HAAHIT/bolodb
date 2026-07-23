@@ -147,9 +147,11 @@ async def save_recent_connection(
                         display_url=display_url,
                         dialect=dialect,
                         table_count=table_count,
-                        alias_name=alias_name
-                        if alias_name is not None
-                        else RecentConnection.alias_name,
+                        alias_name=(
+                            alias_name
+                            if alias_name is not None
+                            else RecentConnection.alias_name
+                        ),
                         connected_at=func.now(),
                     ),
                 )

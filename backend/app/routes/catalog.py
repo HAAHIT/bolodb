@@ -3,8 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, Request, HTTPException
 
 from backend.app.dependencies import (
-    get_current_workspace,
-    require_role,
+    require_permission,
     get_db,
     get_kb,
     get_providers,
@@ -19,7 +18,7 @@ router = APIRouter()
 
 @router.get("/api/catalog")
 async def get_catalog(
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("catalog.view")),
     db=Depends(get_db),
     kb=Depends(get_kb),
 ):
@@ -36,7 +35,7 @@ async def get_catalog(
 @router.post("/api/catalog")
 async def save_catalog(
     payload: CatalogPayload,
-    workspace=Depends(require_role("admin")),
+    workspace=Depends(require_permission("catalog.manage")),
     db=Depends(get_db),
     kb=Depends(get_kb),
 ):
@@ -54,7 +53,7 @@ async def save_catalog(
 @limiter.limit("10/minute")
 async def suggest_catalog(
     request: Request,
-    workspace=Depends(require_role("admin")),
+    workspace=Depends(require_permission("catalog.manage")),
     db=Depends(get_db),
     providers=Depends(get_providers),
 ):

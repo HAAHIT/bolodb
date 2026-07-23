@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
-from backend.app.dependencies import get_current_workspace, get_current_user
+from backend.app.dependencies import require_permission, get_current_user
 import backend.app.controllers.dashboards as ctrl
 
 log = logging.getLogger(__name__)
@@ -30,7 +30,9 @@ class UpdateSavedQueryReq(BaseModel):
 
 
 @router.get("")
-async def list_saved_queries(workspace=Depends(get_current_workspace)):
+async def list_saved_queries(
+    workspace=Depends(require_permission("queries.execute")),
+):
     try:
         sqs = await ctrl.list_saved_queries(workspace["workspace_id"])
         return JSONResponse({"saved_queries": sqs})
@@ -42,7 +44,7 @@ async def list_saved_queries(workspace=Depends(get_current_workspace)):
 @router.post("")
 async def create_saved_query(
     req: SaveQueryReq,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("queries.save")),
     user=Depends(get_current_user),
 ):
     try:
@@ -58,7 +60,9 @@ async def create_saved_query(
 
 
 @router.get("/{query_id}")
-async def get_saved_query(query_id: str, workspace=Depends(get_current_workspace)):
+async def get_saved_query(
+    query_id: str, workspace=Depends(require_permission("queries.execute"))
+):
     try:
         sq = await ctrl.get_saved_query(workspace["workspace_id"], query_id)
         if not sq:
@@ -73,7 +77,9 @@ async def get_saved_query(query_id: str, workspace=Depends(get_current_workspace
 
 @router.patch("/{query_id}")
 async def update_saved_query(
-    query_id: str, req: UpdateSavedQueryReq, workspace=Depends(get_current_workspace)
+    query_id: str,
+    req: UpdateSavedQueryReq,
+    workspace=Depends(require_permission("queries.save")),
 ):
     try:
         success = await ctrl.update_saved_query(
@@ -90,13 +96,10 @@ async def update_saved_query(
 
 
 @router.delete("/{query_id}")
-async def delete_saved_query(query_id: str, workspace=Depends(get_current_workspace)):
+async def delete_saved_query(
+    query_id: str, workspace=Depends(require_permission("queries.delete_saved"))
+):
     try:
-        # Check permissions - only admin/owner
-        role = workspace.get("role", "").lower()
-        if role not in ["admin", "owner"]:
-            raise HTTPException(403, "Only admins can delete saved queries")
-
         success = await ctrl.delete_saved_query(workspace["workspace_id"], query_id)
         if not success:
             raise HTTPException(404, "Saved query not found")
