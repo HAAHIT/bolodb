@@ -501,7 +501,7 @@ def build_sql_system_prompt(
 ):
     hint = _DIALECT_HINTS.get(dialect, "")
     return (
-        "Answer in English\n"
+        "CRITICAL: You MUST answer entirely in English. Do not use Chinese or Japanese.\n"
         f"You are an expert {dialect} analyst. Convert the user's question into "
         "exactly one read-only SELECT query.\n\n"
         "Rules:\n"
@@ -573,6 +573,7 @@ async def shortlist_tables(provider, question, schema, max_columns=4):
         lines.append(f"{t}({head}{more})")
     catalog = "\n".join(lines)
     system = (
+        "CRITICAL: You MUST answer entirely in English. Do not use Chinese or Japanese.\n"
         "You map questions to database tables. Below is the complete catalog "
         "of tables (name and columns only).\n"
         "Return every table that might be needed to answer the user's "
@@ -607,7 +608,7 @@ async def shortlist_tables(provider, question, schema, max_columns=4):
 
 async def explain_sql(provider, sql, dialect):
     system = (
-        "Answer in English\n"
+        "CRITICAL: You MUST answer entirely in English. Do not use Chinese or Japanese.\n"
         f"You explain {dialect} SQL to non-technical business users.\n"
         "Describe what the query returns in 2-4 short plain sentences: which "
         "data it looks at, how it filters/groups, and how results are ordered "
@@ -621,7 +622,7 @@ async def explain_sql(provider, sql, dialect):
 
 async def suggest_catalog(provider, schema_text):
     system = (
-        "Answer in English\n"
+        "CRITICAL: You MUST answer entirely in English. Do not use Chinese or Japanese.\n"
         "You are a data analyst documenting a database for non-technical users.\n"
         f"{schema_text}\n\n"
         "Produce a concise semantic catalog:\n"
@@ -660,7 +661,7 @@ async def generate_starters(provider, schema_text, dialect):
         schema_text[:300],
     )
     system = (
-        "Answer in English\n"
+        "CRITICAL: You MUST answer entirely in English. Do not use Chinese or Japanese.\n"
         f"You are a database analyst. {dialect} database.\n{schema_text}\n\n"
         "Generate 3 common useful questions a non-technical user would ask, each with the SQL and "
         "a one-sentence plain-English description.\n"
