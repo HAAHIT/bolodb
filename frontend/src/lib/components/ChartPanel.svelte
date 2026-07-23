@@ -1,18 +1,13 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import * as echarts from 'echarts';
-  import { parseNumeric } from '$lib/components/charts/chartUtils';
+  import { appState } from '$lib/appState.svelte';
+  import { chartColors, cssVar, parseNumeric } from '$lib/components/charts/chartUtils';
 
   let { panel, data } = $props();
 
   let chartDom: HTMLElement | undefined = $state();
   let chart: echarts.ECharts | null = null;
-
-  function cssVar(name: string, fallback: string) {
-    if (typeof window === 'undefined') return fallback;
-    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    return v || fallback;
-  }
 
   /**
    * Panel data arrives after mount, so the chart node only enters the DOM once
@@ -69,7 +64,10 @@
     const ink = cssVar('--ink', '#16201b');
     const muted = cssVar('--muted', '#5c6b63');
     const border = cssVar('--border', '#e3e8e5');
-    const brand = cssVar('--brand', '#1b9e6b');
+    // Same fixed, colour-vision-checked order the answer-card charts use, so a
+    // dashboard panel and the answer it came from agree on colour.
+    const palette = chartColors(appState.theme);
+    const brand = palette[0];
 
     const columns: any[] = data.columns || [];
     const names = columns.map(columnName).filter(Boolean);
@@ -98,7 +96,7 @@
 
     if (type === 'pie') {
       option = {
-        color: [brand, '#6366f1', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6'],
+        color: palette,
         tooltip: { trigger: 'item' },
         textStyle: { color: muted, fontFamily: 'inherit' },
         series: [

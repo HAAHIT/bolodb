@@ -1,6 +1,22 @@
 <script lang="ts">
-  import { BarChart, PieChart, LineChart, AreaChart } from 'layerchart';
-  import { detectChartData, planChart, formatNumber, CHART_COLORS } from './chartUtils';
+  /**
+   * The chart under an answer, drawn with ECharts.
+   *
+   * `planChart` decides *what* to draw from the model's spec (falling back to a
+   * local heuristic for older turns), and this component decides how it looks.
+   * A single-measure bar, line or area is one colour — the categories are the
+   * axis, so colouring each one differently would encode identity twice. Only
+   * the pie, where the slice *is* the category, uses the categorical palette.
+   */
+  import * as echarts from 'echarts';
+  import { appState } from '$lib/appState.svelte';
+  import {
+    detectChartData,
+    planChart,
+    formatNumber,
+    chartColors,
+    cssVar,
+  } from './chartUtils';
   import type { ChartSpec } from '$lib/types';
 
   let {
@@ -25,109 +41,255 @@
           : null;
       })(),
   );
+
+  /** Bars need room to breathe; taller as the category count grows, then capped. */
+  const chartHeight = $derived(
+    plan?.type === 'bar'
+      ? Math.max(160, Math.min(plan.data.length * 30 + 40, 420))
+      : 240,
+  );
+
+  let chartDom: HTMLElement | undefined = $state();
+
+  $effect(() => {
+    if (!chartDom || !plan || plan.type === 'number') return;
+    const instance = echarts.init(chartDom);
+    instance.setOption(buildOption(plan, appState.theme), true);
+
+    const observer = new ResizeObserver(() => instance.resize());
+    observer.observe(chartDom);
+    return () => {
+      observer.disconnect();
+      instance.dispose();
+    };
+  });
+
+  function buildOption(p: NonNullable<typeof plan>, theme: string) {
+    const palette = chartColors(theme);
+    const ink = cssVar('--ink', theme === 'dark' ? '#f0f0f0' : '#16201b');
+    const muted = cssVar('--muted', theme === 'dark' ? '#8b8d91' : '#5c6b63');
+    const surface = cssVar('--surface', theme === 'dark' ? '#141518' : '#ffffff');
+    const border = cssVar('--border', theme === 'dark' ? '#2c2e33' : '#e3e8e5');
+    const labels = p.data.map((d) => d.label);
+    const values = p.data.map((d) => d.value);
+
+    const base: any = {
+      color: palette,
+      animationDuration: 400,
+      textStyle: { color: muted, fontFamily: 'inherit', fontSize: 11.5 },
+      tooltip: {
+        backgroundColor: surface,
+        borderColor: border,
+        borderWidth: 1,
+        textStyle: { color: ink, fontSize: 12 },
+        extraCssText: 'border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14);',
+      },
+    };
+
+    if (p.type === 'pie') {
+      const total = values.reduce((s, v) => s + v, 0);
+      return {
+        ...base,
+        tooltip: {
+          ...base.tooltip,
+          trigger: 'item',
+          formatter: (i: any) =>
+            `${i.marker} ${i.name}<br/><b>${formatNumber(i.value)}</b> · ${i.percent}%`,
+        },
+        legend: {
+          type: 'scroll',
+          orient: 'vertical',
+          right: 0,
+          top: 'middle',
+          itemWidth: 9,
+          itemHeight: 9,
+          itemGap: 8,
+          // Identity stays in text ink; the swatch beside it carries the colour.
+          textStyle: { color: ink, fontSize: 12 },
+        },
+        series: [
+          {
+            type: 'pie',
+            radius: ['52%', '78%'],
+            center: ['32%', '50%'],
+            // A 2px ring of surface between slices keeps neighbours legible
+            // without a border colour of their own.
+            itemStyle: { borderColor: surface, borderWidth: 2, borderRadius: 3 },
+            // Only slices with room get a direct label — never one per slice.
+            label: {
+              show: true,
+              color: ink,
+              fontSize: 11,
+              formatter: (i: any) => (i.percent >= 8 ? `${Math.round(i.percent)}%` : ''),
+            },
+            labelLine: { show: false },
+            data: p.data.map((d) => ({ name: d.label, value: d.value })),
+          },
+        ],
+      };
+    }
+
+    if (p.type === 'bar') {
+      return {
+        ...base,
+        grid: { left: 4, right: 24, top: 8, bottom: 4, containLabel: true },
+        tooltip: {
+          ...base.tooltip,
+          trigger: 'axis',
+          axisPointer: { type: 'shadow', shadowStyle: { color: `${muted}14` } },
+          formatter: (ps: any[]) =>
+            `${ps[0].name}<br/><b>${formatNumber(ps[0].value)}</b> ${p.valueKey}`,
+        },
+        xAxis: {
+          type: 'value',
+          axisLabel: { color: muted, formatter: (v: number) => formatNumber(v) },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { lineStyle: { color: border, type: 'dashed' } },
+        },
+        yAxis: {
+          type: 'category',
+          data: labels,
+          inverse: true,
+          axisLabel: {
+            color: muted,
+            width: 110,
+            overflow: 'truncate',
+          },
+          axisLine: { show: false },
+          axisTick: { show: false },
+        },
+        series: [
+          {
+            type: 'bar',
+            data: values,
+            barMaxWidth: 18,
+            // Rounded at the data end only — the baseline end stays square so
+            // bars read as measured from zero.
+            itemStyle: { color: palette[0], borderRadius: [0, 4, 4, 0] },
+          },
+        ],
+      };
+    }
+
+    // line / area
+    const isArea = p.type === 'area';
+    return {
+      ...base,
+      grid: { left: 4, right: 12, top: 12, bottom: 4, containLabel: true },
+      tooltip: {
+        ...base.tooltip,
+        trigger: 'axis',
+        axisPointer: { type: 'line', lineStyle: { color: border } },
+        formatter: (ps: any[]) =>
+          `${ps[0].axisValue}<br/><b>${formatNumber(ps[0].value)}</b> ${p.valueKey}`,
+      },
+      xAxis: {
+        type: 'category',
+        data: labels,
+        boundaryGap: false,
+        axisLabel: { color: muted, hideOverlap: true },
+        axisLine: { lineStyle: { color: border } },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: muted, formatter: (v: number) => formatNumber(v) },
+        axisLine: { show: false },
+        splitLine: { lineStyle: { color: border, type: 'dashed' } },
+      },
+      series: [
+        {
+          type: 'line',
+          data: values,
+          smooth: false,
+          symbol: 'circle',
+          symbolSize: 8,
+          showSymbol: p.data.length <= 40,
+          lineStyle: { width: 2, color: palette[0] },
+          itemStyle: { color: palette[0], borderColor: surface, borderWidth: 2 },
+          areaStyle: isArea
+            ? {
+                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                  { offset: 0, color: `${palette[0]}59` },
+                  { offset: 1, color: `${palette[0]}05` },
+                ]),
+              }
+            : undefined,
+        },
+      ],
+    };
+  }
 </script>
 
 {#if !plan}
-  <div style="padding:18px;text-align:center;color:var(--muted);background:var(--surface-2);border:1px dashed var(--border-2);border-radius:var(--radius);font-size:13px;">
-    This data doesn't have a chartable format.
-  </div>
+  <div class="chart-empty">This data doesn't have a chartable format.</div>
 {:else}
   {#if plan.title}
-    <div style="font-size:12.5px;font-weight:700;color:var(--ink-2);margin-bottom:8px;">{plan.title}</div>
+    <div class="chart-title">{plan.title}</div>
   {/if}
 
   {#if plan.type === 'number'}
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:28px 18px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);">
-      <div style="font-size:44px;font-weight:900;line-height:1;color:var(--brand);font-variant-numeric:tabular-nums;">
-        {formatNumber(plan.data[0].value)}
-      </div>
-      <div style="font-size:12px;font-weight:600;color:var(--muted);">{plan.valueKey}</div>
+    <!-- A single headline value is a stat tile, not a chart. -->
+    <div class="stat-tile">
+      <div class="stat-value">{formatNumber(plan.data[0].value)}</div>
+      <div class="stat-label">{plan.valueKey}</div>
     </div>
-  {:else if plan.type === 'bar'}
-    <div style="height:{Math.max(150, Math.min(plan.data.length * 40, 300))}px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:12px;">
-      <BarChart
-        data={plan.data}
-        x="value"
-        y="label"
-        orientation="horizontal"
-        c="label"
-        cRange={CHART_COLORS}
-        bandPadding={0.3}
-        padding={{ left: 60, right: 16, top: 4, bottom: 4 }}
-        clip
-        props={{ yAxis: { tickLabelProps: { truncate: { maxChars: 18 } } } }}
-        tooltipContext={{ mode: 'band' }}
-        grid={{ y: false }}
-      />
-    </div>
-  {:else if plan.type === 'pie'}
-    <div style="display:flex;align-items:center;gap:16px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:16px;">
-      <div style="flex:0 0 160px;height:160px;overflow:hidden;">
-        <PieChart
-          data={plan.data}
-          key="label"
-          label="label"
-          value="value"
-          c="label"
-          cRange={CHART_COLORS}
-          innerRadius={0.5}
-          cornerRadius={4}
-          padAngle={0.02}
-          labels={{
-            placement: 'centroid',
-            format: (v: any) => {
-              const n = Number(v);
-              const total = plan.data.reduce((s: number, item: { value: number }) => s + item.value, 0);
-              const pct = total > 0 ? Math.round((n / total) * 100) : 0;
-              return pct >= 5 ? `${pct}%` : '';
-            },
-          }}
-        />
-      </div>
-      <div style="flex:1;">
-        {#each plan.data as item, i}
-          {@const total = plan.data.reduce((s: number, d: { value: number }) => s + d.value, 0)}
-          {@const pct = total > 0 ? Math.round((item.value / total) * 100) : 0}
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-            <div style="width:8px;height:8px;border-radius:2px;flex-shrink:0;background:{CHART_COLORS[i % CHART_COLORS.length]};"></div>
-            <span style="font-size:12.5px;font-weight:600;color:var(--ink);flex:1;">{item.label}</span>
-            <span style="font-size:12px;font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums;">{item.value.toLocaleString()}</span>
-            <span style="font-size:11px;color:var(--faint);width:30px;text-align:right;">{pct}%</span>
-          </div>
-        {/each}
-      </div>
-    </div>
-  {:else if plan.type === 'area'}
-    <div style="height:220px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:12px;">
-      <AreaChart
-        data={plan.data}
-        x="label"
-        y="value"
-        yNice
-        c="label"
-        cRange={['var(--brand)']}
-        padding={{ left: 8, right: 8, top: 8, bottom: 8 }}
-        clip
-        props={{ xAxis: { tickLabelProps: { truncate: { maxChars: 12 } } } }}
-        tooltipContext={{ mode: 'band' }}
-        grid
-      />
-    </div>
-  {:else if plan.type === 'line'}
-    <div style="height:220px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:12px;">
-      <LineChart
-        data={plan.data}
-        x="label"
-        y="value"
-        yNice
-        c="label"
-        cRange={['var(--brand)']}
-        padding={{ left: 8, right: 8, top: 8, bottom: 8 }}
-        clip
-        props={{ xAxis: { tickLabelProps: { truncate: { maxChars: 12 } } } }}
-        tooltipContext={{ mode: 'band' }}
-        grid
-      />
+  {:else}
+    <div class="chart-frame" style="height:{chartHeight}px">
+      <div bind:this={chartDom} class="chart-canvas"></div>
     </div>
   {/if}
 {/if}
+
+<style>
+  .chart-empty {
+    padding: 18px;
+    text-align: center;
+    color: var(--muted);
+    background: var(--surface-2);
+    border: 1px dashed var(--border-2);
+    border-radius: var(--radius);
+    font-size: 13px;
+  }
+  .chart-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--ink-2);
+    margin-bottom: 8px;
+  }
+  .chart-frame {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    padding: 12px;
+    box-sizing: border-box;
+  }
+  .chart-canvas {
+    width: 100%;
+    height: 100%;
+  }
+  .stat-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 28px 18px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .stat-value {
+    font-size: 44px;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--brand);
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+</style>

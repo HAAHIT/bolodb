@@ -189,16 +189,56 @@ export function planChart(
   };
 }
 
+/**
+ * Categorical series colours, in fixed order — slot 1 is always the first
+ * series, never re-assigned when a filter changes how many series there are.
+ *
+ * Light and dark are separate sets rather than one set re-used, because the
+ * readable lightness band differs per background: the steps below sit inside
+ * OKLCH L 0.43–0.77 on light and 0.48–0.67 on dark. Both orders were checked
+ * for colour-vision separation between neighbouring slots — the previous order
+ * put teal next to pink, which deuteranopes cannot tell apart (ΔE 3.7).
+ * Re-check with the dataviz skill's `validate_palette.js` before editing.
+ */
 export const CHART_COLORS = [
-  "var(--brand)",
+  "#1b9e6b",
   "#6366f1",
   "#f59e0b",
+  "#ec4899",
+  "#0ea5e9",
   "#ef4444",
   "#8b5cf6",
-  "#06b6d4",
-  "#ec4899",
-  "#14b8a6",
+  "#65a30d",
 ];
+
+export const CHART_COLORS_DARK = [
+  "#1b9e6b",
+  "#6366f1",
+  "#d97706",
+  "#ec4899",
+  "#0b8ec7",
+  "#ef4444",
+  "#8b5cf6",
+  "#65a30d",
+];
+
+export function chartColors(theme: string): string[] {
+  return theme === "dark" ? CHART_COLORS_DARK : CHART_COLORS;
+}
+
+/**
+ * Resolve a CSS custom property to a concrete colour.
+ *
+ * ECharts paints to a canvas, where `var(--ink)` means nothing — every colour
+ * handed to it has to be resolved against the document first.
+ */
+export function cssVar(name: string, fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  const v = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+  return v || fallback;
+}
 
 export const CONFIDENCE_COLORS: Record<string, string> = {
   High: "var(--c-high)",
