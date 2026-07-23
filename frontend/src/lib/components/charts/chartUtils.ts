@@ -99,13 +99,21 @@ export function detectChartData(
 }
 
 /** A chart the model asked for, resolved against the columns actually returned. */
-export interface ChartPlan {
-  type: "bar" | "pie" | "line" | "area" | "number";
-  labelKey: string;
-  valueKey: string;
-  data: { label: string; value: number }[];
-  title: string;
-}
+export type ChartPlan =
+  | {
+      type: "bar" | "pie" | "line" | "area";
+      labelKey: string;
+      valueKey: string;
+      data: { label: string; value: number }[];
+      title: string;
+    }
+  | {
+      type: "number";
+      labelKey: string;
+      valueKey: string;
+      data: { label: string; value: number }[];
+      title: string;
+    };
 
 /**
  * Resolve the model's chart choice against real result columns.
@@ -173,7 +181,7 @@ export function planChart(
   if (!data.length) return null;
 
   return {
-    type,
+    type: type as "bar" | "pie" | "line" | "area",
     labelKey: columns[labelIdx],
     valueKey: columns[valueIdx],
     data,

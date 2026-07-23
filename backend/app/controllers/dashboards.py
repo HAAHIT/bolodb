@@ -56,20 +56,20 @@ async def delete_dashboard(workspace_id: str, dashboard_id: str):
 # --- Panels ---
 
 
-async def add_panel(dashboard_id: str, data: dict):
-    return await mdb_dash.add_panel(dashboard_id, **data)
+async def add_panel(workspace_id: str, dashboard_id: str, data: dict):
+    return await mdb_dash.add_panel(workspace_id, dashboard_id, **data)
 
 
-async def update_panel(dashboard_id: str, panel_id: str, data: dict):
-    return await mdb_dash.update_panel(dashboard_id, panel_id, **data)
+async def update_panel(workspace_id: str, dashboard_id: str, panel_id: str, data: dict):
+    return await mdb_dash.update_panel(workspace_id, dashboard_id, panel_id, **data)
 
 
-async def delete_panel(dashboard_id: str, panel_id: str):
-    return await mdb_dash.delete_panel(dashboard_id, panel_id)
+async def delete_panel(workspace_id: str, dashboard_id: str, panel_id: str):
+    return await mdb_dash.delete_panel(workspace_id, dashboard_id, panel_id)
 
 
-async def update_panels_batch(dashboard_id: str, updates: list):
-    return await mdb_dash.update_panels_batch(dashboard_id, updates)
+async def update_panels_batch(workspace_id: str, dashboard_id: str, updates: list):
+    return await mdb_dash.update_panels_batch(workspace_id, dashboard_id, updates)
 
 
 # --- Execution ---
@@ -132,6 +132,7 @@ async def execute_dashboard_queries(workspace_id: str, dashboard_id: str, db_man
             panel_sq_ids.append(p["saved_query_id"])
 
     results = {}
+    sem = asyncio.Semaphore(5)
 
     async def run_sq(sq_id):
         sq = await mdb_sq.get_saved_query(workspace_id, str(sq_id))
@@ -143,9 +144,10 @@ async def execute_dashboard_queries(workspace_id: str, dashboard_id: str, db_man
             sql = sq.get("sql")
             target_db_id = sq.get("database_id")
             if sql:
-                data = await asyncio.to_thread(
-                    db_manager.execute, workspace_id, sql, target_db_id
-                )
+                async with sem:
+                    data = await asyncio.to_thread(
+                        db_manager.execute, workspace_id, sql, target_db_id
+                    )
 
                 # data comes back as dict: {"columns": [], "rows": [{}], "error": ""}
                 if data.get("error"):

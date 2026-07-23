@@ -58,9 +58,37 @@ async def get_me(user_id):
 
 
 async def update_profile(user_id: str, req: UpdateProfile):
-    fields = req.dict(exclude_unset=True)
+    fields = req.model_dump(mode="json", exclude_unset=True)
+    new_email = fields.get("email")
+
+    if new_email:
+        existing = await get_user_by_email(new_email)
+        if existing and str(existing["_id"]) != str(user_id):
+            raise HTTPException(
+                status_code=409, detail="An account with this email already exists"
+            )
+
+        current = await get_me(user_id)
+        if current and current.get("email") != new_email:
+            fields["email_verified"] = False
+
     if fields:
-        await update_user(user_id, **fields)
+        from sqlalchemy.exc import IntegrityError
+
+        try:
+            await update_user(user_id, **fields)
+        except (IntegrityError, UserAlreadyExistsError):
+            raise HTTPException(
+                status_code=409, detail="An account with this email already exists"
+            )
+
+    if new_email and fields.get("email_verified") is False:
+        from backend.app.pgdatabase.otp import create_otp
+        from backend.app.services.email import send_verification_email
+
+        otp_code = await create_otp(user_id, purpose="signup")
+        await send_verification_email(new_email, otp_code)
+
     return await get_me(user_id)
 
 

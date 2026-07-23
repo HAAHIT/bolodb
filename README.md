@@ -25,7 +25,7 @@ The easiest and recommended way to run BoloDB is using Docker. This ensures all 
    ```bash
    docker compose up --build -d
    ```
-   Open [http://localhost](http://localhost).
+   Open [http://localhost:8080](http://localhost:8080).
 
    **Local development** (Vite HMR):
    ```bash

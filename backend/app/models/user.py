@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, AnyHttpUrl, Field
 
 
 class Role(Enum):
@@ -50,8 +50,8 @@ class UserInDB(BaseModel):
     email_verified: bool = False
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    avatar_url: Optional[str] = None
-    metadata: Optional[dict] = None
+    avatar_url: Optional[AnyHttpUrl] = None
+    metadata: Optional[dict[str, str]] = Field(None, max_length=50)
 
 
 class UserPublic(BaseModel):
@@ -60,8 +60,8 @@ class UserPublic(BaseModel):
     role: Role
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    avatar_url: Optional[str] = None
-    metadata: Optional[dict] = None
+    avatar_url: Optional[AnyHttpUrl] = None
+    metadata: Optional[dict[str, str]] = Field(None, max_length=50)
 
 
 class SupabaseLogin(BaseModel):
@@ -76,5 +76,5 @@ class UpdateProfile(BaseModel):
     email: Optional[EmailStr] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    avatar_url: Optional[str] = None
-    metadata: Optional[dict] = None
+    avatar_url: Optional[AnyHttpUrl] = None
+    metadata: Optional[dict[str, str]] = Field(None, max_length=50)

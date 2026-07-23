@@ -128,7 +128,12 @@ async def remove_member(
     # Members can remove themselves, admins can remove non-owners
     if workspace["user_id"] != user_id and workspace["role"] not in ["admin", "owner"]:
         raise HTTPException(403, "Insufficient permissions to remove other members")
-    return await ctrl.remove_member(workspace["workspace_id"], user_id)
+    return await ctrl.remove_member(
+        workspace["workspace_id"],
+        user_id,
+        actor_id=workspace["user_id"],
+        actor_role=workspace["role"],
+    )
 
 
 @router.get("/api/workspaces/{workspace_id}/invites")

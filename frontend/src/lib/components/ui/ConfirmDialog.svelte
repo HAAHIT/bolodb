@@ -34,6 +34,8 @@
   } = $props();
 
   let typed = $state('');
+  let dialogNode: HTMLElement | null = $state(null);
+  let opener: HTMLElement | null = null;
 
   const canConfirm = $derived(!loading && (!requireText || typed === requireText));
 
@@ -58,16 +60,36 @@
   }
 
   function handleKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') cancel();
+    if (e.key === 'Escape') {
+      cancel();
+    } else if (e.key === 'Tab') {
+      if (!dialogNode) return;
+      const focusable = dialogNode.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        last.focus();
+        e.preventDefault();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        first.focus();
+        e.preventDefault();
+      }
+    }
   }
 
   $effect(() => {
     if (open) {
+      opener = document.activeElement as HTMLElement;
       window.addEventListener('keydown', handleKey);
       document.body.style.overflow = 'hidden';
       return () => {
         window.removeEventListener('keydown', handleKey);
         document.body.style.overflow = '';
+        if (opener) opener.focus();
       };
     }
   });
@@ -75,6 +97,7 @@
 
 {#if open}
   <div
+    bind:this={dialogNode}
     class="backdrop"
     role="dialog"
     aria-modal="true"
@@ -82,7 +105,6 @@
     tabindex="-1"
     data-testid="confirm-dialog"
     onclick={handleBackdrop}
-    onkeydown={handleKey}
   >
     <div class="dialog" class:danger={tone === 'danger'}>
       <h2 id="confirm-title">{title}</h2>

@@ -156,7 +156,9 @@ async def add_panel(
         if role not in ["admin", "owner"]:
             raise HTTPException(403, "Only admins can edit dashboards")
 
-        panel = await ctrl.add_panel(dashboard_id, req.model_dump(exclude_unset=True))
+        panel = await ctrl.add_panel(
+            workspace["workspace_id"], dashboard_id, req.model_dump(exclude_unset=True)
+        )
         return JSONResponse(panel)
     except HTTPException:
         raise
@@ -177,7 +179,9 @@ async def batch_update_panels(
             raise HTTPException(403, "Only admins can edit dashboards")
 
         await ctrl.update_panels_batch(
-            dashboard_id, req.model_dump(exclude_unset=True)["updates"]
+            workspace["workspace_id"],
+            dashboard_id,
+            req.model_dump(exclude_unset=True)["updates"],
         )
         return JSONResponse({"message": "Updated successfully"})
     except HTTPException:
@@ -200,7 +204,10 @@ async def update_panel(
             raise HTTPException(403, "Only admins can edit dashboards")
 
         success = await ctrl.update_panel(
-            dashboard_id, panel_id, req.model_dump(exclude_unset=True)
+            workspace["workspace_id"],
+            dashboard_id,
+            panel_id,
+            req.model_dump(exclude_unset=True),
         )
         if not success:
             raise HTTPException(404, "Panel not found")
@@ -221,7 +228,9 @@ async def delete_panel(
         if role not in ["admin", "owner"]:
             raise HTTPException(403, "Only admins can edit dashboards")
 
-        success = await ctrl.delete_panel(dashboard_id, panel_id)
+        success = await ctrl.delete_panel(
+            workspace["workspace_id"], dashboard_id, panel_id
+        )
         if not success:
             raise HTTPException(404, "Panel not found")
         return JSONResponse({"message": "Deleted successfully"})

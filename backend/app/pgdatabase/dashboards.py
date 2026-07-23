@@ -90,13 +90,22 @@ async def delete_dashboard(workspace_id: str, dashboard_id: str):
             raise
 
 
-async def add_panel(dashboard_id: str, **kwargs):
+async def add_panel(workspace_id: str, dashboard_id: str, **kwargs):
+    wid = _to_uuid(workspace_id)
     did = _to_uuid(dashboard_id)
     if "saved_query_id" in kwargs and kwargs["saved_query_id"]:
         kwargs["saved_query_id"] = _to_uuid(kwargs["saved_query_id"])
 
     async with async_session() as session:
         try:
+            d = await session.execute(
+                select(Dashboard).where(
+                    Dashboard.id == did, Dashboard.workspace_id == wid
+                )
+            )
+            if not d.scalar_one_or_none():
+                raise ValueError("Dashboard not found in workspace")
+
             panel = DashboardPanel(dashboard_id=did, **kwargs)
             session.add(panel)
             await session.commit()
@@ -107,7 +116,8 @@ async def add_panel(dashboard_id: str, **kwargs):
             raise
 
 
-async def update_panel(dashboard_id: str, panel_id: str, **kwargs):
+async def update_panel(workspace_id: str, dashboard_id: str, panel_id: str, **kwargs):
+    wid = _to_uuid(workspace_id)
     did = _to_uuid(dashboard_id)
     pid = _to_uuid(panel_id)
 
@@ -116,6 +126,14 @@ async def update_panel(dashboard_id: str, panel_id: str, **kwargs):
 
     async with async_session() as session:
         try:
+            d = await session.execute(
+                select(Dashboard).where(
+                    Dashboard.id == did, Dashboard.workspace_id == wid
+                )
+            )
+            if not d.scalar_one_or_none():
+                return False
+
             kwargs["updated_at"] = _utcnow()
             result = await session.execute(
                 update(DashboardPanel)
@@ -129,11 +147,20 @@ async def update_panel(dashboard_id: str, panel_id: str, **kwargs):
             raise
 
 
-async def delete_panel(dashboard_id: str, panel_id: str):
+async def delete_panel(workspace_id: str, dashboard_id: str, panel_id: str):
+    wid = _to_uuid(workspace_id)
     did = _to_uuid(dashboard_id)
     pid = _to_uuid(panel_id)
     async with async_session() as session:
         try:
+            d = await session.execute(
+                select(Dashboard).where(
+                    Dashboard.id == did, Dashboard.workspace_id == wid
+                )
+            )
+            if not d.scalar_one_or_none():
+                return False
+
             result = await session.execute(
                 delete(DashboardPanel).where(
                     DashboardPanel.id == pid, DashboardPanel.dashboard_id == did
@@ -146,10 +173,19 @@ async def delete_panel(dashboard_id: str, panel_id: str):
             raise
 
 
-async def update_panels_batch(dashboard_id: str, updates: list):
+async def update_panels_batch(workspace_id: str, dashboard_id: str, updates: list):
+    wid = _to_uuid(workspace_id)
     did = _to_uuid(dashboard_id)
     async with async_session() as session:
         try:
+            d = await session.execute(
+                select(Dashboard).where(
+                    Dashboard.id == did, Dashboard.workspace_id == wid
+                )
+            )
+            if not d.scalar_one_or_none():
+                return False
+
             for u in updates:
                 pid = _to_uuid(u["id"])
                 await session.execute(

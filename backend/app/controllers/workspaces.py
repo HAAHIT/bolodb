@@ -4,6 +4,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 from pydantic import EmailStr, TypeAdapter, ValidationError
+import asyncio
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import aliased
@@ -386,18 +387,7 @@ async def update_member_role(
             raise HTTPException(403, "Cannot assign a role at or above your own level")
 
         if member.role == "owner" and role != "owner":
-            owners_count = await session.scalar(
-                select(func.count())
-                .select_from(WorkspaceMember)
-                .where(
-                    WorkspaceMember.workspace_id == wid,
-                    WorkspaceMember.role == "owner",
-                )
-            )
-            if owners_count <= 1:
-                raise HTTPException(
-                    400, "Cannot change role of the sole workspace owner"
-                )
+            raise HTTPException(400, "Cannot change role of the sole workspace owner")
 
         member.role = role
         await session.commit()
@@ -487,33 +477,57 @@ async def bulk_invite(
     if role not in ["admin", "member"]:
         raise HTTPException(400, "Invalid role for invite")
 
-    results: list[dict] = []
+    results: list[dict] = [{}] * len(emails)
+    valid_tasks = []
+    valid_indices = []
     seen: set[str] = set()
-    for raw in emails:
+
+    sem = asyncio.Semaphore(10)
+
+    async def _invite_worker(email: str):
+        async with sem:
+            try:
+                await invite_user(workspace_id, email, role, inviter_id)
+                return {"email": email, "status": "invited"}
+            except HTTPException as e:
+                detail = str(e.detail or "")
+                status = "already_member" if "already a member" in detail else "failed"
+                return {"email": email, "status": status, "detail": detail}
+
+    for i, raw in enumerate(emails):
         email = _normalize_email(raw)
         if not email:
-            results.append({"email": (raw or "").strip(), "status": "invalid"})
+            results[i] = {"email": (raw or "").strip(), "status": "invalid"}
             continue
         if email in seen:
-            results.append({"email": email, "status": "duplicate"})
+            results[i] = {"email": email, "status": "duplicate"}
             continue
         seen.add(email)
+        valid_indices.append(i)
+        valid_tasks.append(_invite_worker(email))
 
-        try:
-            await invite_user(workspace_id, email, role, inviter_id)
-            results.append({"email": email, "status": "invited"})
-        except HTTPException as e:
-            detail = str(e.detail or "")
-            status = "already_member" if "already a member" in detail else "failed"
-            results.append({"email": email, "status": status, "detail": detail})
+    if valid_tasks:
+        worker_results = await asyncio.gather(*valid_tasks)
+        for idx, res in zip(valid_indices, worker_results):
+            results[idx] = res
 
     invited = sum(1 for r in results if r["status"] == "invited")
     return {"invited": invited, "total": len(results), "results": results}
 
 
-async def remove_member(workspace_id: str, target_user_id: str):
+async def remove_member(
+    workspace_id: str,
+    target_user_id: str,
+    actor_id: str | None = None,
+    actor_role: str = "admin",
+):
     wid = _to_uuid(workspace_id)
     tuid = _to_uuid(target_user_id)
+    actor_uuid = _to_uuid(actor_id) if actor_id else None
+
+    role_rank = {"member": 1, "admin": 2, "owner": 3}
+    actor_rank = role_rank.get(actor_role, 0)
+
     async with async_session() as session:
         result = await session.execute(
             select(WorkspaceMember).where(
@@ -523,6 +537,16 @@ async def remove_member(workspace_id: str, target_user_id: str):
         member = result.scalar_one_or_none()
         if not member:
             raise HTTPException(404, "Member not found")
+
+        target_rank = role_rank.get(member.role, 0)
+
+        if actor_uuid != tuid:
+            if target_rank >= actor_rank:
+                raise HTTPException(
+                    403, "Cannot remove a member at or above your own level"
+                )
+            if actor_rank < role_rank["admin"]:
+                raise HTTPException(403, "Insufficient permissions")
 
         if member.role == "owner":
             owners_count = await session.scalar(
@@ -539,7 +563,7 @@ async def remove_member(workspace_id: str, target_user_id: str):
         await session.delete(member)
         await session.commit()
         await log_activity(
-            workspace_id, None, "member.removed", "member", target_user_id, {}
+            workspace_id, actor_id, "member.removed", "member", target_user_id, {}
         )
         return {"ok": True}
 

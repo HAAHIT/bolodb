@@ -35,29 +35,37 @@
   async function loadDashboard() {
     loading = true;
     error = '';
+    const currentId = dashboardId;
     try {
-      dashboard = await apiCall(`/api/dashboards/${dashboardId}`);
-      await fetchDashboardData();
+      const res = await apiCall(`/api/dashboards/${currentId}`);
+      if (currentId !== dashboardId) return;
+      dashboard = res;
+      await fetchDashboardData(currentId);
       if (pollInterval) clearInterval(pollInterval);
-      pollInterval = setInterval(fetchDashboardData, 60000);
+      pollInterval = setInterval(() => fetchDashboardData(currentId), 60000);
     } catch (e: any) {
+      if (currentId !== dashboardId) return;
       console.error(e);
       error = e.message || 'Failed to load dashboard';
       dashboard = null;
     } finally {
-      loading = false;
+      if (currentId === dashboardId) loading = false;
     }
   }
 
-  async function fetchDashboardData() {
+  async function fetchDashboardData(idToFetch?: string | Event) {
+    const currentId = typeof idToFetch === 'string' ? idToFetch : dashboardId;
     refreshing = true;
     try {
-      panelData = await apiCall(`/api/dashboards/${dashboardId}/data`);
+      const res = await apiCall(`/api/dashboards/${currentId}/data`);
+      if (currentId !== dashboardId) return;
+      panelData = res;
       lastRefreshed = new Date();
     } catch (e) {
+      if (currentId !== dashboardId) return;
       console.error('Failed to load panel data', e);
     } finally {
-      refreshing = false;
+      if (currentId === dashboardId) refreshing = false;
     }
   }
 </script>
