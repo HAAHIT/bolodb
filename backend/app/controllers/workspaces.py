@@ -11,6 +11,8 @@ from sqlalchemy.orm import aliased
 from backend.app.services.email import send_workspace_invite_email
 from backend.app.pgdatabase.engine import async_session
 from backend.app.models.workspace import Workspace, WorkspaceMember, WorkspaceInvite
+from backend.app.models.workspace_settings import WorkspaceSettings
+from backend.app.permissions import resolve_role_permissions
 from backend.app.models.orm_user import User
 from backend.app.pgdatabase.serialization import _to_uuid
 from backend.app.controllers.activity import log_activity
@@ -273,13 +275,22 @@ async def list_members(workspace_id: str):
         ]
 
 
-async def invite_user(workspace_id: str, email: str, role: str, inviter_id: str):
+async def invite_user(workspace_id: str, email: str, role: str | None, inviter_id: str):
     wid = _to_uuid(workspace_id)
     uid = _to_uuid(inviter_id)
-    if role not in ["admin", "member"]:
-        raise HTTPException(400, "Invalid role for invite")
 
     async with async_session() as session:
+        settings_res = await session.execute(
+            select(WorkspaceSettings).where(WorkspaceSettings.workspace_id == wid)
+        )
+        settings = settings_res.scalar_one_or_none()
+        default_role = getattr(settings, "default_invite_role", "member")
+        expiry_days = getattr(settings, "invite_expiry_days", INVITE_EXPIRY_DAYS)
+
+        target_role = role if role else default_role
+        if target_role not in ["admin", "member"]:
+            raise HTTPException(400, "Invalid role for invite")
+
         # Check if user is already a member
         user_exists = await session.execute(select(User).where(User.email == email))
         user = user_exists.scalar_one_or_none()
@@ -294,7 +305,7 @@ async def invite_user(workspace_id: str, email: str, role: str, inviter_id: str)
                 raise HTTPException(400, "User is already a member")
 
         token = generate_invite_code()
-        expires = datetime.now(timezone.utc) + timedelta(days=INVITE_EXPIRY_DAYS)
+        expires = datetime.now(timezone.utc) + timedelta(days=expiry_days)
 
         # Query existing invite for this workspace + email
         existing = await session.execute(
@@ -306,7 +317,7 @@ async def invite_user(workspace_id: str, email: str, role: str, inviter_id: str)
         invite = existing.scalar_one_or_none()
 
         if invite:
-            invite.role = role
+            invite.role = target_role
             invite.token = token
             invite.invited_by = uid
             invite.expires_at = expires
@@ -315,7 +326,7 @@ async def invite_user(workspace_id: str, email: str, role: str, inviter_id: str)
             invite = WorkspaceInvite(
                 workspace_id=wid,
                 email=email,
-                role=role,
+                role=target_role,
                 token=token,
                 invited_by=uid,
                 expires_at=expires,
@@ -336,7 +347,7 @@ async def invite_user(workspace_id: str, email: str, role: str, inviter_id: str)
                 "member.invited",
                 "member",
                 str(invite.id),
-                {"email": email, "role": role},
+                {"email": email, "role": target_role},
             )
             return {
                 "id": str(invite.id),
@@ -674,10 +685,16 @@ async def resend_invite(workspace_id: str, invite_id: str, actor_id: str | None 
         if invite.accepted_at:
             raise HTTPException(400, "Invite has already been accepted")
 
+        settings_res = await session.execute(
+            select(WorkspaceSettings).where(WorkspaceSettings.workspace_id == wid)
+        )
+        settings = settings_res.scalar_one_or_none()
+        expiry_days = getattr(settings, "invite_expiry_days", INVITE_EXPIRY_DAYS)
+
         now = datetime.now(timezone.utc)
         if invite.expires_at < now:
             invite.token = generate_invite_code()
-        invite.expires_at = now + timedelta(days=INVITE_EXPIRY_DAYS)
+        invite.expires_at = now + timedelta(days=expiry_days)
 
         workspace = await session.get(Workspace, wid)
         workspace_name = workspace.name if workspace else None
@@ -736,3 +753,127 @@ async def accept_invite(token: str, user_id: str, user_email: str):
         except IntegrityError:
             await session.rollback()
             raise HTTPException(400, "User is already a member of this workspace")
+
+
+async def get_workspace_settings(workspace_id: str):
+    wid = _to_uuid(workspace_id)
+    async with async_session() as session:
+        result = await session.execute(
+            select(WorkspaceSettings).where(WorkspaceSettings.workspace_id == wid)
+        )
+        settings = result.scalar_one_or_none()
+        if not settings:
+            settings = WorkspaceSettings(workspace_id=wid)
+            session.add(settings)
+            await session.commit()
+            await session.refresh(settings)
+
+        role_perms = settings.role_permissions or {}
+        resolved = {
+            "owner": resolve_role_permissions("owner", role_perms),
+            "admin": resolve_role_permissions("admin", role_perms),
+            "member": resolve_role_permissions("member", role_perms),
+        }
+        return {
+            "workspace_id": str(settings.workspace_id),
+            "default_invite_role": settings.default_invite_role,
+            "invite_expiry_days": settings.invite_expiry_days,
+            "activity_retention_days": settings.activity_retention_days,
+            "role_permissions": role_perms,
+            "resolved_matrix": resolved,
+        }
+
+
+async def update_workspace_settings(
+    workspace_id: str,
+    update_data: dict,
+    actor_id: str | None = None,
+):
+    wid = _to_uuid(workspace_id)
+
+    # Exclude any owner overrides
+    role_perms = update_data.get("role_permissions")
+    if isinstance(role_perms, dict):
+        role_perms = dict(role_perms)
+        role_perms.pop("owner", None)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(WorkspaceSettings).where(WorkspaceSettings.workspace_id == wid)
+        )
+        settings = result.scalar_one_or_none()
+        if not settings:
+            settings = WorkspaceSettings(workspace_id=wid)
+            session.add(settings)
+
+        if (
+            "default_invite_role" in update_data
+            and update_data["default_invite_role"] is not None
+        ):
+            settings.default_invite_role = update_data["default_invite_role"]
+        if (
+            "invite_expiry_days" in update_data
+            and update_data["invite_expiry_days"] is not None
+        ):
+            settings.invite_expiry_days = update_data["invite_expiry_days"]
+        if (
+            "activity_retention_days" in update_data
+            and update_data["activity_retention_days"] is not None
+        ):
+            settings.activity_retention_days = update_data["activity_retention_days"]
+        if role_perms is not None:
+            if isinstance(role_perms, dict):
+                if update_data.get("role_permissions") == {}:
+                    settings.role_permissions = {}
+                else:
+                    current_perms = dict(settings.role_permissions or {})
+                    current_perms.pop("owner", None)
+                    merged = {}
+                    for role_name, perms in current_perms.items():
+                        if role_name != "owner":
+                            merged[role_name] = (
+                                dict(perms) if isinstance(perms, dict) else perms
+                            )
+                    for role_name, perms in role_perms.items():
+                        if role_name == "owner":
+                            continue
+                        if isinstance(perms, dict):
+                            if role_name in merged and isinstance(
+                                merged[role_name], dict
+                            ):
+                                merged[role_name] = {**merged[role_name], **perms}
+                            else:
+                                merged[role_name] = dict(perms)
+                        else:
+                            merged[role_name] = perms
+                    merged.pop("owner", None)
+                    settings.role_permissions = merged
+            else:
+                settings.role_permissions = role_perms
+
+        await session.commit()
+        await session.refresh(settings)
+
+        await log_activity(
+            workspace_id,
+            actor_id,
+            "workspace.settings_updated",
+            "workspace",
+            workspace_id,
+            update_data,
+        )
+
+        curr_perms = settings.role_permissions or {}
+        resolved = {
+            "owner": resolve_role_permissions("owner", curr_perms),
+            "admin": resolve_role_permissions("admin", curr_perms),
+            "member": resolve_role_permissions("member", curr_perms),
+        }
+        return {
+            "workspace_id": str(settings.workspace_id),
+            "default_invite_role": settings.default_invite_role,
+            "invite_expiry_days": settings.invite_expiry_days,
+            "activity_retention_days": settings.activity_retention_days,
+            "role_permissions": curr_perms,
+            "resolved_matrix": resolved,
+        }

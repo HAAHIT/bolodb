@@ -1,9 +1,10 @@
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import DeclarativeBase
 import os
 import time
 import uuid
 from datetime import datetime, timezone
-
-from sqlalchemy.orm import DeclarativeBase
 
 
 def _utcnow():
@@ -26,3 +27,8 @@ def _uuid7():
 
 class Base(DeclarativeBase):
     pass
+
+
+@compiles(JSONB, "sqlite")
+def _compile_jsonb_sqlite(type_, compiler, **kw):
+    return "JSON"

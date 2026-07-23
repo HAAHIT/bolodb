@@ -5,6 +5,8 @@ from sqlalchemy import select
 from backend.app.secrets import get_jwt_secret
 from backend.app.pgdatabase.engine import async_session
 from backend.app.models.workspace import WorkspaceMember
+from backend.app.models.workspace_settings import WorkspaceSettings
+from backend.app.permissions import has_permission
 from backend.app.pgdatabase.serialization import _to_uuid
 
 
@@ -61,6 +63,29 @@ def require_role(minimum_role: str):
         return workspace
 
     return role_dependency
+
+
+def require_permission(permission_key: str):
+    async def permission_dependency(workspace=Depends(get_current_workspace)):
+        if workspace["role"] == "owner":
+            return workspace
+
+        wid = _to_uuid(workspace["workspace_id"])
+        async with async_session() as session:
+            result = await session.execute(
+                select(WorkspaceSettings).where(WorkspaceSettings.workspace_id == wid)
+            )
+            settings = result.scalar_one_or_none()
+
+        role_permissions = getattr(settings, "role_permissions", None)
+        if not has_permission(workspace["role"], role_permissions, permission_key):
+            raise HTTPException(
+                status_code=403, detail=f"Permission '{permission_key}' required"
+            )
+
+        return workspace
+
+    return permission_dependency
 
 
 def get_current_db_id(x_db_id: str = Header(None)):

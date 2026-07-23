@@ -3,6 +3,7 @@ import logging
 from sqlalchemy import select, desc, delete
 from datetime import datetime, timedelta, timezone
 from backend.app.pgdatabase.engine import async_session
+from backend.app.models.workspace_settings import WorkspaceSettings
 from backend.app.models.activity import WorkspaceActivityLog
 from backend.app.models.orm_user import User
 from backend.app.pgdatabase.serialization import _to_uuid
@@ -49,17 +50,24 @@ async def get_workspace_activity(
     except ValueError:
         return []
 
-    cutoff_date = datetime.now(timezone.utc) - timedelta(
-        days=ACTIVITY_LOG_RETENTION_DAYS
-    )
-
     async with async_session() as session:
+        settings_res = await session.execute(
+            select(WorkspaceSettings).where(WorkspaceSettings.workspace_id == wid)
+        )
+        settings = settings_res.scalar_one_or_none()
+        retention_days = getattr(
+            settings, "activity_retention_days", ACTIVITY_LOG_RETENTION_DAYS
+        )
+
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+
         stmt = (
             select(WorkspaceActivityLog, User.email)
             .outerjoin(User, WorkspaceActivityLog.actor_id == User.id)
             .where(WorkspaceActivityLog.workspace_id == wid)
             .where(WorkspaceActivityLog.created_at >= cutoff_date)
         )
+
         if event_type:
             stmt = stmt.where(WorkspaceActivityLog.event_type == event_type)
 
@@ -128,6 +136,13 @@ async def delete_old_activity(retention_days: int | None = None) -> int:
         )
         await session.commit()
         return result.rowcount or 0
+
+
+async def cleanup_old_activity_logs(db=None, retention_days: int | None = None) -> int:
+    """Alias function delegating to ``delete_old_activity`` or returning deleted count."""
+    if isinstance(db, int) and retention_days is None:
+        retention_days = db
+    return await delete_old_activity(retention_days=retention_days)
 
 
 async def activity_cleanup_loop(interval_hours: float | None = None):

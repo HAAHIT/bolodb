@@ -75,3 +75,19 @@ class ActivityLogResponse(BaseModel):
     resource_id: Optional[str] = None
     metadata_: dict[str, Any]
     created_at: datetime
+
+
+class WorkspaceSettingsUpdate(BaseModel):
+    default_invite_role: Optional[RoleLiteral] = None
+    invite_expiry_days: Optional[int] = Field(None, ge=1, le=365)
+    activity_retention_days: Optional[int] = Field(None, ge=1, le=365)
+    role_permissions: Optional[dict[str, Any]] = None
+
+
+class WorkspaceSettingsResponse(BaseModel):
+    workspace_id: str
+    default_invite_role: str
+    invite_expiry_days: int
+    activity_retention_days: int
+    role_permissions: dict[str, Any]
+    resolved_matrix: dict[str, dict[str, bool]]
