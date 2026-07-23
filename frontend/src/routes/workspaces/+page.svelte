@@ -14,38 +14,41 @@
   import LoadingScreen from '$lib/components/ui/LoadingScreen.svelte';
   import ActivityLog from '$lib/components/ActivityLog.svelte';
 
+  type Section = 'general' | 'members' | 'invites' | 'activity' | 'workspaces';
+
   let loading = $state(true);
   let error = $state('');
+  let section = $state<Section>('general');
   let newWorkspaceName = $state('');
   let joinToken = $state('');
   let inviteEmail = $state('');
   let inviteRole = $state('member');
   let members = $state<any[]>([]);
   let invites = $state<any[]>([]);
-
-  let editingWorkspaceId = $state<string | null>(null);
   let editWorkspaceName = $state('');
+  let savingName = $state(false);
+  let inviting = $state(false);
+  let copied = $state(false);
 
   const isAdmin = $derived(
     appState.activeWorkspace?.role === 'admin' ||
-    appState.activeWorkspace?.role === 'owner'
+      appState.activeWorkspace?.role === 'owner',
   );
 
-  async function handleRename(wsId: string) {
-    if (!editWorkspaceName.trim()) return;
-    try {
-      await updateWorkspace(wsId, editWorkspaceName);
-      editingWorkspaceId = null;
-      await loadData();
-    } catch (e: any) {
-      appState.showError(e.message || 'Could not rename workspace');
-    }
-  }
+  const sections = $derived([
+    { id: 'general' as const, label: 'General', desc: 'Name & identity' },
+    { id: 'members' as const, label: 'Members', desc: 'Roles & access' },
+    ...(isAdmin
+      ? [
+          { id: 'invites' as const, label: 'Invitations', desc: 'Add teammates' },
+          { id: 'activity' as const, label: 'Activity', desc: 'Audit trail' },
+        ]
+      : []),
+    { id: 'workspaces' as const, label: 'Workspaces', desc: 'Switch or create' },
+  ]);
 
   onMount(async () => {
-    if (!appState.isLoaded) {
-      await appState.init(false);
-    }
+    if (!appState.isLoaded) await appState.init(false);
     await loadData();
     loading = false;
   });
@@ -55,19 +58,36 @@
       await appState.loadWorkspaces();
       invites = appState.invites || [];
       if (appState.activeWorkspace) {
+        editWorkspaceName = appState.activeWorkspace.name;
         members = await getWorkspaceMembers(appState.activeWorkspace.id);
       }
+      error = '';
     } catch (e: any) {
       error = e.message || 'Could not load workspaces';
+    }
+  }
+
+  async function handleRename() {
+    if (!appState.activeWorkspace || !editWorkspaceName.trim() || !isAdmin) return;
+    savingName = true;
+    try {
+      await updateWorkspace(appState.activeWorkspace.id, editWorkspaceName.trim());
+      await loadData();
+      appState.showToast({ title: 'Workspace updated', body: 'Name saved successfully.' });
+    } catch (e: any) {
+      appState.showError(e.message || 'Could not rename workspace');
+    } finally {
+      savingName = false;
     }
   }
 
   async function handleCreateWorkspace() {
     if (!newWorkspaceName.trim()) return;
     try {
-      await createWorkspace(newWorkspaceName);
+      await createWorkspace(newWorkspaceName.trim());
       newWorkspaceName = '';
       await loadData();
+      appState.showToast({ title: 'Workspace created', body: 'You are the owner.' });
     } catch (e: any) {
       appState.showError(e.message || 'Could not create workspace');
     }
@@ -75,13 +95,23 @@
 
   async function handleInvite() {
     if (!inviteEmail.trim() || !appState.activeWorkspace) return;
+    inviting = true;
     try {
-      await inviteWorkspaceMember(appState.activeWorkspace.id, inviteEmail, inviteRole);
+      await inviteWorkspaceMember(
+        appState.activeWorkspace.id,
+        inviteEmail.trim(),
+        inviteRole,
+      );
       inviteEmail = '';
-      appState.showToast({ title: 'Invite sent', body: `Invited user to workspace as ${inviteRole}.` });
+      appState.showToast({
+        title: 'Invite sent',
+        body: `Invitation emailed as ${inviteRole}.`,
+      });
       await loadData();
     } catch (e: any) {
       appState.showError(e.message || 'Could not send invite');
+    } finally {
+      inviting = false;
     }
   }
 
@@ -96,13 +126,14 @@
   }
 
   async function switchWorkspace(ws: any) {
-    localStorage.setItem("bolodb_active_workspace_id", ws.id);
-    // localStorage.removeItem("bolodb_active_db_id"); // Persist per workspace
+    localStorage.setItem('bolodb_active_workspace_id', ws.id);
     appState.activeWorkspace = ws;
     appState.dbInfo = null;
     appState.isLoaded = false;
     appState.activeConversationId = null;
     await appState.init(true);
+    await loadData();
+    section = 'general';
   }
 
   async function handleUpdateRole(userId: string, newRole: string) {
@@ -117,12 +148,23 @@
 
   async function handleRemoveMember(userId: string) {
     if (!appState.activeWorkspace) return;
-    if (!confirm("Are you sure you want to remove this member?")) return;
+    if (!confirm('Remove this member from the workspace?')) return;
     try {
       await removeWorkspaceMember(appState.activeWorkspace.id, userId);
       await loadData();
     } catch (e: any) {
       appState.showError(e.message || 'Could not remove member');
+    }
+  }
+
+  async function copyWorkspaceId() {
+    if (!appState.activeWorkspace) return;
+    try {
+      await navigator.clipboard.writeText(appState.activeWorkspace.id);
+      copied = true;
+      setTimeout(() => (copied = false), 1600);
+    } catch {
+      appState.showError('Could not copy workspace ID');
     }
   }
 </script>
@@ -132,441 +174,620 @@
 </svelte:head>
 
 {#if loading}
-  <LoadingScreen variant="connect" message="Loading settings…" submessage="" />
+  <LoadingScreen variant="connect" message="Loading workspace settings…" submessage="" />
 {:else}
-<div class="official-layout">
-  <div class="header">
-    <div class="header-logo">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-      <h1>Workspace Settings</h1>
-    </div>
-    <div style="display:flex;align-items:center;gap:12px">
-      <button class="btn btn-ghost" onclick={() => goto('/chat')}>Back to chat</button>
-    </div>
-  </div>
+  <div class="settings-shell">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Administration</p>
+        <h1>Workspace settings</h1>
+        <p class="lede">
+          Manage identity, members, and access for
+          <strong>{appState.activeWorkspace?.name || 'your workspace'}</strong>.
+        </p>
+      </div>
+      <button class="btn ghost" onclick={() => goto('/chat')}>Back to chat</button>
+    </header>
 
-  <div class="content-split">
-    <!-- Main Pane (Active Workspace) -->
-    <div class="main-pane">
-      {#if error}
-        <div class="error-msg">{error}</div>
-      {/if}
+    {#if error}
+      <div class="banner error">{error}</div>
+    {/if}
 
-      {#if appState.activeWorkspace}
-        <div class="section-block">
-          <h2>Active Workspace</h2>
-          <div class="ws-card active-ws-card">
-            <div class="ws-header">
-              <div class="ws-info">
-                {#if editingWorkspaceId === appState.activeWorkspace.id}
-                  <div class="edit-row">
-                    <input type="text" class="input-inline" bind:value={editWorkspaceName} onkeydown={(e) => e.key === 'Enter' && handleRename(appState.activeWorkspace.id)} autofocus />
-                    <button class="btn-inline primary" onclick={() => handleRename(appState.activeWorkspace.id)}>Save</button>
-                    <button class="btn-inline" onclick={() => editingWorkspaceId = null}>Cancel</button>
-                  </div>
-                {:else}
-                  <span class="ws-title">{appState.activeWorkspace.name}</span>
+    {#if invites.length > 0}
+      <div class="banner invite">
+        <div>
+          <strong>{invites.length} pending invitation{invites.length === 1 ? '' : 's'}</strong>
+          <span>Accept to join another workspace.</span>
+        </div>
+        <button class="btn primary sm" onclick={() => (section = 'workspaces')}>Review</button>
+      </div>
+    {/if}
+
+    <div class="layout">
+      <nav class="nav" aria-label="Settings sections">
+        {#each sections as s}
+          <button
+            class="nav-item"
+            class:active={section === s.id}
+            onclick={() => (section = s.id)}
+          >
+            <span class="nav-label">{s.label}</span>
+            <span class="nav-desc">{s.desc}</span>
+          </button>
+        {/each}
+      </nav>
+
+      <main class="main">
+        {#if !appState.activeWorkspace && section !== 'workspaces'}
+          <div class="empty-card">
+            <h3>No active workspace</h3>
+            <p>Create or switch to a workspace to manage settings.</p>
+            <button class="btn primary" onclick={() => (section = 'workspaces')}>
+              Go to workspaces
+            </button>
+          </div>
+        {:else if section === 'general' && appState.activeWorkspace}
+          <section class="panel">
+            <div class="panel-head">
+              <h2>General</h2>
+              <p>Workspace identity visible to all members.</p>
+            </div>
+            <div class="panel-body">
+              <div class="field-row">
+                <div class="field-info">
+                  <label for="ws-name">Display name</label>
+                  <span>Shown in the sidebar and invite emails.</span>
+                </div>
+                <div class="field-control">
+                  <input
+                    id="ws-name"
+                    class="input"
+                    bind:value={editWorkspaceName}
+                    disabled={!isAdmin}
+                  />
                   {#if isAdmin}
-                    <button class="icon-btn" onclick={() => { editingWorkspaceId = appState.activeWorkspace.id; editWorkspaceName = appState.activeWorkspace.name; }} aria-label="Edit name">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                    <button
+                      class="btn primary"
+                      onclick={handleRename}
+                      disabled={savingName || !editWorkspaceName.trim()}
+                    >
+                      {savingName ? 'Saving…' : 'Save'}
                     </button>
                   {/if}
-                {/if}
+                </div>
               </div>
-              <span class="role-badge" data-role={appState.activeWorkspace.role}>{appState.activeWorkspace.role}</span>
+              <div class="divider"></div>
+              <div class="field-row">
+                <div class="field-info">
+                  <label>Your role</label>
+                  <span>Permissions for this workspace.</span>
+                </div>
+                <span class="role-badge" data-role={appState.activeWorkspace.role}>
+                  {appState.activeWorkspace.role}
+                </span>
+              </div>
+              <div class="divider"></div>
+              <div class="field-row">
+                <div class="field-info">
+                  <label>Workspace ID</label>
+                  <span>Use when contacting support.</span>
+                </div>
+                <div class="id-row">
+                  <code>{appState.activeWorkspace.id}</code>
+                  <button class="btn ghost sm" onclick={copyWorkspaceId}>
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+              <div class="divider"></div>
+              <div class="field-row">
+                <div class="field-info">
+                  <label>Members</label>
+                  <span>People with access to this workspace.</span>
+                </div>
+                <span class="stat">{members.length}</span>
+              </div>
             </div>
-            <div class="ws-meta">
-              <span>{members.length} member{members.length === 1 ? '' : 's'}</span>
-              <span>Workspace ID: {appState.activeWorkspace.id.substring(0,8)}...</span>
-            </div>
-          </div>
-        </div>
+          </section>
 
-        <div class="section-block">
-          <h2>Members</h2>
-          <div class="members-list">
-            {#each members as member}
-              <div class="member-row">
-                <div class="member-info">
-                  <div class="member-avatar">{member.email ? member.email.substring(0,2).toUpperCase() : 'U'}</div>
-                  <div>
-                    <div class="member-name">{member.email || member.user_id}</div>
-                    <div class="member-date">Joined {new Date(member.created_at).toLocaleDateString()}</div>
+          <section class="panel muted-panel">
+            <div class="panel-head">
+              <h2>Data & privacy</h2>
+              <p>How BoloDB handles workspace data.</p>
+            </div>
+            <div class="panel-body stack">
+              <div class="policy">
+                <strong>Read-only queries</strong>
+                <span>SQL execution is restricted to SELECT statements.</span>
+              </div>
+              <div class="policy">
+                <strong>Schema-only AI context</strong>
+                <span>Prompts include structure and samples — never bulk rows or credentials.</span>
+              </div>
+              <div class="policy">
+                <strong>Workspace-scoped knowledge</strong>
+                <span>Catalog terms and verified examples stay inside this workspace.</span>
+              </div>
+            </div>
+          </section>
+        {:else if section === 'members' && appState.activeWorkspace}
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Members</h2>
+              <p>Control who can ask questions, manage connections, and edit dashboards.</p>
+            </div>
+            <div class="members">
+              {#each members as member}
+                <div class="member">
+                  <div class="member-left">
+                    <div class="avatar">
+                      {(member.email || 'U').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div class="member-name">{member.email || member.user_id}</div>
+                      <div class="member-meta">
+                        Joined {member.joined_at || member.created_at
+                          ? new Date(member.joined_at || member.created_at).toLocaleDateString()
+                          : '—'}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="member-right">
+                    {#if isAdmin && member.role !== 'owner'}
+                      <select
+                        class="select"
+                        value={member.role}
+                        onchange={(e) =>
+                          handleUpdateRole(member.user_id, e.currentTarget.value)}
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="member">Member</option>
+                      </select>
+                      <button
+                        class="icon-btn"
+                        aria-label="Remove member"
+                        onclick={() => handleRemoveMember(member.user_id)}
+                      >✕</button>
+                    {:else}
+                      <span class="role-badge" data-role={member.role}>{member.role}</span>
+                    {/if}
                   </div>
                 </div>
-                <div class="member-actions">
-                  {#if isAdmin}
-                    <select class="role-select" value={member.role} onchange={(e) => handleUpdateRole(member.user_id, e.currentTarget.value)}>
-                      <option value="owner">Owner</option>
-                      <option value="admin">Admin</option>
-                      <option value="member">Member</option>
-                      <option value="readonly">Read-only</option>
-                    </select>
-                    <button class="icon-btn del-btn" onclick={() => handleRemoveMember(member.user_id)} aria-label="Remove member">✕</button>
+              {/each}
+            </div>
+            <div class="roles-help">
+              <div><strong>Owner</strong> — full control, including billing-level actions.</div>
+              <div><strong>Admin</strong> — manage members, connections, catalog, dashboards.</div>
+              <div><strong>Member</strong> — ask questions and view shared resources.</div>
+            </div>
+          </section>
+        {:else if section === 'invites' && isAdmin && appState.activeWorkspace}
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Invite teammates</h2>
+              <p>Send an email invitation with a role. They’ll join after accepting.</p>
+            </div>
+            <div class="invite-form">
+              <label class="field">
+                <span>Email</span>
+                <input
+                  type="email"
+                  class="input"
+                  placeholder="name@company.com"
+                  bind:value={inviteEmail}
+                />
+              </label>
+              <label class="field">
+                <span>Role</span>
+                <select class="input" bind:value={inviteRole}>
+                  <option value="admin">Admin</option>
+                  <option value="member">Member</option>
+                </select>
+              </label>
+              <button
+                class="btn primary"
+                onclick={handleInvite}
+                disabled={inviting || !inviteEmail.trim()}
+              >
+                {inviting ? 'Sending…' : 'Send invite'}
+              </button>
+            </div>
+          </section>
+        {:else if section === 'activity' && isAdmin}
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Activity log</h2>
+              <p>Recent administrative events in this workspace.</p>
+            </div>
+            <ActivityLog />
+          </section>
+        {:else if section === 'workspaces'}
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Your workspaces</h2>
+              <p>Switch context or create a new workspace for another team.</p>
+            </div>
+            <div class="ws-list">
+              {#each appState.workspaces || [] as ws}
+                <div class="ws-item" class:active={ws.id === appState.activeWorkspace?.id}>
+                  <div>
+                    <div class="ws-name">{ws.name}</div>
+                    <div class="ws-meta">{ws.role}</div>
+                  </div>
+                  {#if ws.id === appState.activeWorkspace?.id}
+                    <span class="pill">Current</span>
                   {:else}
-                    <span class="role-badge" data-role={member.role}>{member.role}</span>
+                    <button class="btn ghost sm" onclick={() => switchWorkspace(ws)}>Switch</button>
                   {/if}
                 </div>
-              </div>
-            {/each}
-          </div>
-        </div>
-
-        {#if isAdmin}
-          <ActivityLog />
-        {/if}
-      {:else}
-        <div class="empty-state">
-          <h3>No Active Workspace</h3>
-          <p>You don't have an active workspace selected. Please create or switch to one.</p>
-        </div>
-      {/if}
-    </div>
-
-    <!-- Right Pane (Invites & Other Workspaces) -->
-    <div class="side-pane">
-      {#if isAdmin}
-        <div class="side-card">
-          <h3>Invite Member</h3>
-          <div class="form-row">
-            <input type="email" class="input" placeholder="User email" bind:value={inviteEmail} />
-          </div>
-          <div class="form-row" style="margin-top:8px">
-            <select class="input" bind:value={inviteRole}>
-              <option value="admin">Admin</option>
-              <option value="member">Member</option>
-              <option value="readonly">Read-only</option>
-            </select>
-            <button class="btn btn-primary" onclick={handleInvite} disabled={!inviteEmail.trim()}>Invite</button>
-          </div>
-        </div>
-      {/if}
-
-      {#if invites.length > 0}
-        <div class="side-card highlight">
-          <h3>Pending Invites ({invites.length})</h3>
-          <div class="invites-list">
-            {#each invites as invite}
-              <div class="invite-item">
-                <div>
-                  <div class="inv-role">Invited as {invite.role}</div>
-                  <div class="inv-id">ID: {invite.workspace_id.substring(0,8)}</div>
-                </div>
-                <button class="btn btn-sm btn-primary" onclick={() => handleAcceptInvite(invite.token)}>Accept</button>
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/if}
-
-      <div class="side-card">
-        <h3>Other Workspaces</h3>
-        <div class="ws-list">
-          {#each (appState.workspaces || []).filter(w => w.id !== appState.activeWorkspace?.id) as ws}
-            <div class="ws-list-item">
-              <div>
-                <div class="ws-list-name">{ws.name}</div>
-                <div class="ws-list-role">{ws.role}</div>
-              </div>
-              <button class="btn btn-sm btn-ghost" onclick={() => switchWorkspace(ws)}>Switch</button>
+              {/each}
             </div>
-          {/each}
-          {#if (appState.workspaces || []).filter(w => w.id !== appState.activeWorkspace?.id).length === 0}
-            <div class="empty-text">No other workspaces.</div>
+          </section>
+
+          {#if invites.length > 0}
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Pending invitations</h2>
+              </div>
+              <div class="ws-list">
+                {#each invites as invite}
+                  <div class="ws-item">
+                    <div>
+                      <div class="ws-name">Invited as {invite.role}</div>
+                      <div class="ws-meta">Workspace {invite.workspace_id?.substring(0, 8)}…</div>
+                    </div>
+                    <button class="btn primary sm" onclick={() => handleAcceptInvite(invite.token)}>
+                      Accept
+                    </button>
+                  </div>
+                {/each}
+              </div>
+            </section>
           {/if}
-        </div>
 
-        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-2)">
-          <h4 style="margin:0 0 8px;font-size:13px;font-weight:600;color:var(--ink)">Create Workspace</h4>
-          <div class="form-row">
-            <input type="text" class="input" placeholder="Workspace name" bind:value={newWorkspaceName} />
-            <button class="btn btn-primary" onclick={handleCreateWorkspace} disabled={!newWorkspaceName.trim()}>Create</button>
-          </div>
-        </div>
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Create workspace</h2>
+              <p>Start a new isolated space for another team or environment.</p>
+            </div>
+            <div class="inline-form">
+              <input
+                class="input"
+                placeholder="e.g. Acme Analytics"
+                bind:value={newWorkspaceName}
+              />
+              <button
+                class="btn primary"
+                onclick={handleCreateWorkspace}
+                disabled={!newWorkspaceName.trim()}
+              >Create</button>
+            </div>
+          </section>
 
-        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-2)">
-          <h4 style="margin:0 0 8px;font-size:13px;font-weight:600;color:var(--ink)">Join Workspace</h4>
-          <div class="form-row">
-            <input type="text" class="input" placeholder="Invite code" bind:value={joinToken} />
-            <button class="btn btn-primary" onclick={() => { handleAcceptInvite(joinToken); joinToken = ''; }} disabled={!joinToken.trim()}>Join</button>
-          </div>
-        </div>
-      </div>
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Join with invite code</h2>
+              <p>Paste a token from an invitation email if you weren’t auto-matched.</p>
+            </div>
+            <div class="inline-form">
+              <input class="input" placeholder="Invite code" bind:value={joinToken} />
+              <button
+                class="btn primary"
+                onclick={() => {
+                  handleAcceptInvite(joinToken);
+                  joinToken = '';
+                }}
+                disabled={!joinToken.trim()}
+              >Join</button>
+            </div>
+          </section>
+        {/if}
+      </main>
     </div>
   </div>
-</div>
 {/if}
 
 <style>
-  .official-layout {
-    width: 100%;
-    max-width: 1200px;
+  .settings-shell {
+    max-width: 1120px;
     margin: 0 auto;
-    padding: 48px 32px;
+    padding: 40px 28px 72px;
     box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    gap: 40px;
   }
-  .header {
+  .top {
     display: flex;
-    align-items: flex-end;
     justify-content: space-between;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 24px;
+    align-items: flex-end;
+    gap: 20px;
+    margin-bottom: 28px;
     flex-wrap: wrap;
-    gap: 16px;
   }
-  .header-logo {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+  .eyebrow {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--faint);
   }
-  .header h1 {
-    font-size: 28px;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    color: var(--ink);
+  h1 {
     margin: 0;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--ink);
   }
-  .content-split {
+  .lede {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14.5px;
+    max-width: 520px;
+    line-height: 1.5;
+  }
+  .lede strong { color: var(--ink-2); }
+  .layout {
     display: grid;
-    grid-template-columns: 1.5fr 1fr;
-    gap: 48px;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 28px;
     align-items: start;
   }
-  @media (max-width: 900px) {
-    .content-split {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .section-block {
-    margin-bottom: 40px;
-  }
-  .section-block h2 {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--ink);
-    margin: 0 0 16px;
-  }
-
-  .ws-card {
-    background: var(--card);
-    border: 1.5px solid var(--brand);
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 8px 24px -12px rgba(var(--brand-rgb), 0.15);
-  }
-  .ws-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-  }
-  .ws-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .ws-title {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--ink);
-  }
-  .ws-meta {
-    display: flex;
-    gap: 16px;
-    font-size: 13px;
-    color: var(--muted);
-  }
-  .role-badge {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 4px 8px;
-    border-radius: 99px;
-    background: var(--surface-3);
-    color: var(--ink);
-  }
-  .role-badge[data-role="owner"] { background: var(--brand-tint); color: var(--brand); }
-  .role-badge[data-role="admin"] { background: var(--surface-3); color: var(--ink); }
-
-  .members-list {
+  .nav {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
+    position: sticky;
+    top: 76px;
   }
-  .member-row {
+  .nav-item {
+    text-align: left;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    gap: 2px;
+    transition: all 0.15s ease;
+  }
+  .nav-item:hover { background: var(--surface-2); }
+  .nav-item.active {
+    background: var(--surface);
+    border-color: var(--border);
+    box-shadow: var(--shadow-sm);
+  }
+  .nav-label { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .nav-desc { font-size: 12px; color: var(--muted); }
+  .main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  .muted-panel { background: var(--surface-2); }
+  .panel-head {
+    padding: 20px 22px 0;
+  }
+  .panel-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 750;
+    color: var(--ink);
+  }
+  .panel-head p {
+    margin: 6px 0 0;
+    font-size: 13.5px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+  .panel-body { padding: 8px 0 10px; }
+  .panel-body.stack { padding: 18px 22px 22px; display: flex; flex-direction: column; gap: 12px; }
+  .field-row {
+    display: flex;
     justify-content: space-between;
-    padding: 12px 16px;
-    background: var(--card);
+    align-items: center;
+    gap: 24px;
+    padding: 16px 22px;
+  }
+  .field-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field-info label { font-size: 14px; font-weight: 650; color: var(--ink); }
+  .field-info span { font-size: 12.5px; color: var(--muted); }
+  .field-control { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+  .divider { height: 1px; background: var(--border); margin: 0 22px; }
+  .input, .select {
+    background: var(--bg);
     border: 1px solid var(--border-2);
     border-radius: 10px;
-  }
-  .member-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .member-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: var(--brand-tint);
-    color: var(--brand);
-    display: grid;
-    place-items: center;
-    font-size: 13px;
-    font-weight: 700;
-  }
-  .member-name {
-    font-size: 14.5px;
-    font-weight: 600;
-    color: var(--ink);
-  }
-  .member-date {
-    font-size: 12px;
-    color: var(--muted);
-  }
-  .member-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .side-pane {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-  }
-  .side-card {
-    background: var(--surface-1);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-  }
-  .side-card.highlight {
-    border-color: var(--brand);
-    background: var(--brand-tint);
-  }
-  .side-card h3 {
-    margin: 0 0 16px;
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--ink);
-  }
-
-  .form-row {
-    display: flex;
-    gap: 8px;
-  }
-
-  .input {
-    flex: 1;
-    background: var(--card);
-    border: 1px solid var(--border-2);
-    border-radius: 8px;
     padding: 10px 12px;
     font-size: 14px;
     color: var(--ink);
     outline: none;
-    transition: border-color 0.2s;
+    min-width: 220px;
   }
-  .input:focus { border-color: var(--brand); }
-
-  .role-select {
-    background: var(--surface-2);
-    border: 1px solid var(--border-2);
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 13px;
-    color: var(--ink);
-    outline: none;
+  .input:focus, .select:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--ring);
   }
-
+  .input:disabled { opacity: 0.65; cursor: not-allowed; }
   .btn {
-    background: var(--surface-3);
-    color: var(--ink);
     border: none;
-    border-radius: 8px;
-    padding: 10px 16px;
-    font-size: 14px;
-    font-weight: 600;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13.5px;
+    font-weight: 650;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
     white-space: nowrap;
   }
-  .btn:hover { filter: brightness(0.95); }
-  .btn-primary { background: var(--brand); color: var(--on-brand); }
-  .btn-primary:hover { filter: brightness(1.1); box-shadow: 0 4px 14px var(--brand-shadow); }
-  .btn-primary:disabled { opacity: 0.7; cursor: default; box-shadow: none; }
-  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
-  .btn-ghost:hover { color: var(--ink); border-color: var(--border-2); }
-  .btn-sm { padding: 6px 12px; font-size: 12.5px; }
-
-  .icon-btn {
+  .btn.primary { background: var(--brand); color: var(--on-brand); }
+  .btn.primary:hover { filter: brightness(1.05); }
+  .btn.primary:disabled { opacity: 0.55; cursor: not-allowed; filter: none; }
+  .btn.ghost {
     background: transparent;
-    border: none;
     color: var(--muted);
-    padding: 4px;
-    border-radius: 6px;
-    cursor: pointer;
-    display: inline-flex;
-    transition: all 0.15s;
+    border: 1px solid var(--border);
   }
-  .icon-btn:hover { background: var(--surface-3); color: var(--ink); }
-  .del-btn:hover { background: var(--c-low-tint); color: var(--low); }
-
-  .input-inline {
-    background: var(--card);
-    border: 1px solid var(--brand);
-    border-radius: 6px;
-    padding: 4px 8px;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--ink);
-    outline: none;
+  .btn.ghost:hover { color: var(--ink); border-color: var(--border-2); }
+  .btn.sm { padding: 7px 12px; font-size: 12.5px; }
+  .role-badge {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--surface-3);
+    color: var(--ink-2);
   }
-  .edit-row { display: flex; gap: 6px; }
-  .btn-inline { background: var(--surface-3); border: none; border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--ink); }
-  .btn-inline.primary { background: var(--brand); color: var(--on-brand); }
-
-  .invites-list, .ws-list {
+  .role-badge[data-role='owner'] { background: var(--brand-tint); color: var(--brand-ink); }
+  .role-badge[data-role='admin'] { background: var(--surface-3); color: var(--ink); }
+  .id-row { display: flex; align-items: center; gap: 8px; max-width: 100%; }
+  .id-row code {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 280px;
+  }
+  .stat { font-size: 18px; font-weight: 800; color: var(--ink); }
+  .policy {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-  }
-  .invite-item, .ws-list-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px;
-    background: var(--card);
-    border: 1px solid var(--border-2);
-    border-radius: 8px;
-  }
-  .inv-role, .ws-list-name { font-size: 13px; font-weight: 600; color: var(--ink); }
-  .inv-id, .ws-list-role { font-size: 11.5px; color: var(--muted); }
-
-  .empty-text { font-size: 13px; color: var(--muted); }
-  .error-msg {
-    color: var(--c-low-ink);
-    background: var(--c-low-tint);
-    padding: 12px 16px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    margin-bottom: 24px;
-  }
-  .empty-state {
-    padding: 48px;
-    text-align: center;
-    background: var(--surface-1);
-    border: 1px dashed var(--border);
+    gap: 3px;
+    padding: 12px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 12px;
+  }
+  .policy strong { font-size: 13.5px; color: var(--ink); }
+  .policy span { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+  .members { display: flex; flex-direction: column; }
+  .member {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 22px;
+    border-top: 1px solid var(--border);
+  }
+  .member:first-child { border-top: none; }
+  .member-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .avatar {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--brand-tint);
+    color: var(--brand-ink);
+    display: grid; place-items: center;
+    font-size: 12px; font-weight: 750;
+    flex-shrink: 0;
+  }
+  .member-name { font-size: 14px; font-weight: 650; color: var(--ink); }
+  .member-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .member-right { display: flex; align-items: center; gap: 8px; }
+  .icon-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .icon-btn:hover { background: var(--c-low-tint); color: var(--c-low-ink); border-color: #ebc6bd; }
+  .roles-help {
+    padding: 14px 22px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--muted);
+    background: var(--surface-2);
+  }
+  .roles-help strong { color: var(--ink-2); }
+  .invite-form {
+    padding: 18px 22px 22px;
+    display: grid;
+    grid-template-columns: 1.4fr 0.8fr auto;
+    gap: 12px;
+    align-items: end;
+  }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field span {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .inline-form {
+    padding: 18px 22px 22px;
+    display: flex;
+    gap: 10px;
+  }
+  .inline-form .input { flex: 1; min-width: 0; }
+  .ws-list { display: flex; flex-direction: column; }
+  .ws-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 22px;
+    border-top: 1px solid var(--border);
+  }
+  .ws-item:first-child { border-top: none; }
+  .ws-item.active { background: rgba(var(--brand-rgb), 0.04); }
+  .ws-name { font-size: 14px; font-weight: 650; color: var(--ink); }
+  .ws-meta { font-size: 12px; color: var(--muted); margin-top: 2px; text-transform: capitalize; }
+  .pill {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--brand-ink);
+    background: var(--brand-tint);
+    padding: 5px 10px;
+    border-radius: 999px;
+  }
+  .banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 18px;
+    font-size: 13.5px;
+  }
+  .banner.error { background: var(--c-low-tint); color: var(--c-low-ink); }
+  .banner.invite {
+    background: var(--brand-tint);
+    color: var(--brand-ink);
+    border: 1px solid var(--brand-tint-2);
+  }
+  .banner.invite span { display: block; font-size: 12.5px; opacity: 0.85; margin-top: 2px; }
+  .empty-card {
+    background: var(--surface);
+    border: 1.5px dashed var(--border);
+    border-radius: 16px;
+    padding: 48px 28px;
+    text-align: center;
+  }
+  .empty-card h3 { margin: 0 0 8px; color: var(--ink); }
+  .empty-card p { margin: 0 0 18px; color: var(--muted); }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    .nav { position: static; flex-direction: row; overflow-x: auto; gap: 6px; }
+    .nav-item { min-width: 140px; }
+    .invite-form { grid-template-columns: 1fr; }
+    .field-row { flex-direction: column; align-items: flex-start; }
+    .field-control { width: 100%; }
+    .field-control .input { flex: 1; min-width: 0; width: 100%; }
   }
 </style>
