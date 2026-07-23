@@ -46,6 +46,8 @@ export interface DbInfo {
   starters?: string[];
   glossary?: GlossaryItem[];
   is_sample?: boolean;
+  /** Set when the connection succeeded but couldn't be saved to the workspace. */
+  save_error?: string;
 }
 
 export interface ThinkingArtifact {

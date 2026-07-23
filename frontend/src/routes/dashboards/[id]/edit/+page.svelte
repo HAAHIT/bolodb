@@ -103,7 +103,7 @@
   }
 </script>
 
-<AppShell activeTab="dash" dbInfo={appState.dbInfo} verifiedCount={appState.verifiedCount} realSchema={appState.realSchema}>
+<AppShell activeTab="dash" dbInfo={appState.dbInfo} verifiedCount={appState.verifiedCount} realSchema={appState.realSchema} activeConversationId={appState.activeConversationId}>
 <div class="page">
   {#if loading && !dashboard}
     <div class="loading"><div class="spinner"></div></div>

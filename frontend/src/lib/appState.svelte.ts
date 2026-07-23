@@ -1,6 +1,6 @@
 import { trustFor, schemaObjToDisplay } from "$lib/data";
-import { apiCall } from "$lib/api";
-import type { DbInfo, SchemaTable, Toast } from "$lib/types";
+import { apiCall, getConversations, listDatabases } from "$lib/api";
+import type { Conversation, DbInfo, SchemaTable, Toast } from "$lib/types";
 import { goto } from "$app/navigation";
 import { browser } from "$app/environment";
 
@@ -22,6 +22,18 @@ class AppState {
   invites = $state<any[]>([]);
   tourCompleted = $state(false);
   // tourCompleted = $state(false);
+
+  /**
+   * The workspace's saved databases and conversations, held here rather than in
+   * the components that show them. Both the sidebar and the database switcher
+   * are re-created on every route change, and re-fetching each time made moving
+   * between chat and dashboards flash empty lists over a page that hadn't
+   * actually changed.
+   */
+  databases = $state<any[]>([]);
+  conversations = $state<Conversation[]>([]);
+  conversationsLoaded = $state(false);
+  databasesLoaded = $state(false);
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -57,6 +69,7 @@ class AppState {
 
   async loadWorkspaces() {
     try {
+      const previousWorkspaceId = this.activeWorkspace?.id;
       this.workspaces = await apiCall("/api/workspaces");
       this.invites = await apiCall("/api/workspaces/invites/me");
       this.announceNewInvites();
@@ -75,9 +88,45 @@ class AppState {
         this.activeWorkspace = null;
         localStorage.removeItem("bolodb_active_workspace_id");
       }
+      if (this.activeWorkspace?.id !== previousWorkspaceId) {
+        this.resetWorkspaceData();
+      }
     } catch (e) {
       console.error("Failed to load workspaces:", e);
     }
+  }
+
+  /**
+   * Load the workspace's saved databases. `force` refetches even when a list is
+   * already held — used after connecting, renaming or removing one.
+   */
+  async loadDatabases(force = false) {
+    if (this.databasesLoaded && !force) return;
+    try {
+      this.databases = await listDatabases();
+      this.databasesLoaded = true;
+    } catch (e) {
+      console.error("Failed to load databases:", e);
+    }
+  }
+
+  async loadConversations(force = false) {
+    if (this.conversationsLoaded && !force) return;
+    try {
+      const res = await getConversations();
+      this.conversations = res?.conversations || [];
+      this.conversationsLoaded = true;
+    } catch (e) {
+      console.error("Failed to load conversations:", e);
+    }
+  }
+
+  /** Drop cached per-workspace data when the active workspace changes. */
+  resetWorkspaceData() {
+    this.databases = [];
+    this.databasesLoaded = false;
+    this.conversations = [];
+    this.conversationsLoaded = false;
   }
 
   private announceNewInvites() {
@@ -105,6 +154,10 @@ class AppState {
 
   async init(redirect: boolean = true) {
     await this.loadWorkspaces();
+    if (this.activeWorkspace) {
+      this.loadDatabases();
+      this.loadConversations();
+    }
     try {
       const s = await apiCall("/api/state");
       this.openrouterReady = s.openrouter_ready ?? false;
@@ -177,6 +230,7 @@ class AppState {
       this.starters = [];
       this.tourCompleted = false;
       this.activeConversationId = null;
+      this.resetWorkspaceData();
     }
   }
 
@@ -192,6 +246,11 @@ class AppState {
       this.dbInfo = res;
       this.verifiedCount = res.trust?.verified || 0;
       if (res.starters) this.starters = res.starters;
+      // The database this just connected has to appear in the switcher and on
+      // the connect screen straight away.
+      this.loadDatabases(true);
+      if (res.save_error)
+        this.showError(res.save_error, "Connection not saved");
       try {
         const schema = await apiCall("/api/schema");
         this.realSchema = schemaObjToDisplay(schema);
@@ -203,7 +262,15 @@ class AppState {
     }
   }
 
-  async switchDatabase(dbId: string) {
+  /**
+   * Reconnect the workspace to `dbId`.
+   *
+   * Switching database normally abandons the open conversation, since its
+   * answers came from the database being left behind. Opening a conversation
+   * that belongs to another database is the exception — that switch exists to
+   * serve the conversation, so it passes `keepConversation`.
+   */
+  async switchDatabase(dbId: string, { keepConversation = false } = {}) {
     if (typeof window !== "undefined") {
       if (this.activeWorkspace)
         localStorage.setItem(
@@ -221,9 +288,10 @@ class AppState {
       if (s.starters) {
         this.starters = s.starters;
       }
-      this.activeConversationId = null;
+      if (!keepConversation) this.activeConversationId = null;
       this.realSchema = null;
       this.fetchSchemaAsync(true);
+      this.loadDatabases(true);
       return true;
     } catch (e: any) {
       console.error("Failed to switch DB:", e);

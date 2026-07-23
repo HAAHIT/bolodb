@@ -53,6 +53,11 @@
 
   onMount(() => {
     appState.fetchStartersAsync();
+    // Arriving from another route (the sidebar on /dashboards, say) carries the
+    // conversation to open in the URL, since that screen has no feed to load it
+    // into itself.
+    const requested = page.url.searchParams.get('conversation');
+    if (requested) handleConversationSelect(requested);
   });
 
   const suggestionChips = $derived(
@@ -86,6 +91,17 @@
     }
     lastDbId = id;
   });
+
+  /**
+   * Adopt a database change as already-seen, so the effect above treats it as
+   * the current state rather than as a switch to clear the feed over. Opening a
+   * conversation recorded against another database switches to it deliberately;
+   * without this, the effect fired straight afterwards and wiped the turns that
+   * had just been restored — which is why past conversations opened blank.
+   */
+  function acknowledgeDbId(id: string | null) {
+    lastDbId = id;
+  }
 
 
   const trust = $derived(trustFor(verifiedCount));
@@ -568,7 +584,12 @@
 
       // Auto-switch database if the conversation belongs to a different one
       if (conv.database_id && dbInfo?.db_id !== conv.database_id) {
-        await appState.switchDatabase(conv.database_id);
+        const switched = await appState.switchDatabase(conv.database_id, {
+          keepConversation: true,
+        });
+        if (seq !== convLoadSeq) return;
+        if (!switched) return; // switchDatabase already explained why
+        acknowledgeDbId(conv.database_id);
       }
 
       activeConversationId = conv._id;

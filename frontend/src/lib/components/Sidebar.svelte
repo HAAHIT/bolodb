@@ -1,7 +1,7 @@
 <script lang="ts">
   import { schema as defaultSchema, trustFor, formatTime } from '$lib/data';
   import type { SchemaTable, DbInfo, Conversation } from '$lib/types';
-  import { getConversations, deleteConversation, clearConversations, renameConversation, createWorkspace } from '$lib/api';
+  import { deleteConversation, clearConversations, renameConversation, createWorkspace } from '$lib/api';
   import { appState } from '$lib/appState.svelte';
   import { goto } from '$app/navigation';
   import { workspaceNameError, WORKSPACE_NAME_MAX } from '$lib/validation';
@@ -24,7 +24,6 @@
     onLogout,
     mobileOpen,
     onClose,
-    databases = [],
   }: {
     activeTab: 'ask' | 'dash' | 'settings';
     onTab: (t: 'ask' | 'dash' | 'settings') => void;
@@ -41,7 +40,6 @@
     onLogout: () => void;
     mobileOpen?: boolean;
     onClose?: () => void;
-    databases?: any[];
   } = $props();
 
   let sidePanel: 'chats' | 'schema' = $state('chats');
@@ -52,8 +50,10 @@
   let showCreateWsModal = $state(false);
   let newWorkspaceName = $state('');
   let creatingWorkspace = $state(false);
-  let conversations: Conversation[] = $state([]);
-  let loadingConvs = $state(true);
+  // Held in appState so the list survives the sidebar being torn down and
+  // rebuilt on every route change.
+  const conversations = $derived(appState.conversations);
+  let loadingConvs = $state(!appState.conversationsLoaded);
 
   const schemaData = $derived(schema && schema.length ? schema : defaultSchema);
   const trust = $derived(trustFor(verifiedCount));
@@ -75,23 +75,27 @@
     { label: 'Settings', icon: '⚙', key: 'settings' },
   ];
 
+  // `conversationTrigger` bumps when a turn is saved; the first run just fills
+  // the cache if some other screen hasn't already.
+  let lastTrigger = -1;
   $effect(() => {
-    conversationTrigger;
-    loadingConvs = true;
-    getConversations()
-      .then((res) => {
-        if (res && res.conversations) conversations = res.conversations;
-      })
-      .catch((e) => console.error(e))
-      .finally(() => {
-        loadingConvs = false;
-      });
+    const trigger = conversationTrigger;
+    const force = lastTrigger !== -1 && trigger !== lastTrigger;
+    lastTrigger = trigger;
+    if (!force && appState.conversationsLoaded) {
+      loadingConvs = false;
+      return;
+    }
+    loadingConvs = !appState.conversationsLoaded;
+    appState.loadConversations(force).finally(() => {
+      loadingConvs = false;
+    });
   });
 
   async function handleClearConvs() {
     try {
       await clearConversations();
-      conversations = [];
+      appState.conversations = [];
     } catch (e) {
       console.error(e);
       appState.showError("Couldn't clear conversations — please try again.");
@@ -102,7 +106,7 @@
     e.stopPropagation();
     try {
       await deleteConversation(id);
-      conversations = conversations.filter((c) => c._id !== id);
+      appState.conversations = conversations.filter((c) => c._id !== id);
       if (id === activeConversationId) {
         onNewChat?.();
       }
@@ -126,7 +130,9 @@
     if (title && title !== (conversations.find((c) => c._id === id)?.title || '')) {
       try {
         await renameConversation(id, title);
-        conversations = conversations.map((c) => (c._id === id ? { ...c, title } : c));
+        appState.conversations = conversations.map((c) =>
+          c._id === id ? { ...c, title } : c,
+        );
       } catch (e) {
         console.error(e);
         appState.showError("Couldn't rename that conversation — please try again.");
@@ -187,16 +193,53 @@
     }
     onTab(t);
   }
+  /**
+   * Routes that aren't /chat (dashboards, for one) mount this sidebar without a
+   * conversation handler, so a click there used to hit a no-op default and look
+   * like a dead button. Hand off through the URL instead — /chat reads
+   * `?conversation=` on the way in and opens it.
+   */
   function selectConversation(id: string) {
+    onClose?.();
+    if (activeTab === 'dash') {
+      appState.activeConversationId = id;
+      goto(`/chat?conversation=${id}`);
+      return;
+    }
     onConversationSelect?.(id);
     onTab('ask');
-    onClose?.();
   }
   function newChat() {
+    onClose?.();
+    sidePanel = 'chats';
+    if (activeTab === 'dash') {
+      appState.activeConversationId = null;
+      goto('/chat');
+      return;
+    }
     onNewChat?.();
     onTab('ask');
-    sidePanel = 'chats';
-    onClose?.();
+  }
+
+  /**
+   * The database a conversation was asked against. The list is keyed by db_id;
+   * a conversation whose database has since been removed from the workspace
+   * still gets a label, so the badge never silently disappears.
+   */
+  function conversationDb(databaseId: string) {
+    return (appState.databases || []).find((d: any) => d.db_id === databaseId);
+  }
+
+  function conversationDbLabel(databaseId: string): string {
+    const db = conversationDb(databaseId);
+    if (!db) return 'removed';
+    return db.alias_name || db.display_url?.split('@').pop()?.split('/')[0] || db.dialect;
+  }
+
+  function conversationDbTitle(databaseId: string): string {
+    const db = conversationDb(databaseId);
+    if (!db) return 'This database is no longer connected to the workspace';
+    return [db.alias_name, db.display_url].filter(Boolean).join(' · ');
   }
 
   function getAvatar(name: string) {
@@ -404,10 +447,9 @@
                   <div style="display:flex;justify-content:space-between;align-items:center;">
                     <span class="convo-title">{cv.title || cv.last_question || 'New conversation'}</span>
                     {#if cv.database_id}
-                      {@const dbMatch = databases.find(d => d.db_id === cv.database_id)}
-                      {#if dbMatch}
-                        <span style="font-size:10px;padding:2px 4px;border-radius:3px;background:var(--border);color:var(--text-light);white-space:nowrap;margin-left:4px;">{dbMatch.alias_name || dbMatch.dialect}</span>
-                      {/if}
+                      <span class="convo-db" title={conversationDbTitle(cv.database_id)}>
+                        {conversationDbLabel(cv.database_id)}
+                      </span>
                     {/if}
                   </div>
                   <span class="convo-meta">{cv.turn_count} turn{cv.turn_count === 1 ? '' : 's'} · {formatTime(cv.updated_at)}</span>
@@ -760,8 +802,25 @@
   }
   .convo:hover { background: var(--surface-2); color: var(--ink); }
   .convo.active { background: var(--surface-2); color: var(--ink); }
-  .convo-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .convo-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
   .convo-meta { font-size: 10.5px; color: var(--faint); font-weight: 400; }
+  /* Which database a conversation was asked against. Sits right of the title,
+     and never grows enough to squeeze it out. */
+  .convo-db {
+    flex-shrink: 0;
+    max-width: 84px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 2px 5px;
+    margin-left: 6px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--muted);
+  }
   .convo-del {
     position: absolute;
     right: 6px;

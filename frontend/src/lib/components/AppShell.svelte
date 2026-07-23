@@ -10,7 +10,7 @@
   import type { Snippet } from 'svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import InviteBell from '$lib/components/ui/InviteBell.svelte';
-  import { apiCall, listDatabases } from '$lib/api';
+  import { apiCall } from '$lib/api';
   import { appState } from '$lib/appState.svelte';
   import type { DbInfo, SchemaTable } from '$lib/types';
 
@@ -42,16 +42,26 @@
     children: Snippet;
   } = $props();
 
-  let databases = $state<any[]>([]);
+  // Shared, so connecting a database on one screen shows up in the switcher on
+  // every other screen without each of them fetching the list again.
+  const databases = $derived(appState.databases);
   let showDbDropdown = $state(false);
   let mobileNavOpen = $state(false);
   let userEmail = $state('');
   let switchingDbId = $state<string | null>(null);
 
+  /**
+   * What to call the connected database in the header. The alias the user gave
+   * it wins; `/api/state` and `/api/connect` both return it, and the saved
+   * connection list is the backstop for a `dbInfo` from an older response that
+   * predates the field. Only then fall back to the database name in the URL.
+   */
   const dbLabel = $derived(
-    dbInfo
-      ? (dbInfo.url || '').split('/').pop() || dbInfo.dialect || 'your database'
-      : 'your database',
+    dbInfo?.alias_name ||
+      databases.find((d: any) => d.db_id === dbInfo?.db_id)?.alias_name ||
+      (dbInfo?.url || '').split('/').pop() ||
+      dbInfo?.dialect ||
+      'your database',
   );
   const tableCount = $derived(dbInfo ? dbInfo.tables || 0 : 0);
   const canAddDatabase = $derived(
@@ -85,11 +95,7 @@
       const res = await apiCall('/api/auth/me');
       userEmail = res?.content?.email || '';
     } catch {}
-    try {
-      databases = await listDatabases();
-    } catch (e) {
-      console.error('Failed to list databases', e);
-    }
+    appState.loadDatabases();
   });
 
   // Close the mobile drawer when the viewport leaves the mobile breakpoint,
@@ -126,7 +132,6 @@
     {verifiedCount}
     schema={realSchema}
     {dbInfo}
-    {databases}
     {conversationTrigger}
     {activeConversationId}
     {onConversationSelect}
@@ -165,7 +170,7 @@
           >
             <span class="db-icon">🗄</span>
             <div style="display:flex;flex-direction:column;align-items:flex-start">
-              <span class="db-name mono">{dbInfo?.alias_name || dbLabel}</span>
+              <span class="db-name mono">{dbLabel}</span>
               <span class="db-sub">{tableCount > 0 ? `${tableCount} table${tableCount === 1 ? '' : 's'} · ` : ''}read-only</span>
             </div>
             <svg class="dd-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>

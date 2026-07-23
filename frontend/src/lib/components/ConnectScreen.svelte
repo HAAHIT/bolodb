@@ -4,7 +4,6 @@
   import type { DbInfo } from "$lib/types";
   import { appState } from "$lib/appState.svelte";
   import posthog from "posthog-js";
-  import { onMount } from "svelte";
   import LoadingScreen from '$lib/components/ui/LoadingScreen.svelte';
 
   let {
@@ -26,8 +25,12 @@
   let dbAlias = $state("");
   let connecting: string | null = $state(null);
   let error = $state("");
-  let recentConnections: any[] = $state([]);
-  let loadingConnections = $state(true);
+  // The workspace's saved databases come from appState, which reloads them
+  // after every connect, rename and removal. Fetching separately here meant
+  // this screen could show a stale list — most visibly, a database connected a
+  // moment ago missing from it.
+  const recentConnections = $derived(appState.databases);
+  let loadingConnections = $state(!appState.databasesLoaded);
   let reconnecting: string | null = $state(null);
 
   let editingAliasId = $state<string | null>(null);
@@ -42,8 +45,7 @@
     if (!editAliasValue.trim()) return;
     try {
       await updateConnectionAlias(connId, editAliasValue);
-      const data = await apiCall("/api/connections");
-      recentConnections = data.connections || [];
+      await appState.loadDatabases(true);
       editingAliasId = null;
     } catch(e: any) {
       error = "Failed to rename alias.";
@@ -53,16 +55,20 @@
   async function loadRecentConnections() {
     loadingConnections = true;
     try {
-      const data = await apiCall("/api/connections");
-      recentConnections = data.connections || [];
-    } catch (e) {
-      console.error("Failed to load recent connections:", e);
+      await appState.loadDatabases(true);
     } finally {
       loadingConnections = false;
     }
   }
 
-  onMount(() => {
+  // Keyed on the active workspace: landing here directly (a refresh, a shared
+  // link) can mount this component before workspaces have loaded, and the
+  // request needs the workspace header to return anything at all.
+  let loadedForWorkspace: string | null = null;
+  $effect(() => {
+    const workspaceId = appState.activeWorkspace?.id ?? null;
+    if (!workspaceId || workspaceId === loadedForWorkspace) return;
+    loadedForWorkspace = workspaceId;
     loadRecentConnections();
   });
 
@@ -127,9 +133,10 @@
   async function removeRecent(conn: any) {
     try {
       await apiCall(`/api/connections/${conn.id}`, undefined, "DELETE");
-      recentConnections = recentConnections.filter((c) => c.id !== conn.id);
+      appState.databases = recentConnections.filter((c) => c.id !== conn.id);
     } catch (e) {
       console.error("Failed to remove recent connection:", e);
+      error = "Couldn't remove that connection — please try again.";
     }
   }
 
@@ -286,7 +293,7 @@
             data-testid="connect-sample-card"
           >
             <span class="c-title">Try the sample store</span>
-            <span class="c-desc">No database handy? Explore a realistic demo shop — zero setup.</span>
+            <span class="c-desc">No database handy? Explore a realistic webshop — zero setup.</span>
             <span class="c-tag faint">INSTANT · NO SIGNUP DATA</span>
           </button>
         </div>
@@ -311,9 +318,9 @@
           <div class="sample-info">
             <span class="s-icon">🛍️</span>
             <div>
-              <strong>Retail Sample Store</strong><br />
+              <strong>Sample Webshop</strong><br />
               <span style="opacity:0.8;font-size:12.5px"
-                >10 tables • 50,000+ rows • Instant setup</span
+                >10 tables • 1,000 customers • 2,000 orders • Instant setup</span
               >
             </div>
           </div>
