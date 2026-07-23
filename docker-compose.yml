@@ -9,7 +9,7 @@ services:
       - "4321"
     volumes:
       - bolodb-data:/home/bolodb/.bolodb
-      - ./data:/app/data
+      - bolodb-app-data:/app/data
     environment:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:?OPENROUTER_API_KEY must be set}
@@ -34,8 +34,6 @@ services:
       - bolodb-net
 
   # ── Nginx: static frontend + /api reverse proxy ──
-  # Production / Coolify: no separate Vite container. Frontend is baked
-  # into this image at build time (see nginx/DOCKERFILE).
   nginx:
     build:
       context: .
@@ -56,6 +54,7 @@ volumes:
   bolodb-data:
   bolodb-postgres-data:
   bolodb-postgres-wal:
+  bolodb-app-data:
 
 networks:
   bolodb-net:
