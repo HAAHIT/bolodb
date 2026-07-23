@@ -328,36 +328,46 @@ class KnowledgeService:
             for t in [
                 {
                     "term": "Revenue",
-                    "maps_to": "orders.total_amount",
-                    "sql_hint": "Sum of total_amount on orders with status = completed",
+                    "maps_to": "orders.total",
+                    "sql_hint": "Sum of orders.total, which already includes every order position",
                 },
                 {
                     "term": "Active customer",
-                    "maps_to": "orders.created_at",
+                    "maps_to": "orders.ordertimestamp",
                     "sql_hint": "A customer with at least one order in the last 90 days",
                 },
                 {
+                    "term": "Article",
+                    "maps_to": "articles.productid",
+                    "sql_hint": "One product in a specific size and colour — products group articles",
+                },
+                {
                     "term": "Top product",
-                    "maps_to": "order_items.quantity",
-                    "sql_hint": "Product ranked by units sold (sum of quantity)",
+                    "maps_to": "order_positions.amount",
+                    "sql_hint": "Product ranked by units sold: sum of order_positions.amount, joined through articles",
                 },
             ]:
                 session.add(Glossary(workspace_id=workspace_id, db_id=db_id, **t))
             for q, s, r in [
                 (
-                    "How many orders were completed last month?",
-                    "SELECT COUNT(*) AS completed_orders\nFROM orders\nWHERE status = 'completed'\n  AND created_at >= date('now','start of month','-1 month')\n  AND created_at <  date('now','start of month');",
-                    "Count of orders with status 'completed' created in the previous calendar month",
+                    "How many orders were placed last month?",
+                    "SELECT COUNT(*) AS orders_placed\nFROM orders\nWHERE ordertimestamp >= date('now','start of month','-1 month')\n  AND ordertimestamp <  date('now','start of month');",
+                    "Count of orders placed in the previous calendar month",
                 ),
                 (
                     "Which product category brings in the most revenue?",
-                    "SELECT p.category, ROUND(SUM(oi.quantity*oi.unit_price)) AS revenue\nFROM order_items oi\nJOIN products p ON p.id = oi.product_id\nJOIN orders   o ON o.id = oi.order_id\nWHERE o.status = 'completed'\nGROUP BY p.category\nORDER BY revenue DESC;",
+                    "SELECT p.category, ROUND(SUM(op.amount * op.price), 2) AS revenue\nFROM order_positions op\nJOIN articles a ON a.id = op.articleid\nJOIN products p ON p.id = a.productid\nGROUP BY p.category\nORDER BY revenue DESC;",
                     "Total revenue per product category, highest first",
                 ),
                 (
-                    "How many customers do we have in each segment?",
-                    "SELECT segment, COUNT(*) AS customers\nFROM customers\nGROUP BY segment\nORDER BY customers DESC;",
-                    "Count of customers grouped by segment",
+                    "Who are our top 10 customers by total spend?",
+                    "SELECT c.firstname || ' ' || c.lastname AS customer, ROUND(SUM(o.total), 2) AS total_spend\nFROM orders o\nJOIN customers c ON c.id = o.customerid\nGROUP BY c.id\nORDER BY total_spend DESC\nLIMIT 10;",
+                    "The ten customers with the highest sum of order totals",
+                ),
+                (
+                    "Which articles are out of stock?",
+                    "SELECT a.id, a.description, s.count AS in_stock\nFROM articles a\nJOIN stock s ON s.articleid = a.id\nWHERE s.count = 0\n  AND a.currentlyactive = 1;",
+                    "Active articles whose stock count has reached zero",
                 ),
             ]:
                 session.add(
