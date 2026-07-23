@@ -13,6 +13,12 @@
   } from "$lib/types";
   import { goto } from "$app/navigation";
   import Sidebar from "$lib/components/Sidebar.svelte";
+
+  function handleWindowClick() {
+    if (showDbDropdown) {
+      showDbDropdown = false;
+    }
+  }
   import AnswerCard from "$lib/components/AnswerCard.svelte";
   import DashboardTab from "$lib/components/DashboardTab.svelte";
   import SettingsTab from "$lib/components/SettingsTab.svelte";
@@ -619,6 +625,8 @@
     onClose={() => (mobileNavOpen = false)}
   />
 
+  <svelte:window onclick={handleWindowClick} />
+
   {#if mobileNavOpen}
     <button
       class="nav-backdrop"
@@ -639,7 +647,7 @@
       <!-- db header -->
       <div class="db-header">
         <div class="db-dropdown-wrapper">
-          <button class="db-dropdown-btn" aria-expanded={showDbDropdown} onclick={() => showDbDropdown = !showDbDropdown}>
+          <button class="db-dropdown-btn" aria-expanded={showDbDropdown} onclick={(e) => { e.stopPropagation(); showDbDropdown = !showDbDropdown; }}>
             <span class="db-icon">🗄</span>
             <div style="display:flex;flex-direction:column;align-items:flex-start">
               <span class="db-name mono">{dbInfo?.alias_name || dbLabel}</span>
@@ -667,7 +675,7 @@
                 </button>
               {/if}
             </div>
-            <button class="nav-backdrop" style="z-index:9;background:transparent" onclick={() => showDbDropdown = false}></button>
+            <!-- nav-backdrop is replaced by svelte:window click listener for desktop support -->
           {/if}
         </div>
       </div>
