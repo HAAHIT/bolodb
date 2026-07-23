@@ -1,6 +1,6 @@
 <script lang="ts">
   import { trustFor } from "$lib/data";
-  import { apiCall, rowsToArrays, streamApiCall, createConversation, getConversation, listDatabases } from "$lib/api";
+  import { apiCall, rowsToArrays, streamApiCall, createConversation, getConversation } from "$lib/api";
   import type {
     Turn,
     SchemaTable,
@@ -11,16 +11,9 @@
     Conversation,
     ConversationTurn,
   } from "$lib/types";
-  import { goto } from "$app/navigation";
-  import Sidebar from "$lib/components/Sidebar.svelte";
-
-  function handleWindowClick() {
-    if (showDbDropdown) {
-      showDbDropdown = false;
-    }
-  }
+  import { page } from "$app/state";
+  import AppShell from "$lib/components/AppShell.svelte";
   import AnswerCard from "$lib/components/AnswerCard.svelte";
-  import DashboardTab from "$lib/components/DashboardTab.svelte";
   import SettingsTab from "$lib/components/SettingsTab.svelte";
   import TrustToast from "$lib/components/TrustToast.svelte";
   import Spinner from '$lib/components/ui/Spinner.svelte';
@@ -53,33 +46,17 @@
     onActiveConversationChange?: (id: string | null) => void;
   } = $props();
 
-  const dbLabel = $derived(
-    dbInfo
-      ? (dbInfo.url || "").split("/").pop() || dbInfo.dialect || "your database"
-      : "your database",
-  );
-  const tableCount = $derived(dbInfo ? dbInfo.tables || 0 : 0);
   let turns: Turn[] = $state([]);
   let input = $state("");
-  let tab = $state<"ask" | "dash" | "settings">("ask");
-  let userEmail = $state("");
+  // ?tab=settings lets the sidebar land directly on Settings when coming back
+  // from a route that isn't /chat.
+  let tab = $state<"ask" | "settings">(
+    page.url.searchParams.get("tab") === "settings" ? "settings" : "ask",
+  );
   let openCatalogTrigger = $state(0);
 
-  let databases = $state<any[]>([]);
-  let isSwitchingDb = $state(false);
-  let showDbDropdown = $state(false);
-
-  onMount(async () => {
+  onMount(() => {
     appState.fetchStartersAsync();
-    try {
-      const res = await apiCall("/api/auth/me");
-      userEmail = res?.content?.email || "";
-    } catch {}
-    try {
-      databases = await listDatabases();
-    } catch (e) {
-      console.error("Failed to list databases", e);
-    }
   });
 
   const suggestionChips = $derived(
@@ -97,7 +74,21 @@
   let lastTurnCount = 0;
   let convLoadSeq = 0;
   let convLoading = $state(false); // true only while fetching a past conversation
-  let mobileNavOpen = $state(false);
+
+  // The database can be switched from the shared shell on any screen, so the
+  // feed reacts to the active database changing rather than to the click.
+  let lastDbId: string | null = null;
+  $effect(() => {
+    const id = dbInfo?.db_id ?? null;
+    if (lastDbId !== null && id !== lastDbId) {
+      abortController?.abort();
+      turns = [];
+      activeConversationId = null;
+      onActiveConversationChange(null);
+    }
+    lastDbId = id;
+  });
+
 
   const trust = $derived(trustFor(verifiedCount));
 
@@ -339,6 +330,7 @@
           rows: rowsToArrays(data.columns || [], data.rows || []),
           confidence: data.confidence || "medium",
           reason: data.confidence_reason || "",
+          chart: data.chart || null,
           basedOn: data.based_on_verified || false,
           query_id: data.query_id || id,
           executionError: data.execution_error || null,
@@ -519,6 +511,7 @@
       })),
       confidence: (t.confidence || 'medium').toLowerCase() as "high" | "medium" | "low",
       reason: '',
+      chart: t.chart || null,
       basedOn: false,
       query_id: t._id,
       executionError: null,
@@ -564,122 +557,23 @@
     }
   }
 
-  async function handleSwitchDb(dbId: string) {
-    showDbDropdown = false;
-    if (dbId === dbInfo?.db_id) return;
-
-    abortController?.abort();
-    loading = true;
-    isSwitchingDb = true;
-    turns = [];
-    activeConversationId = null;
-    onActiveConversationChange(null);
-    try {
-      await appState.switchDatabase(dbId);
-    } finally {
-      loading = false;
-      isSwitchingDb = false;
-    }
-  }
-
   function handleSubmit(e: Event) {
     e.preventDefault();
     ask();
   }
-
-  // Close mobile nav when viewport leaves mobile breakpoint
-  onMount(() => {
-    if (typeof window !== 'undefined') {
-      const mediaQuery = window.matchMedia('(max-width: 768px)');
-      const handleMediaChange = (e: MediaQueryListEvent | MediaQueryList) => {
-        if (!e.matches) {
-          mobileNavOpen = false;
-        }
-      };
-      // Initial check
-      handleMediaChange(mediaQuery);
-      // Listen for changes
-      mediaQuery.addEventListener('change', handleMediaChange);
-      return () => mediaQuery.removeEventListener('change', handleMediaChange);
-    }
-  });
 </script>
-<svelte:window onclick={handleWindowClick} />
-<div class="app-root">
-  <Sidebar
-    activeTab={tab}
-    onTab={(t) => (tab = t)}
-    {verifiedCount}
-    schema={realSchema}
-    {dbInfo}
-    {databases}
-    {conversationTrigger}
-    {activeConversationId}
-    onConversationSelect={handleConversationSelect}
-    onNewChat={handleNewConversation}
-    {userEmail}
-    theme={appState.theme as "light" | "dark"}
-    onToggleTheme={() => appState.toggleTheme()}
-    onLogout={() => appState.logout()}
-    mobileOpen={mobileNavOpen}
-    onClose={() => (mobileNavOpen = false)}
-  />
-
-
-
-  {#if mobileNavOpen}
-    <button
-      class="nav-backdrop"
-      aria-label="Close menu"
-      onclick={() => (mobileNavOpen = false)}
-    ></button>
-  {/if}
-
-  <main class="main">
-    <!-- mobile top bar: hamburger + brand (mobile only) -->
-    <div class="mobile-topbar">
-      <button class="hamburger" aria-label="Open menu" onclick={() => (mobileNavOpen = true)}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      </button>
-      <span class="mobile-brand">Bolo<span style="color:var(--brand)">DB</span></span>
-    </div>
+<AppShell
+  activeTab={tab}
+  onTab={(t) => (tab = t as "ask" | "settings")}
+  {dbInfo}
+  {verifiedCount}
+  {realSchema}
+  {conversationTrigger}
+  {activeConversationId}
+  onConversationSelect={handleConversationSelect}
+  onNewChat={handleNewConversation}
+>
     {#if tab === "ask"}
-      <!-- db header -->
-      <div class="db-header">
-        <div class="db-dropdown-wrapper">
-          <button class="db-dropdown-btn" aria-expanded={showDbDropdown} onclick={(e) => { e.stopPropagation(); showDbDropdown = !showDbDropdown; }}>
-            <span class="db-icon">🗄</span>
-            <div style="display:flex;flex-direction:column;align-items:flex-start">
-              <span class="db-name mono">{dbInfo?.alias_name || dbLabel}</span>
-              <span class="db-sub">{tableCount > 0 ? `${tableCount} table${tableCount === 1 ? "" : "s"} · ` : ""}read-only</span>
-            </div>
-            <svg class="dd-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
-          </button>
-          {#if showDbDropdown}
-            <div class="db-dropdown-menu">
-              {#each databases as db}
-                <button class="db-dropdown-item {db.db_id === dbInfo?.db_id ? 'active' : ''}" onclick={() => handleSwitchDb(db.db_id)}>
-                  <div style="display:flex;flex-direction:column;align-items:flex-start">
-                    <span class="db-item-name">{db.alias_name || db.db_url.split('/').pop()}</span>
-                    <span class="db-item-url mono">{db.dialect}</span>
-                  </div>
-                  {#if db.db_id === dbInfo?.db_id}
-                    <span class="db-check">✓</span>
-                  {/if}
-                </button>
-              {/each}
-              <div class="db-dropdown-div"></div>
-              {#if appState.activeWorkspace?.role === 'admin' || appState.activeWorkspace?.role === 'owner'}
-                <button class="db-dropdown-item" style="color:var(--brand)" onclick={() => goto('/connect')}>
-                  <span class="db-item-name">+ Connect new database</span>
-                </button>
-              {/if}
-            </div>
-            <!-- nav-backdrop is replaced by svelte:window click listener for desktop support -->
-          {/if}
-        </div>
-      </div>
-
       <!-- feed -->
       <div bind:this={feedRef} onscroll={onFeedScroll} class="feed">
         {#if convLoading}
@@ -688,7 +582,7 @@
             submessage="Fetching your previous results"
             variant="default"
           />
-        {:else if isSwitchingDb}
+        {:else if appState.switchingDatabase}
           <LoadingScreen
             message="Switching database…"
             submessage="Connecting securely to your data"
@@ -773,8 +667,6 @@
       </div>
 
       {#if toast}<TrustToast {toast} />{/if}
-    {:else if tab === "dash"}
-      <DashboardTab {verifiedCount} {dbInfo} />
     {:else}
       <SettingsTab
         {dbInfo}
@@ -784,105 +676,9 @@
         {openCatalogTrigger}
       />
     {/if}
-  </main>
-</div>
+</AppShell>
 
 <style>
-  .app-root {
-    display: flex;
-    height: 100%;
-    overflow: hidden;
-  }
-  .main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    position: relative;
-    min-width: 0;
-  }
-  .db-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    padding: 12px 24px;
-    border-bottom: 1px solid var(--border);
-    background: var(--card-2);
-    position: relative;
-    z-index: 20;
-  }
-  .db-dropdown-wrapper {
-    position: relative;
-  }
-  .db-dropdown-btn {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: transparent;
-    border: none;
-    padding: 6px;
-    margin: -6px;
-    border-radius: 8px;
-    cursor: pointer;
-    text-align: left;
-    transition: background 0.15s;
-  }
-  .db-dropdown-btn:hover { background: var(--surface); }
-  .db-dropdown-btn[aria-expanded="true"] .dd-chevron { transform: rotate(180deg); }
-  .dd-chevron {
-    color: var(--muted);
-    transition: transform 0.2s;
-    margin-left: 8px;
-  }
-  .db-dropdown-menu {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    margin-top: 12px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    box-shadow: var(--shadow-lg);
-    width: 280px;
-    padding: 6px;
-    z-index: 50;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .db-dropdown-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    text-align: left;
-    padding: 10px 12px;
-    border: none;
-    background: transparent;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background 0.1s;
-  }
-  .db-dropdown-item:hover { background: var(--surface); }
-  .db-dropdown-item.active { background: var(--brand-tint); }
-  .db-dropdown-div { height: 1px; background: var(--border-2); margin: 4px 6px; }
-  .db-item-name { font-size: 13.5px; font-weight: 600; color: var(--ink); }
-  .db-item-url { font-size: 11px; color: var(--muted); margin-top: 2px; }
-  .db-check { color: var(--brand); font-weight: 700; font-size: 14px; }
-
-  .db-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 9px;
-    background: var(--surface-2);
-    font-size: 13px;
-  }
-  .db-name { font-size: 13px; font-weight: 600; color: var(--ink); }
-  .db-sub { font-size: 11.5px; color: var(--faint); }
   .feed { flex: 1; overflow-y: auto; padding: 36px 32px 20px; position: relative; }
   .feed-inner { max-width: 760px; margin: 0 auto; }
   .empty {
@@ -1028,58 +824,7 @@
     color: var(--faint);
   }
 
-  /* mobile top bar — hidden on desktop */
-  .mobile-topbar {
-    display: none;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--border);
-    background: var(--card-2);
-  }
-  .hamburger {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    border: 1px solid var(--border-2);
-    background: transparent;
-    color: var(--ink);
-    cursor: pointer;
-  }
-  .mobile-brand {
-    font-weight: 800;
-    font-size: 15px;
-    letter-spacing: -0.02em;
-    color: var(--ink);
-  }
-  .nav-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 55;
-    border: none;
-    padding: 0;
-    background: rgba(0, 0, 0, 0.45);
-    cursor: pointer;
-    animation: fadeIn 0.2s ease both;
-  }
-  @media (min-width: 769px) {
-    .nav-backdrop {
-      display: none;
-      pointer-events: none;
-    }
-  }
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
   @media (max-width: 768px) {
-    .mobile-topbar { display: flex; }
-    .db-header { padding: 10px 16px; }
-    .switch-db { padding: 6px 11px; }
     .feed { padding: 20px 16px 16px; }
     .empty { padding-top: 6vh; }
     .empty-title { font-size: clamp(1.5rem, 7vw, 2rem); }

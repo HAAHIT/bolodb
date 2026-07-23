@@ -10,7 +10,7 @@
   import Thinking from '$lib/components/Thinking.svelte';
   import Flywheel from '$lib/components/Flywheel.svelte';
   import SaveQueryDialog from '$lib/components/SaveQueryDialog.svelte';
-  import { detectChartData } from '$lib/components/charts/chartUtils';
+  import { detectChartData, planChart } from '$lib/components/charts/chartUtils';
 
   let { turn, onVerify, isLatest, liveArtifacts, onRegenerate, onEditPrompt }:
     {
@@ -30,9 +30,28 @@
   let copyFeedback = $state<'response' | 'prompt' | null>(null);
   let showSaveDialog = $state(false);
 
+  const stringRows = $derived((turn.rows || []).map(r => r.map(String)));
+
+  // The model picks the chart from the SQL it wrote, so trust it when it made a
+  // call; the local heuristic only covers turns that have no chart spec.
+  const modelPlan = $derived(planChart(turn.chart, turn.columns || [], stringRows));
   const hasChartData = $derived(
-    detectChartData(turn.columns || [], (turn.rows || []).map(r => r.map(String))) !== null
+    modelPlan !== null ||
+      detectChartData(turn.columns || [], stringRows) !== null
   );
+  // "table" is a deliberate choice by the model, not an absent one — respect it.
+  const modelWantsChart = $derived(!!turn.chart && turn.chart.type !== 'table' && modelPlan !== null);
+
+  // Open on the chart when the model asked for one, without pinning the toggle.
+  let userPickedView = $state(false);
+  const effectiveView = $derived(
+    userPickedView ? viewMode : (modelWantsChart ? 'chart' : 'table')
+  );
+
+  function toggleView() {
+    userPickedView = true;
+    viewMode = effectiveView === 'table' ? 'chart' : 'table';
+  }
 
   function yes() { justVerified = true; onVerify(turn.id, 'correct', null); setTimeout(() => justVerified = false, 1600); }
   function no(reason: string) { showReasons = false; onVerify(turn.id, 'wrong', reason); }
@@ -223,11 +242,11 @@
       {#if !turn.executionError && turn.sql}
         <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:8px;gap:6px;">
           {#if hasChartData}
-            <ChartToggle mode={viewMode} onToggle={() => viewMode = viewMode === 'table' ? 'chart' : 'table'} />
+            <ChartToggle mode={effectiveView} onToggle={toggleView} />
           {/if}
         </div>
-        {#if viewMode === 'chart' && hasChartData}
-          <ResultChart columns={turn.columns || []} rows={(turn.rows || []).map(r => r.map(String))} />
+        {#if effectiveView === 'chart' && hasChartData}
+          <ResultChart columns={turn.columns || []} rows={stringRows} spec={turn.chart} />
         {:else}
           <ResultTable columns={turn.columns || []} rows={turn.rows || []} />
         {/if}

@@ -168,13 +168,19 @@
 
   // Selecting a destination on mobile should dismiss the drawer.
   function selectTab(t: Tab) {
+    onClose?.();
     if (t === 'dash') {
       goto('/dashboards');
-      onClose?.();
+      return;
+    }
+    // Ask and Settings live on /chat. When the dashboards route is showing,
+    // switching to them means navigating back — the shell stays mounted, so
+    // this reads as a tab change rather than a page load.
+    if (activeTab === 'dash') {
+      goto(t === 'settings' ? '/chat?tab=settings' : '/chat');
       return;
     }
     onTab(t);
-    onClose?.();
   }
   function selectConversation(id: string) {
     onConversationSelect?.(id);

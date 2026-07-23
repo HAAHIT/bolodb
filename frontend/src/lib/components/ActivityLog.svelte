@@ -1,16 +1,19 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { getWorkspaceActivity } from '$lib/api';
+  import { getWorkspaceActivity, downloadWorkspaceActivity } from '$lib/api';
   import { appState } from '$lib/appState.svelte';
 
   let activities = $state<any[]>([]);
   let loading = $state(true);
+  let exporting = $state(false);
   let error = $state('');
   let page = $state(1);
   let hasMore = $state(true);
 
+  const PAGE_SIZE = 50;
+
   async function loadActivity(loadMore = false) {
-    if (!appState.activeWorkspace) return;
+    const ws = appState.activeWorkspace;
+    if (!ws) return;
     try {
       if (!loadMore) {
         page = 1;
@@ -18,15 +21,11 @@
       } else {
         page += 1;
       }
+      error = '';
 
-      const res = await getWorkspaceActivity(appState.activeWorkspace.id, page);
-      if (loadMore) {
-        activities = [...activities, ...res];
-      } else {
-        activities = res;
-      }
-
-      hasMore = res.length === 50; // if it returned exactly limit, there might be more
+      const res = await getWorkspaceActivity(ws.id, page);
+      activities = loadMore ? [...activities, ...res] : res;
+      hasMore = res.length === PAGE_SIZE;
     } catch (e: any) {
       error = e.message || 'Could not load activity log';
     } finally {
@@ -34,192 +33,268 @@
     }
   }
 
-  onMount(() => {
-    loadActivity();
-  });
-
-  // Watch for workspace changes
+  // Reload only when the workspace actually changes — reading activeWorkspace
+  // inside the effect would otherwise re-fetch on unrelated state updates.
+  let loadedWorkspaceId: string | null = null;
   $effect(() => {
-    if (appState.activeWorkspace) {
-      // Small delay to prevent too many fetches when switching
+    const id = appState.activeWorkspace?.id ?? null;
+    if (id && id !== loadedWorkspaceId) {
+      loadedWorkspaceId = id;
       loadActivity();
     }
   });
 
-  function formatEvent(a: any) {
-    const actor = a.actor_email || 'System';
-    const type = a.event_type;
-
-    // Formatting logic
-    if (type === 'workspace.created') return `${actor} created this workspace`;
-    if (type === 'workspace.updated') return `${actor} updated workspace settings`;
-    if (type === 'member.invited') return `${actor} invited ${a.metadata_?.email || 'a user'}`;
-    if (type === 'member.joined') return `${actor} joined the workspace`;
-    if (type === 'member.role_updated') return `Role updated for ${a.resource_id} to ${a.metadata_?.new_role}`;
-    if (type === 'member.removed') return `Member ${a.resource_id} removed`;
-    if (type === 'db.connected') return `${actor} connected a database (${a.metadata_?.dialect || 'unknown'})`;
-    if (type === 'db.disconnected') return `${actor} disconnected a database`;
-    if (type === 'query.executed') return `${actor} ran a query`;
-    if (type === 'knowledge.verified') return `${actor} verified an answer for knowledge base`;
-
-    return `${actor} performed ${type}`;
+  async function handleExport() {
+    if (!appState.activeWorkspace) return;
+    exporting = true;
+    try {
+      await downloadWorkspaceActivity(appState.activeWorkspace.id);
+    } catch (e: any) {
+      appState.showError(e?.message || 'Could not export the activity log.');
+    } finally {
+      exporting = false;
+    }
   }
 
-  function timeAgo(dateStr: string) {
-    const d = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffMins = Math.round(diffMs / 60000);
+  function describe(a: any): string {
+    const actor = a.actor_email || 'System';
+    const meta = a.metadata_ || {};
+    switch (a.event_type) {
+      case 'workspace.created':
+        return `${actor} created this workspace`;
+      case 'workspace.updated':
+        return `${actor} updated workspace settings`;
+      case 'member.invited':
+        return `${actor} invited ${meta.email || 'a user'}`;
+      case 'member.joined':
+        return `${actor} joined the workspace`;
+      case 'member.role_updated':
+        return `${actor} changed a member's role to ${meta.new_role || 'a new role'}`;
+      case 'member.removed':
+        return `${actor} removed a member`;
+      case 'db.connected':
+        return `${actor} connected a ${meta.dialect || 'database'}${meta.is_sample ? ' (sample)' : ''}`;
+      case 'db.disconnected':
+        return `${actor} disconnected a database`;
+      case 'query.executed':
+        return `${actor} ran a query`;
+      case 'knowledge.verified':
+        return `${actor} verified an answer`;
+      default:
+        return `${actor} performed ${a.event_type}`;
+    }
+  }
 
+  function absoluteTime(dateStr: string): string {
+    const d = new Date(dateStr);
+    return d.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  function relativeTime(dateStr: string): string {
+    const diffMins = Math.round((Date.now() - new Date(dateStr).getTime()) / 60000);
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     const diffHours = Math.round(diffMins / 60);
     if (diffHours < 24) return `${diffHours}h ago`;
     const diffDays = Math.round(diffHours / 24);
-    if (diffDays === 1) return 'Yesterday';
-    return `${diffDays}d ago`;
+    return diffDays === 1 ? 'Yesterday' : `${diffDays}d ago`;
   }
 </script>
 
-<div class="activity-container">
-  <h2>Activity Log (Last 30 Days)</h2>
+<section class="activity">
+  <header class="activity-header">
+    <div>
+      <h2>Activity log</h2>
+      <p class="sub">Workspace events from the last 30 days.</p>
+    </div>
+    <button class="export-btn" onclick={handleExport} disabled={exporting || !activities.length}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      {exporting ? 'Exporting…' : 'Export CSV'}
+    </button>
+  </header>
 
   {#if error}
     <div class="error-msg">{error}</div>
   {/if}
 
   {#if loading && page === 1}
-    <div class="loading-state">
+    <div class="state">
       <div class="spinner"></div>
-      Loading activities...
+      <span>Loading activity…</span>
     </div>
   {:else if activities.length === 0}
-    <div class="empty-state">
-      <p>No activity recorded yet.</p>
+    <div class="state">
+      <span>No activity recorded yet.</span>
     </div>
   {:else}
-    <div class="activity-list">
-      {#each activities as a (a.id)}
-        <div class="activity-item">
-          <div class="activity-icon">
-            {#if a.event_type.startsWith('workspace')}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-            {:else if a.event_type.startsWith('member')}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-            {:else if a.event_type.startsWith('db')}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
-            {:else if a.event_type.startsWith('query')}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
-            {:else if a.event_type.startsWith('knowledge')}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            {:else}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-            {/if}
-          </div>
-          <div class="activity-content">
-            <div class="activity-text">{formatEvent(a)}</div>
-            <div class="activity-time" title={new Date(a.created_at).toLocaleString()}>{timeAgo(a.created_at)}</div>
-          </div>
-        </div>
-      {/each}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="col-time">Time</th>
+            <th class="col-actor">Actor</th>
+            <th class="col-event">Event</th>
+            <th class="col-detail">Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each activities as a (a.id)}
+            <tr>
+              <td class="col-time time" title={relativeTime(a.created_at)}>
+                {absoluteTime(a.created_at)}
+              </td>
+              <td class="col-actor actor" title={a.actor_email || 'System'}>
+                {a.actor_email || 'System'}
+              </td>
+              <td class="col-event">
+                <span class="event-tag">{a.event_type}</span>
+              </td>
+              <td class="col-detail detail">{describe(a)}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
     </div>
 
     {#if hasMore}
       <button class="load-more-btn" onclick={() => loadActivity(true)} disabled={loading}>
-        {#if loading}
-          Loading...
-        {:else}
-          Load Older
-        {/if}
+        {loading ? 'Loading…' : 'Load older'}
       </button>
     {/if}
   {/if}
-</div>
+</section>
 
 <style>
-  .activity-container {
+  .activity {
     margin-top: 40px;
     padding-top: 32px;
     border-top: 1px solid var(--border);
   }
-  .activity-container h2 {
+  .activity-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .activity-header h2 {
     font-size: 18px;
     font-weight: 700;
     color: var(--ink);
-    margin: 0 0 20px;
+    margin: 0;
   }
-  .activity-list {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    position: relative;
-  }
-  .activity-list::before {
-    content: '';
-    position: absolute;
-    top: 12px;
-    bottom: 12px;
-    left: 15px;
-    width: 2px;
-    background: var(--border-2);
-    z-index: 0;
-  }
-  .activity-item {
-    display: flex;
-    gap: 16px;
-    position: relative;
-    z-index: 1;
-  }
-  .activity-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--surface-1);
-    border: 2px solid var(--border-2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .sub {
+    margin: 4px 0 0;
+    font-size: 13px;
     color: var(--muted);
-    flex-shrink: 0;
   }
-  .activity-content {
-    background: var(--card);
+  .export-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--surface-1);
+    border: 1px solid var(--border-2);
+    color: var(--ink);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .export-btn:hover:not(:disabled) {
+    background: var(--surface-2);
+    border-color: var(--border);
+  }
+  .export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Wide content scrolls inside its own container, never the page. */
+  .table-wrap {
+    overflow-x: auto;
     border: 1px solid var(--border-2);
     border-radius: 8px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead th {
+    text-align: left;
     padding: 10px 14px;
-    flex: 1;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-  }
-  .activity-text {
-    font-size: 13.5px;
-    color: var(--ink);
-    line-height: 1.4;
-  }
-  .activity-time {
-    font-size: 12px;
-    color: var(--muted);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border-2);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
     white-space: nowrap;
   }
-  .load-more-btn {
-    margin-top: 24px;
+  tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-2);
+    color: var(--ink);
+    vertical-align: middle;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--surface-1); }
+
+  .col-time { width: 1%; white-space: nowrap; }
+  .col-actor { max-width: 220px; }
+  .col-event { width: 1%; white-space: nowrap; }
+
+  .time {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .actor {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .event-tag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ink-2);
     background: var(--surface-2);
     border: 1px solid var(--border-2);
+    border-radius: 5px;
+    padding: 2px 7px;
+  }
+  .detail { color: var(--ink-2); }
+
+  .load-more-btn {
+    margin-top: 16px;
+    background: var(--surface-1);
+    border: 1px solid var(--border-2);
     color: var(--ink);
-    padding: 8px 16px;
-    border-radius: 6px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    font-family: inherit;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     width: 100%;
-    transition: all 0.2s;
+    transition: background 0.15s;
   }
-  .load-more-btn:hover:not(:disabled) {
-    background: var(--surface-3);
-  }
-  .loading-state, .empty-state {
+  .load-more-btn:hover:not(:disabled) { background: var(--surface-2); }
+  .load-more-btn:disabled { opacity: 0.6; cursor: default; }
+
+  .state {
     padding: 32px;
     text-align: center;
     color: var(--muted);
@@ -229,12 +304,12 @@
     align-items: center;
     gap: 12px;
     background: var(--surface-1);
+    border: 1px solid var(--border-2);
     border-radius: 8px;
-    border: 1px dashed var(--border-2);
   }
   .spinner {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     border: 2px solid var(--border-2);
     border-top-color: var(--brand);
     border-radius: 50%;
@@ -251,5 +326,9 @@
     font-size: 14px;
     font-weight: 500;
     margin-bottom: 16px;
+  }
+
+  @media (max-width: 640px) {
+    .col-actor { max-width: 140px; }
   }
 </style>

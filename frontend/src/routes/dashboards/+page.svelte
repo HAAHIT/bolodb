@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { apiCall } from '$lib/api';
   import { appState } from '$lib/appState.svelte';
+  import AppShell from '$lib/components/AppShell.svelte';
 
   let dashboards = $state<any[]>([]);
   let loading = $state(true);
@@ -69,18 +70,17 @@
   }
 </script>
 
+<AppShell activeTab="dash" dbInfo={appState.dbInfo} verifiedCount={appState.verifiedCount} realSchema={appState.realSchema}>
 <div class="page">
   <header class="page-header">
     <div>
-      <p class="eyebrow">Analytics</p>
       <h1>Dashboards</h1>
       <p class="sub">
-        Build live charts from saved queries in
+        Live charts built from saved queries in
         <strong>{appState.activeWorkspace?.name || 'your workspace'}</strong>.
       </p>
     </div>
     <div class="actions">
-      <button class="btn ghost" onclick={() => goto('/chat')}>Back to chat</button>
       {#if canEdit}
         <button class="btn primary" onclick={createDashboard} disabled={creating}>
           {creating ? 'Creating…' : 'New dashboard'}
@@ -135,14 +135,15 @@
     </div>
   {/if}
 </div>
+</AppShell>
 
 <style>
+  /* Scrolls within the shell's main column rather than the window, so the
+     sidebar and database header stay fixed. */
   .page {
-    min-height: 100vh;
-    background:
-      radial-gradient(900px 420px at 10% -10%, rgba(var(--brand-rgb), 0.08), transparent 60%),
-      var(--bg);
-    padding: 40px 48px 64px;
+    flex: 1;
+    overflow-y: auto;
+    padding: 36px 40px 56px;
     box-sizing: border-box;
   }
   .page-header {
@@ -150,20 +151,12 @@
     justify-content: space-between;
     align-items: flex-end;
     gap: 24px;
-    margin-bottom: 36px;
+    margin-bottom: 28px;
     flex-wrap: wrap;
-  }
-  .eyebrow {
-    margin: 0 0 6px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--faint);
   }
   h1 {
     margin: 0;
-    font-size: 32px;
+    font-size: 26px;
     font-weight: 800;
     letter-spacing: -0.03em;
     color: var(--ink);
@@ -189,12 +182,6 @@
   .btn.primary { background: var(--brand); color: var(--on-brand); }
   .btn.primary:hover { filter: brightness(1.05); }
   .btn.primary:disabled { opacity: 0.6; cursor: not-allowed; }
-  .btn.ghost {
-    background: transparent;
-    color: var(--muted);
-    border: 1px solid var(--border);
-  }
-  .btn.ghost:hover { color: var(--ink); border-color: var(--border-2); }
   .banner.error {
     background: var(--c-low-tint);
     color: var(--c-low-ink);

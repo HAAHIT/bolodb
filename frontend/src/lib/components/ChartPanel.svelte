@@ -166,7 +166,10 @@
     {:else if panel.visualization_type === 'number'}
       <div class="number-wrap">
         {#if data.rows?.length > 0 && data.columns?.length > 0}
-          {@const col = data.columns[data.columns.length - 1]}
+          <!-- Honour the y_axis the model named; fall back to the last column. -->
+          {@const col =
+            data.columns.find((c: any) => c.name === panel.viz_config?.y_axis) ||
+            data.columns[data.columns.length - 1]}
           <div class="number-value">{data.rows[0][col.name]}</div>
           <div class="number-label">{col.name}</div>
         {:else}

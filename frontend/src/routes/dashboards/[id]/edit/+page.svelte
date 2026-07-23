@@ -3,6 +3,7 @@
   import { apiCall } from '$lib/api';
   import { goto } from '$app/navigation';
   import { appState } from '$lib/appState.svelte';
+  import AppShell from '$lib/components/AppShell.svelte';
   import DashboardEditor from '$lib/components/DashboardEditor.svelte';
 
   let dashboardId = $derived($page.params.id);
@@ -102,6 +103,7 @@
   }
 </script>
 
+<AppShell activeTab="dash" dbInfo={appState.dbInfo} verifiedCount={appState.verifiedCount} realSchema={appState.realSchema}>
 <div class="page">
   {#if loading && !dashboard}
     <div class="loading"><div class="spinner"></div></div>
@@ -129,15 +131,18 @@
     />
   {/if}
 </div>
+</AppShell>
 
 <style>
+  /* Scrolls within the shell's main column so the sidebar and database
+     header stay fixed. The dot grid marks this as the editing surface. */
   .page {
-    min-height: 100vh;
+    flex: 1;
+    overflow-y: auto;
     background:
-      radial-gradient(rgba(var(--brand-rgb), 0.05) 1px, transparent 1px),
-      var(--bg);
+      radial-gradient(rgba(var(--brand-rgb), 0.05) 1px, transparent 1px);
     background-size: 22px 22px;
-    padding: 28px 48px 64px;
+    padding: 28px 40px 56px;
     box-sizing: border-box;
   }
   .page-header {

@@ -19,6 +19,19 @@
     return String(q?.id || q?._id || '');
   }
 
+  const selectedQuery = $derived(
+    savedQueries.find((q: any) => queryKey(q) === selectedQueryId),
+  );
+
+  // A saved query already carries the chart the model picked when it was saved
+  // — start there instead of making the user choose all over again.
+  let vizTouched = $state(false);
+  $effect(() => {
+    if (selectedQueryId && !vizTouched) {
+      vizType = selectedQuery?.visualization_type || 'table';
+    }
+  });
+
   function handleDragStart(e: DragEvent, panel: any) {
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = 'move';
@@ -64,11 +77,8 @@
   }
 
   function submitAddPanel() {
-    if (!selectedQueryId) {
-      alert('Please select a saved query');
-      return;
-    }
-    const sq = savedQueries.find((q: any) => queryKey(q) === selectedQueryId);
+    if (!selectedQueryId) return;
+    const sq = selectedQuery;
 
     let maxY = 0;
     for (const p of dashboard.panels) {
@@ -80,6 +90,7 @@
       saved_query_id: selectedQueryId,
       title: panelTitle || sq?.name || 'Untitled',
       visualization_type: vizType,
+      viz_config: sq?.viz_config || {},
       position: { x: 0, y: maxY, w: panelW, h: panelH },
     });
 
@@ -87,6 +98,7 @@
     selectedQueryId = '';
     panelTitle = '';
     vizType = 'table';
+    vizTouched = false;
   }
 </script>
 
@@ -169,8 +181,13 @@
           <input type="text" class="input" bind:value={panelTitle} placeholder="Inherits query name if blank" />
         </label>
         <label class="field">
-          <span>Visualization</span>
-          <select bind:value={vizType} class="input">
+          <span>
+            Visualization
+            {#if selectedQuery?.viz_config?.chosen_by === 'ai' && !vizTouched}
+              <span class="by-ai">· chosen by AI</span>
+            {/if}
+          </span>
+          <select bind:value={vizType} class="input" onchange={() => (vizTouched = true)}>
             <option value="table">Data table</option>
             <option value="bar">Bar chart</option>
             <option value="line">Line chart</option>
@@ -199,6 +216,10 @@
 {/if}
 
 <style>
+  .by-ai {
+    font-weight: 600;
+    color: var(--brand);
+  }
   .editor-toolbar {
     display: flex;
     align-items: center;

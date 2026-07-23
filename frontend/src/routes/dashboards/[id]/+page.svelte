@@ -3,6 +3,7 @@
   import { onDestroy } from 'svelte';
   import { apiCall } from '$lib/api';
   import { appState } from '$lib/appState.svelte';
+  import AppShell from '$lib/components/AppShell.svelte';
   import ChartPanel from '$lib/components/ChartPanel.svelte';
 
   let dashboardId = $derived($page.params.id);
@@ -55,6 +56,7 @@
   }
 </script>
 
+<AppShell activeTab="dash" dbInfo={appState.dbInfo} verifiedCount={appState.verifiedCount} realSchema={appState.realSchema}>
 <div class="page">
   {#if loading && !dashboard}
     <div class="loading"><div class="spinner"></div></div>
@@ -99,14 +101,15 @@
     {/if}
   {/if}
 </div>
+</AppShell>
 
 <style>
+  /* Scrolls within the shell's main column so the sidebar and database
+     header stay fixed. */
   .page {
-    min-height: 100vh;
-    background:
-      radial-gradient(900px 420px at 90% -20%, rgba(var(--brand-rgb), 0.07), transparent 55%),
-      var(--bg);
-    padding: 32px 48px 64px;
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px 40px 56px;
     box-sizing: border-box;
   }
   .page-header {
