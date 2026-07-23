@@ -54,6 +54,19 @@
       creating = false;
     }
   }
+  async function deleteDashboard(id: string, e: Event) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this dashboard?')) return;
+
+    try {
+      await apiCall(`/api/dashboards/${id}`, undefined, 'DELETE');
+      await fetchDashboards();
+    } catch (e: any) {
+      console.error(e);
+      appState.showError(e.message || 'Failed to delete dashboard.');
+    }
+  }
 </script>
 
 <div class="page">
@@ -103,7 +116,14 @@
         <a href="/dashboards/{dashId(dash)}" class="card">
           <div class="card-top">
             <span class="badge">Dashboard</span>
-            <span class="arrow">→</span>
+            <div class="card-actions">
+              {#if canEdit}
+                <button class="icon-btn del-btn" onclick={(e) => deleteDashboard(dashId(dash), e)} aria-label="Delete dashboard" title="Delete dashboard">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/></svg>
+                </button>
+              {/if}
+              <span class="arrow">→</span>
+            </div>
           </div>
           <h3>{dash.name}</h3>
           <p>{dash.description || 'No description'}</p>
@@ -259,6 +279,26 @@
     transition: all 0.18s ease;
   }
   .card:hover .arrow { opacity: 1; transform: none; }
+  .card-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .icon-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: inline-flex;
+    opacity: 0;
+    transition: all 0.15s;
+  }
+  .card:hover .icon-btn {
+    opacity: 1;
+  }
+  .del-btn:hover { color: var(--low); background: var(--c-low-tint); }
   .card h3 {
     margin: 4px 0 0;
     font-size: 17px;
