@@ -4,6 +4,7 @@ import logging
 from fastapi import HTTPException
 
 from backend.app import config as cfgmod
+import backend.app.controllers.database as dbctrl
 from backend.app.secrets import (
     get_jwt_secret,
     get_supabase_url,
@@ -29,15 +30,24 @@ async def get_state(user_id, workspace_id, db_id, db, cfg, kb):
     config = cfgmod.public_config(cfg)
     config.pop("last_db_url", None)
     user = await mdb.get_user_by_id(user_id)
+    # Restore the workspace's database from its stored credentials if this
+    # process doesn't hold a live engine for it — otherwise a restart reads to
+    # the user as their database having disconnected itself.
+    actual_db_id = await dbctrl.ensure_connection(db, workspace_id, db_id)
     s = {
-        "connected": db.connected(workspace_id, db_id) if workspace_id else False,
+        "connected": bool(actual_db_id),
         "config": config,
         "openrouter_ready": bool(os.environ.get("OPENROUTER_API_KEY")),
         "tour_completed": user.get("tour_completed", False) if user else False,
     }
-    if workspace_id and db.connected(workspace_id, db_id):
-        actual_db_id = db_id or db.get_db_id(workspace_id, db_id)
-        conn = await mdb.get_recent_connection_by_db_id(workspace_id, actual_db_id)
+    if actual_db_id:
+        try:
+            conn = await mdb.get_recent_connection_by_db_id(workspace_id, actual_db_id)
+        except RuntimeError:
+            # Only the alias is needed here; an unreadable stored URL must not
+            # take down the whole state response.
+            log.warning("Could not read stored connection for db_id=%s", actual_db_id)
+            conn = None
         s["database"] = {
             "url": db.get_info(workspace_id, actual_db_id)["url"],
             "dialect": db.get_dialect(workspace_id, actual_db_id),

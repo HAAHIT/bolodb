@@ -104,7 +104,9 @@ async def reconnect(
         )
     if not conn or not conn.get("db_url"):
         raise HTTPException(404, "Saved connection not found")
-    req = ConnectReq(db_url=conn["db_url"])
+    # Carry the stored alias through, so reconnecting doesn't leave the header
+    # and the switcher labelling a named database by its host again.
+    req = ConnectReq(db_url=conn["db_url"], alias_name=conn.get("alias_name"))
     return await ctrl.connect(
         db,
         kb,

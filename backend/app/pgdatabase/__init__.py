@@ -41,6 +41,8 @@ from backend.app.pgdatabase.connections import (
     get_recent_connections,
     delete_recent_connection,
     get_recent_connection_by_db_id,
+    get_latest_recent_connection,
+    update_recent_connection_alias,
 )
 from backend.app.pgdatabase.conversations import (
     create_conversation,
@@ -92,6 +94,8 @@ __all__ = [
     "get_recent_connections",
     "delete_recent_connection",
     "get_recent_connection_by_db_id",
+    "get_latest_recent_connection",
+    "update_recent_connection_alias",
     "create_conversation",
     "conversation_owned_by",
     "get_conversations",

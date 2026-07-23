@@ -163,7 +163,23 @@ async def save_recent_connection(
             raise
 
 
-async def get_recent_connections(workspace_id: str, limit: int = 5):
+def _serialize_connection(row, include_url: bool = False) -> dict:
+    d = {
+        "id": row.id,
+        "workspace_id": row.workspace_id,
+        "display_url": row.display_url,
+        "alias_name": row.alias_name,
+        "dialect": row.dialect,
+        "db_id": row.db_id,
+        "table_count": row.table_count,
+        "connected_at": row.connected_at,
+    }
+    if include_url:
+        d["db_url"] = _decrypt_connection_url(row.db_url)
+    return serialize_doc(d)
+
+
+async def get_recent_connections(workspace_id: str, limit: int = 50):
     wid = _to_uuid(workspace_id)
     async with async_session() as session:
         result = await session.execute(
@@ -172,21 +188,28 @@ async def get_recent_connections(workspace_id: str, limit: int = 5):
             .order_by(RecentConnection.connected_at.desc())
             .limit(limit)
         )
-        rows = result.scalars().all()
-        out = []
-        for row in rows:
-            d = {
-                "id": row.id,
-                "workspace_id": row.workspace_id,
-                "display_url": row.display_url,
-                "alias_name": row.alias_name,
-                "dialect": row.dialect,
-                "db_id": row.db_id,
-                "table_count": row.table_count,
-                "connected_at": row.connected_at,
-            }
-            out.append(serialize_doc(d))
-        return out
+        return [_serialize_connection(row) for row in result.scalars().all()]
+
+
+async def get_latest_recent_connection(workspace_id: str) -> Optional[dict]:
+    """The workspace's most recently used connection, with its URL decrypted.
+
+    Used to restore a workspace's database after a server restart, when nothing
+    tells us *which* database to reconnect to.
+    """
+    try:
+        wid = _to_uuid(workspace_id)
+    except (ValueError, TypeError):
+        return None
+    async with async_session() as session:
+        result = await session.execute(
+            select(RecentConnection)
+            .where(RecentConnection.workspace_id == wid)
+            .order_by(RecentConnection.connected_at.desc())
+            .limit(1)
+        )
+        row = result.scalar_one_or_none()
+        return _serialize_connection(row, include_url=True) if row else None
 
 
 async def delete_recent_connection(workspace_id: str, connection_id: str) -> bool:
@@ -212,7 +235,10 @@ async def delete_recent_connection(workspace_id: str, connection_id: str) -> boo
 async def get_recent_connection_by_db_id(
     workspace_id: str, db_id: str
 ) -> Optional[dict]:
-    wid = _to_uuid(workspace_id)
+    try:
+        wid = _to_uuid(workspace_id)
+    except (ValueError, TypeError):
+        return None
     async with async_session() as session:
         result = await session.execute(
             select(RecentConnection).where(
@@ -220,22 +246,7 @@ async def get_recent_connection_by_db_id(
             )
         )
         conn = result.scalar_one_or_none()
-        if conn is None:
-            return None
-        d = {
-            "id": conn.id,
-            "workspace_id": conn.workspace_id,
-            "db_url": conn.db_url,
-            "display_url": conn.display_url,
-            "alias_name": conn.alias_name,
-            "dialect": conn.dialect,
-            "db_id": conn.db_id,
-            "table_count": conn.table_count,
-            "connected_at": conn.connected_at,
-        }
-        if "db_url" in d:
-            d["db_url"] = _decrypt_connection_url(d["db_url"])
-        return serialize_doc(d)
+        return _serialize_connection(conn, include_url=True) if conn else None
 
 
 async def update_recent_connection_alias(
