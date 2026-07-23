@@ -67,13 +67,42 @@
   let savingDefaults = $state(false);
   let savingPermissions = $state(false);
 
-  let matrixState = $state<{
-    admin: Record<string, boolean>;
-    member: Record<string, boolean>;
-  }>({
-    admin: {},
-    member: {},
-  });
+  /**
+   * Permissions are edited as a *minimum role* per capability, and roles are
+   * ranked: granting it to members grants it to admins and owners too. A
+   * per-role checkbox grid let you express states that rank can't — members
+   * allowed something admins aren't — which is never what an admin wants and
+   * reads as a bug when it happens.
+   */
+  type MinRole = 'owner' | 'admin' | 'member';
+  const ROLE_RANK: MinRole[] = ['member', 'admin', 'owner'];
+  const MIN_ROLE_OPTIONS: { value: MinRole; label: string }[] = [
+    { value: 'member', label: 'Everyone' },
+    { value: 'admin', label: 'Admins & owners' },
+    { value: 'owner', label: 'Owners only' },
+  ];
+
+  /** Chosen minimum role per capability. */
+  let minRoleState = $state<Record<string, MinRole>>({});
+  /** The same, as it would be with nothing customised — sent by the backend. */
+  let defaultMinRoles = $state<Record<string, MinRole>>({});
+
+  /** The lowest-ranked role a matrix grants this capability to. */
+  function minRoleFromMatrix(
+    matrix: Record<string, Record<string, boolean>> | undefined,
+    key: string,
+    fallback: MinRole = 'owner',
+  ): MinRole {
+    for (const role of ROLE_RANK) {
+      if (matrix?.[role]?.[key]) return role;
+    }
+    return matrix ? 'owner' : fallback;
+  }
+
+  /** Whether a capability is still on its default, for the "Default" badge. */
+  function isDefaultMinRole(key: string): boolean {
+    return minRoleState[key] === defaultMinRoles[key];
+  }
 
   const PERMISSION_RESOURCES = [
     { id: 'members', label: 'Members', desc: 'Member invitations, roles, and access management' },
@@ -84,18 +113,6 @@
     { id: 'activity', label: 'Activity', desc: 'Workspace audit log and activity export' },
     { id: 'workspace_management', label: 'Workspace Management', desc: 'Workspace profile, settings, and lifecycle' },
   ];
-
-  const DEFAULT_MEMBER_PERMS = new Set([
-    'members.view',
-    'connections.view',
-    'connections.view_schema',
-    'catalog.view',
-    'dashboards.view',
-    'queries.execute',
-    'queries.explain',
-    'queries.save',
-    'workspace.view',
-  ]);
 
   const PERMISSIONS_LIST = [
     // members
@@ -127,6 +144,11 @@
     { key: 'workspace.update', name: 'Update Workspace', category: 'workspace_management', description: 'Update workspace basic profile details' },
     { key: 'workspace.settings', name: 'Manage Workspace Settings', category: 'workspace_management', description: 'Manage workspace defaults and role permission matrix' },
   ];
+
+  /** How many capabilities have been moved off their default. */
+  const customisedCount = $derived(
+    PERMISSIONS_LIST.filter((p) => !isDefaultMinRole(p.key)).length,
+  );
 
   const isAdmin = $derived(
     appState.activeWorkspace?.role === 'admin' ||
@@ -213,22 +235,28 @@
         activityRetentionDays = settings.activity_retention_days;
       }
 
-      const resolved = settings.resolved_matrix || {};
-      const adminPerms: Record<string, boolean> = {};
-      const memberPerms: Record<string, boolean> = {};
-
-      PERMISSIONS_LIST.forEach((p) => {
-        adminPerms[p.key] = resolved.admin?.[p.key] ?? true;
-        memberPerms[p.key] = resolved.member?.[p.key] ?? DEFAULT_MEMBER_PERMS.has(p.key);
-      });
-
-      matrixState = {
-        admin: adminPerms,
-        member: memberPerms,
-      };
+      applyMatrices(settings);
     } catch (e: any) {
       console.error('Failed to load workspace settings:', e);
+      appState.showError(
+        e.message || 'Could not load workspace settings.',
+        'Permissions unavailable',
+      );
     }
+  }
+
+  /** Read both matrices out of a settings response into the editor state. */
+  function applyMatrices(settings: WorkspaceSettings) {
+    const resolved = settings.resolved_matrix;
+    const defaults = settings.default_matrix;
+    const current: Record<string, MinRole> = {};
+    const asDefault: Record<string, MinRole> = {};
+    PERMISSIONS_LIST.forEach((p) => {
+      asDefault[p.key] = minRoleFromMatrix(defaults, p.key);
+      current[p.key] = minRoleFromMatrix(resolved, p.key, asDefault[p.key]);
+    });
+    defaultMinRoles = asDefault;
+    minRoleState = current;
   }
 
   async function loadData() {
@@ -287,24 +315,27 @@
     }
   }
 
+  /** Put every capability back on its default, ready to save. */
+  function resetPermissionsToDefaults() {
+    minRoleState = { ...defaultMinRoles };
+  }
+
   async function handleSavePermissions() {
     if (!appState.activeWorkspace || !isOwner) return;
     savingPermissions = true;
     try {
+      // Storage stays a per-role map; the minimum role expands into it, which
+      // is what makes the grant cascade upward. Only capabilities that differ
+      // from the default are written, so a workspace that changed nothing keeps
+      // an empty override map and follows the defaults as they evolve.
       const adminOverrides: Record<string, boolean> = {};
       const memberOverrides: Record<string, boolean> = {};
 
       PERMISSIONS_LIST.forEach((p) => {
-        const adminVal = matrixState.admin[p.key];
-        if (adminVal !== true) {
-          adminOverrides[p.key] = adminVal;
-        }
-
-        const memberVal = matrixState.member[p.key];
-        const defaultMemberVal = DEFAULT_MEMBER_PERMS.has(p.key);
-        if (memberVal !== defaultMemberVal) {
-          memberOverrides[p.key] = memberVal;
-        }
+        if (isDefaultMinRole(p.key)) return;
+        const min = minRoleState[p.key];
+        adminOverrides[p.key] = min === 'admin' || min === 'member';
+        memberOverrides[p.key] = min === 'member';
       });
 
       const role_permissions: Record<string, any> = {};
@@ -319,22 +350,13 @@
         role_permissions,
       });
       workspaceSettings = updated;
-
-      const resolved = updated.resolved_matrix || {};
-      const adminPerms: Record<string, boolean> = {};
-      const memberPerms: Record<string, boolean> = {};
-      PERMISSIONS_LIST.forEach((p) => {
-        adminPerms[p.key] = resolved.admin?.[p.key] ?? true;
-        memberPerms[p.key] = resolved.member?.[p.key] ?? DEFAULT_MEMBER_PERMS.has(p.key);
-      });
-      matrixState = {
-        admin: adminPerms,
-        member: memberPerms,
-      };
+      applyMatrices(updated);
 
       appState.showToast({
         title: 'Permissions saved',
-        body: 'Role permission matrix saved successfully.',
+        body: customisedCount
+          ? `${customisedCount} capability${customisedCount === 1 ? '' : ' changes'} away from the defaults.`
+          : 'All capabilities are back on their defaults.',
       });
     } catch (e: any) {
       appState.showError(e.message || 'Could not save permissions');
@@ -1069,31 +1091,48 @@
           <section class="panel">
             <div class="panel-head" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
               <div>
-                <h2>Configurable RBAC Permission Matrix</h2>
-                <p>Customize fine-grained capabilities across workspace roles.</p>
+                <h2>Role permissions</h2>
+                <p>
+                  Pick the lowest role that gets each capability — everyone above it
+                  gets it too. Owners always have every capability.
+                </p>
+                <p class="matrix-status">
+                  {#if customisedCount === 0}
+                    Every capability is on its default.
+                  {:else}
+                    {customisedCount} capability{customisedCount === 1 ? '' : ' changes'} customised.
+                  {/if}
+                </p>
               </div>
-              <button
-                class="btn primary"
-                onclick={handleSavePermissions}
-                disabled={savingPermissions}
-              >
-                {savingPermissions ? 'Saving…' : 'Save permissions'}
-              </button>
+              <div class="row-actions">
+                <button
+                  class="btn ghost"
+                  onclick={resetPermissionsToDefaults}
+                  disabled={savingPermissions || customisedCount === 0}
+                >
+                  Reset to defaults
+                </button>
+                <button
+                  class="btn primary"
+                  onclick={handleSavePermissions}
+                  disabled={savingPermissions}
+                >
+                  {savingPermissions ? 'Saving…' : 'Save permissions'}
+                </button>
+              </div>
             </div>
             <div class="matrix-container">
               <table class="matrix-table">
                 <thead>
                   <tr>
                     <th class="col-capability">Capability</th>
-                    <th class="col-role">Owner</th>
-                    <th class="col-role">Admin</th>
-                    <th class="col-role">Member</th>
+                    <th class="col-access">Available to</th>
                   </tr>
                 </thead>
                 <tbody>
                   {#each PERMISSION_RESOURCES as res}
                     <tr class="category-header-row">
-                      <td colspan="4">
+                      <td colspan="2">
                         <span class="category-title">{res.label}</span>
                         <span class="category-desc">{res.desc}</span>
                       </td>
@@ -1105,29 +1144,23 @@
                           <div class="perm-desc">{perm.description}</div>
                           <code class="perm-key">{perm.key}</code>
                         </td>
-                        <td class="perm-toggle-cell">
-                          <label class="toggle-switch disabled" title="Owner permissions are immutable">
-                            <input type="checkbox" checked disabled />
-                            <span class="slider"></span>
-                          </label>
-                        </td>
-                        <td class="perm-toggle-cell">
-                          <label class="toggle-switch">
-                            <input
-                              type="checkbox"
-                              bind:checked={matrixState.admin[perm.key]}
-                            />
-                            <span class="slider"></span>
-                          </label>
-                        </td>
-                        <td class="perm-toggle-cell">
-                          <label class="toggle-switch">
-                            <input
-                              type="checkbox"
-                              bind:checked={matrixState.member[perm.key]}
-                            />
-                            <span class="slider"></span>
-                          </label>
+                        <td class="perm-access-cell">
+                          <select
+                            class="role-select"
+                            aria-label="Lowest role with {perm.name}"
+                            bind:value={minRoleState[perm.key]}
+                          >
+                            {#each MIN_ROLE_OPTIONS as opt}
+                              <option value={opt.value}>
+                                {opt.label}{opt.value === defaultMinRoles[perm.key] ? ' (default)' : ''}
+                              </option>
+                            {/each}
+                          </select>
+                          {#if isDefaultMinRole(perm.key)}
+                            <span class="perm-flag is-default">Default</span>
+                          {:else}
+                            <span class="perm-flag is-custom">Customised</span>
+                          {/if}
                         </td>
                       </tr>
                     {/each}
@@ -1687,9 +1720,9 @@
     letter-spacing: 0.05em;
     color: var(--faint);
   }
-  .matrix-table th.col-role {
-    text-align: center;
-    width: 100px;
+  .matrix-table th.col-access {
+    text-align: left;
+    width: 260px;
   }
   .category-header-row td {
     background: var(--surface-3);
@@ -1732,52 +1765,49 @@
     margin-top: 3px;
     display: inline-block;
   }
-  .perm-toggle-cell {
+  .perm-access-cell {
     padding: 12px 20px;
-    text-align: center;
     vertical-align: middle;
+    white-space: nowrap;
   }
-  .toggle-switch {
-    position: relative;
-    display: inline-block;
-    width: 38px;
-    height: 22px;
-  }
-  .toggle-switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-  .slider {
-    position: absolute;
+  .role-select {
+    background: var(--card);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
     cursor: pointer;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background-color: var(--border-2);
-    transition: .2s;
-    border-radius: 22px;
+    min-width: 168px;
   }
-  .slider:before {
-    position: absolute;
-    content: "";
-    height: 16px;
-    width: 16px;
-    left: 3px;
-    bottom: 3px;
-    background-color: white;
-    transition: .2s;
-    border-radius: 50%;
+  .role-select:focus {
+    outline: none;
+    border-color: var(--brand);
   }
-  .toggle-switch input:checked + .slider {
-    background-color: var(--brand);
+  /* Whether a capability still follows the workspace default, so a deliberate
+     change is never mistaken for one that was simply never touched. */
+  .perm-flag {
+    display: inline-block;
+    margin-left: 10px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 3px 7px;
+    border-radius: 99px;
   }
-  .toggle-switch input:checked + .slider:before {
-    transform: translateX(16px);
+  .perm-flag.is-default {
+    background: var(--surface-3);
+    color: var(--faint);
   }
-  .toggle-switch.disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+  .perm-flag.is-custom {
+    background: var(--brand-tint);
+    color: var(--brand);
   }
-  .toggle-switch.disabled .slider {
-    cursor: not-allowed;
+  .matrix-status {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin: 6px 0 0;
   }
 </style>

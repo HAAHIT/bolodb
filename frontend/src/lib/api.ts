@@ -227,6 +227,8 @@ export interface WorkspaceSettings {
   activity_retention_days?: number;
   role_permissions?: Record<string, any>;
   resolved_matrix?: Record<string, Record<string, boolean>>;
+  /** The matrix with nothing customised, so the UI can mark what is default. */
+  default_matrix?: Record<string, Record<string, boolean>>;
 }
 
 export async function getWorkspaceSettings(

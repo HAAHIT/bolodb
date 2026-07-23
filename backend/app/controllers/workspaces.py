@@ -755,6 +755,14 @@ async def accept_invite(token: str, user_id: str, user_email: str):
             raise HTTPException(400, "User is already a member of this workspace")
 
 
+def _permission_matrix(overrides):
+    """The full role → permission → allowed map. `None` gives the defaults."""
+    return {
+        role: resolve_role_permissions(role, overrides)
+        for role in ("owner", "admin", "member")
+    }
+
+
 async def get_workspace_settings(workspace_id: str):
     wid = _to_uuid(workspace_id)
     async with async_session() as session:
@@ -769,18 +777,18 @@ async def get_workspace_settings(workspace_id: str):
             await session.refresh(settings)
 
         role_perms = settings.role_permissions or {}
-        resolved = {
-            "owner": resolve_role_permissions("owner", role_perms),
-            "admin": resolve_role_permissions("admin", role_perms),
-            "member": resolve_role_permissions("member", role_perms),
-        }
         return {
             "workspace_id": str(settings.workspace_id),
             "default_invite_role": settings.default_invite_role,
             "invite_expiry_days": settings.invite_expiry_days,
             "activity_retention_days": settings.activity_retention_days,
             "role_permissions": role_perms,
-            "resolved_matrix": resolved,
+            "resolved_matrix": _permission_matrix(role_perms),
+            # What the matrix would be with nothing customised. The settings UI
+            # needs this to tell "this is the default" apart from "someone chose
+            # this" — without it the UI has to hardcode a second copy of the
+            # defaults, which silently goes stale when the registry changes.
+            "default_matrix": _permission_matrix(None),
         }
 
 
@@ -864,16 +872,12 @@ async def update_workspace_settings(
         )
 
         curr_perms = settings.role_permissions or {}
-        resolved = {
-            "owner": resolve_role_permissions("owner", curr_perms),
-            "admin": resolve_role_permissions("admin", curr_perms),
-            "member": resolve_role_permissions("member", curr_perms),
-        }
         return {
             "workspace_id": str(settings.workspace_id),
             "default_invite_role": settings.default_invite_role,
             "invite_expiry_days": settings.invite_expiry_days,
             "activity_retention_days": settings.activity_retention_days,
             "role_permissions": curr_perms,
-            "resolved_matrix": resolved,
+            "resolved_matrix": _permission_matrix(curr_perms),
+            "default_matrix": _permission_matrix(None),
         }

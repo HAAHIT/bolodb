@@ -29,7 +29,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 5s
+      # Migrations run before the server binds, and a database that needs the
+      # whole history takes longer than a few seconds — don't call the
+      # container unhealthy while it is still migrating.
+      start_period: 90s
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
