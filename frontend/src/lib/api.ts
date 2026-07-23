@@ -220,6 +220,28 @@ export async function updateProfile(fields: any): Promise<any> {
 
 // --- Workspaces ---
 
+export interface WorkspaceSettings {
+  workspace_id?: string;
+  default_invite_role?: "member" | "admin" | string;
+  invite_expiry_days?: number;
+  activity_retention_days?: number;
+  role_permissions?: Record<string, any>;
+  resolved_matrix?: Record<string, Record<string, boolean>>;
+}
+
+export async function getWorkspaceSettings(
+  workspaceId: string,
+): Promise<WorkspaceSettings> {
+  return apiCall(`/api/workspaces/${workspaceId}/settings`);
+}
+
+export async function updateWorkspaceSettings(
+  workspaceId: string,
+  data: Partial<WorkspaceSettings>,
+): Promise<WorkspaceSettings> {
+  return apiCall(`/api/workspaces/${workspaceId}/settings`, data, "PATCH");
+}
+
 export async function createWorkspace(name: string): Promise<any> {
   return apiCall("/api/workspaces", { name });
 }

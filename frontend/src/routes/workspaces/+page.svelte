@@ -15,6 +15,9 @@
     resendInvite,
     bulkInviteMembers,
     transferOwnership,
+    getWorkspaceSettings,
+    updateWorkspaceSettings,
+    type WorkspaceSettings,
   } from '$lib/api';
   import {
     workspaceNameError,
@@ -27,7 +30,7 @@
   import ActivityLog from '$lib/components/ActivityLog.svelte';
   import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
 
-  type Section = 'general' | 'members' | 'invites' | 'activity' | 'workspaces';
+  type Section = 'general' | 'members' | 'invites' | 'activity' | 'workspaces' | 'permissions';
 
   /** A pending destructive action, awaiting confirmation in the dialog. */
   type Confirmation = {
@@ -56,6 +59,74 @@
   let inviteBusy = $state<string | null>(null);
   let confirmation = $state<Confirmation | null>(null);
   let confirmLoading = $state(false);
+
+  let workspaceSettings = $state<WorkspaceSettings | null>(null);
+  let defaultInviteRole = $state<'member' | 'admin'>('member');
+  let inviteExpiryDays = $state<number>(7);
+  let activityRetentionDays = $state<number>(30);
+  let savingDefaults = $state(false);
+  let savingPermissions = $state(false);
+
+  let matrixState = $state<{
+    admin: Record<string, boolean>;
+    member: Record<string, boolean>;
+  }>({
+    admin: {},
+    member: {},
+  });
+
+  const PERMISSION_RESOURCES = [
+    { id: 'members', label: 'Members', desc: 'Member invitations, roles, and access management' },
+    { id: 'connections', label: 'Connections', desc: 'Database connections and schema access' },
+    { id: 'catalog', label: 'Catalog', desc: 'Data catalog and verified metrics' },
+    { id: 'dashboards', label: 'Dashboards', desc: 'Visualization dashboards and panels' },
+    { id: 'queries', label: 'Queries', desc: 'Natural language and SQL query execution' },
+    { id: 'activity', label: 'Activity', desc: 'Workspace audit log and activity export' },
+    { id: 'workspace_management', label: 'Workspace Management', desc: 'Workspace profile, settings, and lifecycle' },
+  ];
+
+  const DEFAULT_MEMBER_PERMS = new Set([
+    'members.view',
+    'connections.view',
+    'connections.view_schema',
+    'catalog.view',
+    'dashboards.view',
+    'queries.execute',
+    'queries.explain',
+    'queries.save',
+    'workspace.view',
+  ]);
+
+  const PERMISSIONS_LIST = [
+    // members
+    { key: 'members.view', name: 'View Members', category: 'members', description: 'View workspace member list and member details' },
+    { key: 'members.invite', name: 'Invite Members', category: 'members', description: 'Invite new members to join the workspace' },
+    { key: 'members.update_role', name: 'Update Member Roles', category: 'members', description: 'Change roles of workspace members' },
+    { key: 'members.remove', name: 'Remove Members', category: 'members', description: 'Remove members from the workspace' },
+    // connections
+    { key: 'connections.view', name: 'View Connections', category: 'connections', description: 'View configured database connections' },
+    { key: 'connections.manage', name: 'Manage Connections', category: 'connections', description: 'Create, edit, or delete database connections' },
+    { key: 'connections.view_schema', name: 'View Connection Schema', category: 'connections', description: 'View schema and metadata for database connections' },
+    // catalog
+    { key: 'catalog.view', name: 'View Catalog', category: 'catalog', description: 'View data catalog, verified Q&A, and metrics' },
+    { key: 'catalog.manage', name: 'Manage Catalog', category: 'catalog', description: 'Create or update data catalog definitions' },
+    // dashboards
+    { key: 'dashboards.view', name: 'View Dashboards', category: 'dashboards', description: 'View dashboards and visualization panels' },
+    { key: 'dashboards.create', name: 'Create Dashboards', category: 'dashboards', description: 'Create new dashboards and panels' },
+    { key: 'dashboards.manage', name: 'Manage Dashboards', category: 'dashboards', description: 'Edit or delete existing dashboards' },
+    // queries
+    { key: 'queries.execute', name: 'Execute Queries', category: 'queries', description: 'Execute natural language and SQL queries' },
+    { key: 'queries.explain', name: 'Explain Queries', category: 'queries', description: 'Generate query explanations and execution plans' },
+    { key: 'queries.save', name: 'Save Queries', category: 'queries', description: 'Save queries for workspace access' },
+    { key: 'queries.delete_saved', name: 'Delete Saved Queries', category: 'queries', description: 'Delete saved queries' },
+    // activity
+    { key: 'activity.view', name: 'View Activity', category: 'activity', description: 'View workspace activity logs' },
+    { key: 'activity.export', name: 'Export Activity', category: 'activity', description: 'Export workspace activity logs' },
+    // workspace_management
+    { key: 'workspace.view', name: 'View Workspace', category: 'workspace_management', description: 'View workspace details and configuration' },
+    { key: 'workspace.update', name: 'Update Workspace', category: 'workspace_management', description: 'Update workspace basic profile details' },
+    { key: 'workspace.settings', name: 'Manage Workspace Settings', category: 'workspace_management', description: 'Manage workspace defaults and role permission matrix' },
+  ];
 
   const isAdmin = $derived(
     appState.activeWorkspace?.role === 'admin' ||
@@ -109,6 +180,9 @@
   const sections = $derived([
     { id: 'general' as const, label: 'General', desc: 'Name & identity' },
     { id: 'members' as const, label: 'Members', desc: 'Roles & access' },
+    ...(isOwner
+      ? [{ id: 'permissions' as const, label: 'Permissions', desc: 'RBAC matrix' }]
+      : []),
     ...(isAdmin
       ? [
           { id: 'invites' as const, label: 'Invitations', desc: 'Add teammates' },
@@ -124,6 +198,39 @@
     loading = false;
   });
 
+  async function loadSettings() {
+    if (!appState.activeWorkspace || !isOwner) return;
+    try {
+      const settings = await getWorkspaceSettings(appState.activeWorkspace.id);
+      workspaceSettings = settings;
+      if (settings.default_invite_role) {
+        defaultInviteRole = settings.default_invite_role as 'member' | 'admin';
+      }
+      if (settings.invite_expiry_days !== undefined) {
+        inviteExpiryDays = settings.invite_expiry_days;
+      }
+      if (settings.activity_retention_days !== undefined) {
+        activityRetentionDays = settings.activity_retention_days;
+      }
+
+      const resolved = settings.resolved_matrix || {};
+      const adminPerms: Record<string, boolean> = {};
+      const memberPerms: Record<string, boolean> = {};
+
+      PERMISSIONS_LIST.forEach((p) => {
+        adminPerms[p.key] = resolved.admin?.[p.key] ?? true;
+        memberPerms[p.key] = resolved.member?.[p.key] ?? DEFAULT_MEMBER_PERMS.has(p.key);
+      });
+
+      matrixState = {
+        admin: adminPerms,
+        member: memberPerms,
+      };
+    } catch (e: any) {
+      console.error('Failed to load workspace settings:', e);
+    }
+  }
+
   async function loadData() {
     try {
       await appState.loadWorkspaces();
@@ -134,6 +241,9 @@
         pendingInvites = isAdmin
           ? await getPendingInvites(appState.activeWorkspace.id)
           : [];
+        if (isOwner) {
+          await loadSettings();
+        }
       } else {
         members = [];
         pendingInvites = [];
@@ -141,6 +251,95 @@
       error = '';
     } catch (e: any) {
       error = e.message || 'Could not load workspaces';
+    }
+  }
+
+  async function handleSaveDefaults() {
+    if (!appState.activeWorkspace || !isOwner) return;
+    const expiry = Number(inviteExpiryDays);
+    const retention = Number(activityRetentionDays);
+
+    if (isNaN(expiry) || expiry < 1 || expiry > 365) {
+      appState.showError('Invite expiry days must be between 1 and 365.');
+      return;
+    }
+    if (isNaN(retention) || retention < 1 || retention > 365) {
+      appState.showError('Activity retention days must be between 1 and 365.');
+      return;
+    }
+
+    savingDefaults = true;
+    try {
+      const updated = await updateWorkspaceSettings(appState.activeWorkspace.id, {
+        default_invite_role: defaultInviteRole,
+        invite_expiry_days: expiry,
+        activity_retention_days: retention,
+      });
+      workspaceSettings = updated;
+      appState.showToast({
+        title: 'Defaults saved',
+        body: 'Workspace default settings updated successfully.',
+      });
+    } catch (e: any) {
+      appState.showError(e.message || 'Could not save workspace defaults');
+    } finally {
+      savingDefaults = false;
+    }
+  }
+
+  async function handleSavePermissions() {
+    if (!appState.activeWorkspace || !isOwner) return;
+    savingPermissions = true;
+    try {
+      const adminOverrides: Record<string, boolean> = {};
+      const memberOverrides: Record<string, boolean> = {};
+
+      PERMISSIONS_LIST.forEach((p) => {
+        const adminVal = matrixState.admin[p.key];
+        if (adminVal !== true) {
+          adminOverrides[p.key] = adminVal;
+        }
+
+        const memberVal = matrixState.member[p.key];
+        const defaultMemberVal = DEFAULT_MEMBER_PERMS.has(p.key);
+        if (memberVal !== defaultMemberVal) {
+          memberOverrides[p.key] = memberVal;
+        }
+      });
+
+      const role_permissions: Record<string, any> = {};
+      if (Object.keys(adminOverrides).length > 0) {
+        role_permissions.admin = adminOverrides;
+      }
+      if (Object.keys(memberOverrides).length > 0) {
+        role_permissions.member = memberOverrides;
+      }
+
+      const updated = await updateWorkspaceSettings(appState.activeWorkspace.id, {
+        role_permissions,
+      });
+      workspaceSettings = updated;
+
+      const resolved = updated.resolved_matrix || {};
+      const adminPerms: Record<string, boolean> = {};
+      const memberPerms: Record<string, boolean> = {};
+      PERMISSIONS_LIST.forEach((p) => {
+        adminPerms[p.key] = resolved.admin?.[p.key] ?? true;
+        memberPerms[p.key] = resolved.member?.[p.key] ?? DEFAULT_MEMBER_PERMS.has(p.key);
+      });
+      matrixState = {
+        admin: adminPerms,
+        member: memberPerms,
+      };
+
+      appState.showToast({
+        title: 'Permissions saved',
+        body: 'Role permission matrix saved successfully.',
+      });
+    } catch (e: any) {
+      appState.showError(e.message || 'Could not save permissions');
+    } finally {
+      savingPermissions = false;
     }
   }
 
@@ -549,6 +748,73 @@
             </div>
           </section>
 
+          {#if isOwner}
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Workspace defaults</h2>
+                <p>Default settings for new invitations and activity log retention.</p>
+              </div>
+              <div class="panel-body">
+                <div class="field-row">
+                  <div class="field-info">
+                    <label for="default-invite-role">Default invite role</label>
+                    <span>Initial role assigned when inviting new members.</span>
+                  </div>
+                  <div class="field-control">
+                    <select id="default-invite-role" class="select" bind:value={defaultInviteRole}>
+                      <option value="member">Member</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="divider"></div>
+                <div class="field-row">
+                  <div class="field-info">
+                    <label for="invite-expiry-days">Invite expiry days</label>
+                    <span>Number of days before an invitation expires (1-365).</span>
+                  </div>
+                  <div class="field-control">
+                    <input
+                      id="invite-expiry-days"
+                      type="number"
+                      class="input"
+                      min="1"
+                      max="365"
+                      bind:value={inviteExpiryDays}
+                    />
+                  </div>
+                </div>
+                <div class="divider"></div>
+                <div class="field-row">
+                  <div class="field-info">
+                    <label for="activity-retention-days">Activity retention days</label>
+                    <span>Number of days activity logs are retained (1-365).</span>
+                  </div>
+                  <div class="field-control">
+                    <input
+                      id="activity-retention-days"
+                      type="number"
+                      class="input"
+                      min="1"
+                      max="365"
+                      bind:value={activityRetentionDays}
+                    />
+                  </div>
+                </div>
+                <div class="divider"></div>
+                <div class="field-row" style="justify-content: flex-end;">
+                  <button
+                    class="btn primary"
+                    onclick={handleSaveDefaults}
+                    disabled={savingDefaults}
+                  >
+                    {savingDefaults ? 'Saving…' : 'Save defaults'}
+                  </button>
+                </div>
+              </div>
+            </section>
+          {/if}
+
           <section class="panel muted-panel">
             <div class="panel-head">
               <h2>Data & privacy</h2>
@@ -798,6 +1064,86 @@
               <p>Recent administrative events in this workspace.</p>
             </div>
             <ActivityLog />
+          </section>
+        {:else if section === 'permissions' && isOwner && appState.activeWorkspace}
+          <section class="panel">
+            <div class="panel-head" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+              <div>
+                <h2>Configurable RBAC Permission Matrix</h2>
+                <p>Customize fine-grained capabilities across workspace roles.</p>
+              </div>
+              <button
+                class="btn primary"
+                onclick={handleSavePermissions}
+                disabled={savingPermissions}
+              >
+                {savingPermissions ? 'Saving…' : 'Save permissions'}
+              </button>
+            </div>
+            <div class="matrix-container">
+              <table class="matrix-table">
+                <thead>
+                  <tr>
+                    <th class="col-capability">Capability</th>
+                    <th class="col-role">Owner</th>
+                    <th class="col-role">Admin</th>
+                    <th class="col-role">Member</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each PERMISSION_RESOURCES as res}
+                    <tr class="category-header-row">
+                      <td colspan="4">
+                        <span class="category-title">{res.label}</span>
+                        <span class="category-desc">{res.desc}</span>
+                      </td>
+                    </tr>
+                    {#each PERMISSIONS_LIST.filter(p => p.category === res.id) as perm}
+                      <tr class="perm-row">
+                        <td class="perm-info-cell">
+                          <div class="perm-name">{perm.name}</div>
+                          <div class="perm-desc">{perm.description}</div>
+                          <code class="perm-key">{perm.key}</code>
+                        </td>
+                        <td class="perm-toggle-cell">
+                          <label class="toggle-switch disabled" title="Owner permissions are immutable">
+                            <input type="checkbox" checked disabled />
+                            <span class="slider"></span>
+                          </label>
+                        </td>
+                        <td class="perm-toggle-cell">
+                          <label class="toggle-switch">
+                            <input
+                              type="checkbox"
+                              bind:checked={matrixState.admin[perm.key]}
+                            />
+                            <span class="slider"></span>
+                          </label>
+                        </td>
+                        <td class="perm-toggle-cell">
+                          <label class="toggle-switch">
+                            <input
+                              type="checkbox"
+                              bind:checked={matrixState.member[perm.key]}
+                            />
+                            <span class="slider"></span>
+                          </label>
+                        </td>
+                      </tr>
+                    {/each}
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+            <div class="panel-footer" style="padding: 16px 22px; display: flex; justify-content: flex-end; border-top: 1px solid var(--border);">
+              <button
+                class="btn primary"
+                onclick={handleSavePermissions}
+                disabled={savingPermissions}
+              >
+                {savingPermissions ? 'Saving…' : 'Save permissions'}
+              </button>
+            </div>
           </section>
         {:else if section === 'workspaces'}
           <section class="panel">
@@ -1320,5 +1666,118 @@
     .field-row { flex-direction: column; align-items: flex-start; }
     .field-control { width: 100%; }
     .field-control .input { flex: 1; min-width: 0; width: 100%; }
+  }
+
+  .matrix-container {
+    overflow-x: auto;
+  }
+  .matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  .matrix-table th {
+    padding: 12px 20px;
+    text-align: left;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--faint);
+  }
+  .matrix-table th.col-role {
+    text-align: center;
+    width: 100px;
+  }
+  .category-header-row td {
+    background: var(--surface-3);
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .category-title {
+    font-weight: 750;
+    font-size: 13px;
+    color: var(--ink);
+    margin-right: 8px;
+  }
+  .category-desc {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .perm-row {
+    border-bottom: 1px solid var(--border);
+  }
+  .perm-row:hover {
+    background: var(--surface-2);
+  }
+  .perm-info-cell {
+    padding: 12px 20px;
+  }
+  .perm-name {
+    font-weight: 650;
+    color: var(--ink);
+  }
+  .perm-desc {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .perm-key {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--faint);
+    margin-top: 3px;
+    display: inline-block;
+  }
+  .perm-toggle-cell {
+    padding: 12px 20px;
+    text-align: center;
+    vertical-align: middle;
+  }
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 38px;
+    height: 22px;
+  }
+  .toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: var(--border-2);
+    transition: .2s;
+    border-radius: 22px;
+  }
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .2s;
+    border-radius: 50%;
+  }
+  .toggle-switch input:checked + .slider {
+    background-color: var(--brand);
+  }
+  .toggle-switch input:checked + .slider:before {
+    transform: translateX(16px);
+  }
+  .toggle-switch.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .toggle-switch.disabled .slider {
+    cursor: not-allowed;
   }
 </style>

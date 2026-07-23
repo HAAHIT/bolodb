@@ -103,3 +103,11 @@ async def test_cleanup_loop_stops_on_cancellation(monkeypatch):
     with pytest.raises(asyncio.CancelledError):
         await task
     assert task.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_old_activity_logs_alias(monkeypatch):
+    _session_with_rowcount(monkeypatch, 5)
+    assert await activity.cleanup_old_activity_logs(retention_days=10) == 5
+    assert await activity.cleanup_old_activity_logs(None, 10) == 5
+    assert await activity.cleanup_old_activity_logs(10) == 5
