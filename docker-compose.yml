@@ -42,8 +42,8 @@ services:
         PUBLIC_POSTHOG_PROJECT_TOKEN: ${PUBLIC_POSTHOG_PROJECT_TOKEN:-}
         PUBLIC_POSTHOG_HOST: ${PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}
     restart: unless-stopped
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     depends_on:
       backend:
         condition: service_healthy
