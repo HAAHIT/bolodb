@@ -84,7 +84,14 @@ async def schema(
 @router.post("/api/reconnect")
 async def reconnect(
     request_body: dict,
-    workspace=Depends(require_permission("connections.manage")),
+    # Switching to a database the workspace already has is a *use* action, not a
+    # *manage* one: reconnect only ever targets a stored connection (looked up by
+    # db_id below and 404'd otherwise, using the saved URL — never a caller
+    # supplied one), so it can't add new databases. Gating it on connections.view
+    # lets members pick between the workspace's databases from the switcher;
+    # adding a brand-new connection still requires connections.manage via
+    # /api/connect.
+    workspace=Depends(require_permission("connections.view")),
     db=Depends(get_db),
     kb=Depends(get_kb),
     cfg=Depends(get_cfg),
