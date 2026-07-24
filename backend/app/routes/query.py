@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import StreamingResponse
 from backend.app.dependencies import (
     require_permission,
+    workspace_has_permission,
     get_db,
     get_kb,
     get_cfg,
@@ -155,6 +156,14 @@ async def feedback(
 ) -> dict:
     try:
         workspace_id = workspace["workspace_id"]
+        # Positive feedback promotes a Q&A/SQL pair into shared verified knowledge,
+        # so it must satisfy the same catalog-manage gate as /api/verify.
+        if req.verdict == "correct" and not await workspace_has_permission(
+            workspace, "catalog.manage"
+        ):
+            raise HTTPException(
+                status_code=403, detail="Permission 'catalog.manage' required"
+            )
         return await ctrl.feedback(workspace_id, db, kb, session_log, req, db_id=db_id)
     except HTTPException:
         raise

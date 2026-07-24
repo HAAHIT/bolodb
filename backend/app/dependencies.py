@@ -65,20 +65,25 @@ def require_role(minimum_role: str):
     return role_dependency
 
 
+async def workspace_has_permission(workspace, permission_key: str) -> bool:
+    """Resolve whether the current workspace member holds a fine-grained permission."""
+    if workspace["role"] == "owner":
+        return True
+
+    wid = _to_uuid(workspace["workspace_id"])
+    async with async_session() as session:
+        result = await session.execute(
+            select(WorkspaceSettings).where(WorkspaceSettings.workspace_id == wid)
+        )
+        settings = result.scalar_one_or_none()
+
+    role_permissions = getattr(settings, "role_permissions", None)
+    return has_permission(workspace["role"], role_permissions, permission_key)
+
+
 def require_permission(permission_key: str):
     async def permission_dependency(workspace=Depends(get_current_workspace)):
-        if workspace["role"] == "owner":
-            return workspace
-
-        wid = _to_uuid(workspace["workspace_id"])
-        async with async_session() as session:
-            result = await session.execute(
-                select(WorkspaceSettings).where(WorkspaceSettings.workspace_id == wid)
-            )
-            settings = result.scalar_one_or_none()
-
-        role_permissions = getattr(settings, "role_permissions", None)
-        if not has_permission(workspace["role"], role_permissions, permission_key):
+        if not await workspace_has_permission(workspace, permission_key):
             raise HTTPException(
                 status_code=403, detail=f"Permission '{permission_key}' required"
             )
