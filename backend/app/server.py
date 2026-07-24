@@ -134,7 +134,7 @@ def create_app(initial_db_url="", readonly=True):
     providers = ProviderManager(cfg)
     db = DatabaseManager(readonly=readonly)
     kbs = KnowledgeService(async_session)
-    session_log = SessionLog(cfgmod.CONFIG_DIR)
+    session_log = SessionLog()
 
     app = FastAPI(title="BoloDB", version="2.0.0", lifespan=lifespan)
     app.state.limiter = limiter

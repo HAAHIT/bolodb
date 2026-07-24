@@ -45,9 +45,9 @@ COPY --from=frontend-builder /app/build /usr/share/nginx/html
 COPY nginx.conf.render /etc/nginx/conf.d/default.conf
 
 RUN addgroup --system bolodb && adduser --system --home /home/bolodb --ingroup bolodb bolodb \
-    && mkdir -p /home/bolodb/.bolodb \
+    && mkdir -p /app/data \
     && chmod +x /app/backend/docker-entrypoint.sh \
-    && chown -R bolodb:bolodb /home/bolodb/.bolodb /app
+    && chown -R bolodb:bolodb /app
 
 EXPOSE 80
 

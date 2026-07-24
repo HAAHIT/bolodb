@@ -8,12 +8,15 @@ services:
     expose:
       - "4321"
     volumes:
-      - bolodb-data:/home/bolodb/.bolodb
+      # The generated sample database is a regenerable cache; the volume keeps
+      # it across restarts so it isn't rebuilt each time, but nothing here is
+      # state that has to survive — all real data lives in Postgres.
       - bolodb-app-data:/app/data
     environment:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
-      - RECENT_CONNECTIONS_MASTER_KEY=${RECENT_CONNECTIONS_MASTER_KEY:?RECENT_CONNECTIONS_MASTER_KEY must be set}
-      - RECENT_CONNECTIONS_KEY=${RECENT_CONNECTIONS_KEY:-}
+      # Stable secret that encrypts saved connection URLs. Never written to
+      # disk, so it must be supplied here and kept constant across deploys.
+      - RECENT_CONNECTIONS_KEY=${RECENT_CONNECTIONS_KEY:?RECENT_CONNECTIONS_KEY must be set}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:?OPENROUTER_API_KEY must be set}
       - DATABASE_URL=${DATABASE_URL:? Database URL must be set}
       - PYTHONUNBUFFERED=1
@@ -58,7 +61,6 @@ services:
       - bolodb-net
 
 volumes:
-  bolodb-data:
   bolodb-postgres-data:
   bolodb-postgres-wal:
   bolodb-app-data:

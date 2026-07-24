@@ -173,12 +173,16 @@ COLUMN_TYPES = {
 _UNESCAPE = {"\\t": "\t", "\\n": "\n", "\\r": "\r", "\\\\": "\\"}
 
 
+# The generated SQLite file lives in the repo's data/ directory, not a user
+# home or a persistent volume. It is a cache rebuilt from the vendored dump, so
+# it can be thrown away and regenerated at any time. Overridable for tests.
+_DATA_DIR = Path(
+    os.environ.get("BOLODB_DATA_DIR", Path(__file__).resolve().parent.parent / "data")
+)
+
+
 def sample_db_path() -> Path:
-    return (
-        Path(os.path.expanduser("~"))
-        / ".bolodb"
-        / f"sample_webshop_v{SAMPLE_VERSION}.db"
-    )
+    return _DATA_DIR / f"sample_webshop_v{SAMPLE_VERSION}.db"
 
 
 def ensure_sample_db() -> str:

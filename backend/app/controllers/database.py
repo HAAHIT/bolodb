@@ -2,10 +2,20 @@ from fastapi import HTTPException
 from backend.app.database import sanitize_url
 from backend.sample_data import ensure_sample_db
 import backend.app.pgdatabase as mdb
+from backend.app.pgdatabase.connections import ConnectionKeyError
 import logging
 from backend.app.controllers.activity import log_activity
 
 logger = logging.getLogger(__name__)
+
+# A server-misconfiguration message, distinct from a transient save failure:
+# every save fails the same way until an operator sets RECENT_CONNECTIONS_KEY,
+# and reconnecting existing databases fails too — so "try again" would mislead.
+_KEY_ERROR_MESSAGE = (
+    "Connected, but saved connections aren't configured on the server "
+    "(RECENT_CONNECTIONS_KEY is missing). Ask an administrator to set it — "
+    "until then this database won't be remembered."
+)
 
 # Shown wherever a database needs a name — header, switcher, connect screen.
 SAMPLE_ALIAS = "Sample Webshop"
@@ -103,6 +113,9 @@ async def connect(db, kb, cfg, req_data, workspace_id=None, user_id=None):
                 # read it back — the header and switcher label from this.
                 saved = await mdb.get_recent_connection_by_db_id(workspace_id, db_id)
                 result["alias_name"] = saved.get("alias_name") if saved else None
+        except ConnectionKeyError:
+            logger.exception("Recent-connection encryption key is not configured")
+            result["save_error"] = _KEY_ERROR_MESSAGE
         except Exception:
             # The connection itself is live; only its persistence failed. Say so
             # rather than letting it quietly vanish from the connect screen.
@@ -161,6 +174,9 @@ async def connect_sample(db, kb, cfg, workspace_id=None, user_id=None):
                 table_count=result["tables"],
                 alias_name=SAMPLE_ALIAS,
             )
+        except ConnectionKeyError:
+            logger.exception("Recent-connection encryption key is not configured")
+            result["save_error"] = _KEY_ERROR_MESSAGE
         except Exception:
             logger.exception("Failed to save recent connection")
             result["save_error"] = (

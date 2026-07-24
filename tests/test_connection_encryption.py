@@ -1,8 +1,9 @@
-"""Tests for recent-connection URL encryption and its migration fallbacks.
+"""Tests for recent-connection URL encryption.
 
-A stored connection URL must stay readable across key-scheme changes — an
-unreadable URL means the user can no longer reopen a database they already
-connected, which is exactly the failure these fallbacks exist to prevent.
+The key comes only from RECENT_CONNECTIONS_KEY — nothing is read from or written
+to disk. A stored URL must round-trip under that key, legacy rows written when
+JWT_SECRET was the key must still decrypt, and a missing key must fail loudly
+rather than silently dropping the save.
 """
 
 import base64
@@ -12,6 +13,7 @@ import pytest
 from cryptography.fernet import Fernet
 
 import backend.app.pgdatabase.connections as conns
+from backend.app.pgdatabase.connections import ConnectionKeyError
 
 
 def _fernet_for(secret: str) -> Fernet:
@@ -21,74 +23,54 @@ def _fernet_for(secret: str) -> Fernet:
 @pytest.fixture(autouse=True)
 def _clear_cipher_cache(monkeypatch):
     monkeypatch.setattr(conns, "_RECENT_CIPHER", None)
-    for var in (
-        "RECENT_CONNECTIONS_KEY",
-        "RECENT_CONNECTIONS_MASTER_KEY",
-        "JWT_SECRET",
-    ):
+    for var in ("RECENT_CONNECTIONS_KEY", "JWT_SECRET"):
         monkeypatch.delenv(var, raising=False)
     yield
     conns._RECENT_CIPHER = None
 
 
-def test_roundtrip_with_direct_key(monkeypatch):
+def test_roundtrip_with_env_key(monkeypatch):
     monkeypatch.setenv("RECENT_CONNECTIONS_KEY", "a-direct-key")
     token = conns._encrypt_connection_url("postgresql://u:p@host/db")
     assert token != "postgresql://u:p@host/db"
     assert conns._decrypt_connection_url(token) == "postgresql://u:p@host/db"
 
 
-def test_falls_back_to_jwt_secret_when_no_connections_key(monkeypatch, tmp_path):
-    """Rows written when JWT_SECRET was the key must still decrypt.
-
-    With no RECENT_CONNECTIONS_* var set, building the cipher raises — that
-    must not stop the legacy path from being tried.
-    """
-    monkeypatch.setattr(conns, "CONFIG_DIR", tmp_path)
-    monkeypatch.setattr(conns, "_CONNECTIONS_KEY_FILE", tmp_path / "connections.key")
-    monkeypatch.setenv("JWT_SECRET", "the-old-secret")
-    legacy = _fernet_for("the-old-secret").encrypt(b"mysql://u:p@host/db").decode()
-
-    assert conns._decrypt_connection_url(legacy) == "mysql://u:p@host/db"
-
-
-def test_falls_back_to_jwt_secret_when_key_file_needs_absent_master(
-    monkeypatch, tmp_path
-):
-    """A v1: key file with no master key set must not derive a garbage key.
-
-    This is the regression: treating the ciphertext as a raw secret produced a
-    wrong cipher, and the resulting RuntimeError skipped the legacy path.
-    """
-    key_file = tmp_path / "connections.key"
-    key_file.write_text("v1:" + _fernet_for("master").encrypt(b"inner").decode())
-    monkeypatch.setattr(conns, "CONFIG_DIR", tmp_path)
-    monkeypatch.setattr(conns, "_CONNECTIONS_KEY_FILE", key_file)
-    monkeypatch.setenv("JWT_SECRET", "the-old-secret")
-    legacy = _fernet_for("the-old-secret").encrypt(b"mysql://u:p@host/db").decode()
-
-    assert conns._decrypt_connection_url(legacy) == "mysql://u:p@host/db"
-
-
-def test_encrypted_key_file_without_master_key_is_a_clear_error(monkeypatch, tmp_path):
-    key_file = tmp_path / "connections.key"
-    key_file.write_text("v1:" + _fernet_for("master").encrypt(b"inner").decode())
-    monkeypatch.setattr(conns, "CONFIG_DIR", tmp_path)
-    monkeypatch.setattr(conns, "_CONNECTIONS_KEY_FILE", key_file)
-
-    with pytest.raises(RuntimeError, match="RECENT_CONNECTIONS_MASTER_KEY"):
+def test_missing_key_raises_connection_key_error(monkeypatch):
+    """No key set is a server misconfiguration, surfaced as a distinct type."""
+    with pytest.raises(ConnectionKeyError, match="RECENT_CONNECTIONS_KEY"):
         conns._build_recent_connection_cipher()
 
 
-def test_master_key_reads_back_its_own_key_file(monkeypatch, tmp_path):
-    key_file = tmp_path / "connections.key"
-    monkeypatch.setattr(conns, "CONFIG_DIR", tmp_path)
-    monkeypatch.setattr(conns, "_CONNECTIONS_KEY_FILE", key_file)
-    monkeypatch.setenv("RECENT_CONNECTIONS_MASTER_KEY", "master")
+def test_encrypt_without_key_raises_connection_key_error(monkeypatch):
+    with pytest.raises(ConnectionKeyError):
+        conns._encrypt_connection_url("postgresql://u:p@host/db")
 
-    token = conns._build_recent_connection_cipher().encrypt(b"sqlite:///x.db").decode()
-    conns._RECENT_CIPHER = None  # force a rebuild from the persisted file
-    assert conns._decrypt_connection_url(token) == "sqlite:///x.db"
+
+def test_falls_back_to_jwt_secret_for_legacy_rows(monkeypatch):
+    """Rows written when JWT_SECRET was the key must still decrypt.
+
+    The current key is set to something else, so only the legacy fallback can
+    read these — the point being that old saved connections survive the move to
+    an env-only key.
+    """
+    monkeypatch.setenv("RECENT_CONNECTIONS_KEY", "the-new-key")
+    monkeypatch.setenv("JWT_SECRET", "the-old-secret")
+    legacy = _fernet_for("the-old-secret").encrypt(b"mysql://u:p@host/db").decode()
+
+    assert conns._decrypt_connection_url(legacy) == "mysql://u:p@host/db"
+
+
+def test_missing_key_does_not_block_the_legacy_path(monkeypatch):
+    """Even with no current key, a legacy JWT_SECRET row must still decrypt.
+
+    Building the cipher raises ConnectionKeyError; that must be caught so the
+    fallback still runs rather than the whole read failing.
+    """
+    monkeypatch.setenv("JWT_SECRET", "the-old-secret")
+    legacy = _fernet_for("the-old-secret").encrypt(b"mysql://u:p@host/db").decode()
+
+    assert conns._decrypt_connection_url(legacy) == "mysql://u:p@host/db"
 
 
 def test_plaintext_url_passes_through(monkeypatch):

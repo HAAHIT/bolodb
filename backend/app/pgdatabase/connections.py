@@ -1,4 +1,12 @@
-"""Recent connections CRUD with encryption."""
+"""Recent connections CRUD with encryption.
+
+Stored database URLs contain credentials, so they are encrypted at rest with a
+key derived from ``RECENT_CONNECTIONS_KEY`` in the environment. That is the only
+source — nothing is written to disk, so pointing a deploy at a fresh volume or
+rotating the app image can never orphan the key. The env var must stay stable:
+change it and previously saved connections can no longer be decrypted and have
+to be re-added.
+"""
 
 import base64
 import hashlib
@@ -13,71 +21,25 @@ from backend.app.pgdatabase.engine import async_session
 from backend.app.models.recent_connection import RecentConnection
 from backend.app.models.base import _uuid7
 from backend.app.pgdatabase.serialization import _to_uuid, serialize_doc
-from backend.app.config import CONFIG_DIR
 
 
-_CONNECTIONS_KEY_FILE = CONFIG_DIR / "connections.key"
+class ConnectionKeyError(RuntimeError):
+    """Raised when RECENT_CONNECTIONS_KEY is missing or unusable.
 
-
-def _recent_connections_master_cipher():
-    master = os.getenv("RECENT_CONNECTIONS_MASTER_KEY")
-    if not master:
-        return None
-    master_key = base64.urlsafe_b64encode(hashlib.sha256(master.encode()).digest())
-    return Fernet(master_key)
+    A dedicated type so callers can tell "the server is misconfigured" (every
+    save will fail until an operator fixes the environment) apart from a
+    transient database error (worth retrying).
+    """
 
 
 def _build_recent_connection_cipher():
     secret = os.getenv("RECENT_CONNECTIONS_KEY")
-    if secret:
-        key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
-        return Fernet(key)
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    master_cipher = _recent_connections_master_cipher()
-    if _CONNECTIONS_KEY_FILE.exists():
-        persisted = _CONNECTIONS_KEY_FILE.read_text().strip()
-        if master_cipher:
-            if persisted.startswith("v1:"):
-                try:
-                    loaded_secret = master_cipher.decrypt(
-                        persisted[3:].encode()
-                    ).decode()
-                except (InvalidToken, ValueError, TypeError):
-                    raise RuntimeError(
-                        "Failed to decrypt connections key file with RECENT_CONNECTIONS_MASTER_KEY. "
-                        "The master key may have changed or the key file is corrupted."
-                    )
-            else:
-                raise RuntimeError(
-                    "RECENT_CONNECTIONS_MASTER_KEY is set but connections key file "
-                    "is not encrypted. Re-run with RECENT_CONNECTIONS_MASTER_KEY unset "
-                    "to regenerate, or set RECENT_CONNECTIONS_KEY directly."
-                )
-        elif persisted.startswith("v1:"):
-            raise RuntimeError(
-                "The connections key file is encrypted with a master key, but "
-                "RECENT_CONNECTIONS_MASTER_KEY is not set. Set it to the master key "
-                "the file was written with, or set RECENT_CONNECTIONS_KEY directly."
-            )
-        else:
-            loaded_secret = persisted
-        key = base64.urlsafe_b64encode(hashlib.sha256(loaded_secret.encode()).digest())
-        return Fernet(key)
-    if master_cipher:
-        new_secret = base64.urlsafe_b64encode(os.urandom(32)).decode()
-        _CONNECTIONS_KEY_FILE.write_text(
-            "v1:" + master_cipher.encrypt(new_secret.encode()).decode()
+    if not secret:
+        raise ConnectionKeyError(
+            "RECENT_CONNECTIONS_KEY is not set. It is required to encrypt saved "
+            "database connections — set a stable secret in the environment."
         )
-        try:
-            os.chmod(_CONNECTIONS_KEY_FILE, 0o600)
-        except OSError:
-            pass
-        key = base64.urlsafe_b64encode(hashlib.sha256(new_secret.encode()).digest())
-    else:
-        raise RuntimeError(
-            "No encryption key configured for recent connections. Set "
-            "RECENT_CONNECTIONS_KEY or RECENT_CONNECTIONS_MASTER_KEY in the environment."
-        )
+    key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
     return Fernet(key)
 
 

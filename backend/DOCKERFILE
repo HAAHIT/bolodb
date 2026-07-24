@@ -20,10 +20,12 @@ RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 COPY backend/        /app/backend/
 
 # ── 3. Create non-root user ──
+# /app/data holds the regenerable sample database; create it owned by the
+# runtime user so it is writable whether or not a volume is mounted over it.
 RUN addgroup --system bolodb && adduser --system --home /home/bolodb --ingroup bolodb bolodb \
-    && mkdir -p /home/bolodb/.bolodb \
+    && mkdir -p /app/data \
     && chmod +x /app/backend/docker-entrypoint.sh \
-    && chown -R bolodb:bolodb /home/bolodb/.bolodb /app
+    && chown -R bolodb:bolodb /app
 
 USER bolodb
 
