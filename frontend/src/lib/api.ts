@@ -2,6 +2,27 @@
 
 import type { StreamEvent } from "$lib/types";
 
+/**
+ * Turn a FastAPI error body's `detail` into a readable string. `detail` is
+ * usually a plain string, but 422 validation errors return it as an array of
+ * `{ loc, msg, type }` objects — passing that straight to `new Error()` renders
+ * as the useless "[object Object]".
+ */
+function extractDetail(data: any, status: number): string {
+  const detail = data?.detail;
+  if (typeof detail === "string" && detail) return detail;
+  if (Array.isArray(detail)) {
+    const msg = detail
+      .map((d) => (typeof d === "string" ? d : d?.msg))
+      .filter(Boolean)
+      .join("; ");
+    if (msg) return msg;
+  } else if (detail && typeof detail === "object" && detail.msg) {
+    return detail.msg;
+  }
+  return `Request failed: ${status}`;
+}
+
 export async function apiCall(
   path: string,
   body?: unknown,
@@ -33,7 +54,7 @@ export async function apiCall(
   const r = await fetch(path, opts);
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
-    const error: any = new Error(data.detail || `Request failed: ${r.status}`);
+    const error: any = new Error(extractDetail(data, r.status));
     error.status = r.status;
     throw error;
   }
@@ -84,7 +105,7 @@ export async function streamApiCall(
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      throw new Error(data.detail || `Request failed: ${response.status}`);
+      throw new Error(extractDetail(data, response.status));
     }
     if (!response.body) throw new Error("Streaming not supported");
 
@@ -384,7 +405,7 @@ export async function downloadWorkspaceActivity(
   });
   if (!r.ok) {
     const data = await r.json().catch(() => ({}));
-    const error: any = new Error(data.detail || `Request failed: ${r.status}`);
+    const error: any = new Error(extractDetail(data, r.status));
     error.status = r.status;
     throw error;
   }
