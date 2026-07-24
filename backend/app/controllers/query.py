@@ -762,7 +762,7 @@ async def run_query_stream(
     # Only link the turn to a conversation the caller actually owns
     conversation_id = req_data.conversation_id
     if conversation_id and not await mdb.conversation_owned_by(
-        workspace_id, conversation_id
+        workspace_id, user_id, conversation_id
     ):
         conversation_id = None
 
@@ -787,7 +787,7 @@ async def run_query_stream(
                 chart=out.get("chart"),
             )
             if conversation_id:
-                await mdb.touch_conversation(conversation_id)
+                await mdb.touch_conversation(conversation_id, user_id)
         except Exception:
             log.warning("Failed to persist streamed query history", exc_info=True)
 

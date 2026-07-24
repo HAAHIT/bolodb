@@ -19,6 +19,13 @@ class Conversation(Base):
         ForeignKey("workspaces.id", ondelete="CASCADE"),
         nullable=False,
     )
+    # Owning user. Conversations are private to the user that created them,
+    # scoped within their workspace — other members cannot see them.
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     title: Mapped[str] = mapped_column(String, nullable=False, default="")
     database_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

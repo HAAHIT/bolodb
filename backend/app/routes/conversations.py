@@ -23,7 +23,8 @@ class RenameConversationReq(BaseModel):
 async def list_conversations(workspace=Depends(require_permission("queries.execute"))):
     try:
         workspace_id = workspace["workspace_id"]
-        convs = await ctrl.list_conversations(workspace_id)
+        user_id = workspace["user_id"]
+        convs = await ctrl.list_conversations(workspace_id, user_id)
         return JSONResponse({"conversations": convs})
     except Exception:
         log.exception("Failed to list conversations")
@@ -37,8 +38,10 @@ async def create_conversation(
 ):
     try:
         workspace_id = workspace["workspace_id"]
+        user_id = workspace["user_id"]
         conv = await ctrl.create_conversation(
             workspace_id,
+            user_id,
             title=req.title,
             database_id=req.database_id,
         )
@@ -55,7 +58,8 @@ async def get_conversation(
 ):
     try:
         workspace_id = workspace["workspace_id"]
-        conv = await ctrl.get_conversation(workspace_id, conversation_id)
+        user_id = workspace["user_id"]
+        conv = await ctrl.get_conversation(workspace_id, user_id, conversation_id)
         if not conv:
             raise HTTPException(status_code=404, detail="Conversation not found")
         return JSONResponse(conv)
@@ -74,8 +78,9 @@ async def rename_conversation(
 ):
     try:
         workspace_id = workspace["workspace_id"]
+        user_id = workspace["user_id"]
         success = await ctrl.rename_conversation(
-            workspace_id, conversation_id, req.title
+            workspace_id, user_id, conversation_id, req.title
         )
         if not success:
             raise HTTPException(
@@ -96,7 +101,8 @@ async def delete_conversation(
 ):
     try:
         workspace_id = workspace["workspace_id"]
-        success = await ctrl.delete_conversation(workspace_id, conversation_id)
+        user_id = workspace["user_id"]
+        success = await ctrl.delete_conversation(workspace_id, user_id, conversation_id)
         if not success:
             raise HTTPException(
                 status_code=404, detail="Conversation not found or unauthorized"
@@ -113,7 +119,8 @@ async def delete_conversation(
 async def clear_conversations(workspace=Depends(require_permission("queries.execute"))):
     try:
         workspace_id = workspace["workspace_id"]
-        await ctrl.clear_conversations(workspace_id)
+        user_id = workspace["user_id"]
+        await ctrl.clear_conversations(workspace_id, user_id)
         return JSONResponse({"message": "Cleared successfully"})
     except Exception:
         log.exception("Failed to clear conversations")

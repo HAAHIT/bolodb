@@ -66,7 +66,7 @@ async def query(
             )
             conversation_id = req.conversation_id
             if conversation_id and not await mdb.conversation_owned_by(
-                workspace_id, conversation_id
+                workspace_id, user_id, conversation_id
             ):
                 conversation_id = None
             try:
@@ -82,7 +82,7 @@ async def query(
                     chart=out.get("chart"),
                 )
                 if conversation_id:
-                    await mdb.touch_conversation(conversation_id)
+                    await mdb.touch_conversation(conversation_id, user_id)
                 await log_activity(
                     workspace_id,
                     user_id,
@@ -206,7 +206,7 @@ async def execute(
 
         conversation_id = req.conversation_id
         if conversation_id and not await mdb.conversation_owned_by(
-            workspace_id, conversation_id
+            workspace_id, user_id, conversation_id
         ):
             conversation_id = None
         try:
@@ -222,7 +222,7 @@ async def execute(
                     restatement="Direct SQL execution",
                 )
                 if conversation_id:
-                    await mdb.touch_conversation(conversation_id)
+                    await mdb.touch_conversation(conversation_id, user_id)
             await log_activity(
                 workspace_id,
                 user_id,

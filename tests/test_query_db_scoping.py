@@ -274,7 +274,7 @@ def stubbed_pipeline(monkeypatch):
             "chart": {"type": "table"},
         }
 
-    async def fake_conversation_owned_by(workspace_id, conversation_id):
+    async def fake_conversation_owned_by(workspace_id, user_id, conversation_id):
         return False
 
     async def fake_save_query(**kwargs):
