@@ -245,6 +245,9 @@ def upgrade() -> None:
         sa.Column("invited_by", sa.UUID(), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("accepted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.CheckConstraint(
+            "role IN ('owner', 'admin', 'member')", name="ck_workspace_invite_role"
+        ),
         sa.ForeignKeyConstraint(["invited_by"], ["users.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
@@ -261,6 +264,9 @@ def upgrade() -> None:
         sa.Column("role", sa.String(), nullable=False),
         sa.Column("invited_by", sa.UUID(), nullable=True),
         sa.Column("joined_at", sa.DateTime(timezone=True), nullable=False),
+        sa.CheckConstraint(
+            "role IN ('owner', 'admin', 'member')", name="ck_workspace_member_role"
+        ),
         sa.ForeignKeyConstraint(["invited_by"], ["users.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(

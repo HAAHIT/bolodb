@@ -1,4 +1,4 @@
-"""Add user metadata
+"""Add user metadata column and dashboards, saved_queries, dashboard_panels tables
 
 Revision ID: b83664841390
 Revises: 4b1d269a3ad8

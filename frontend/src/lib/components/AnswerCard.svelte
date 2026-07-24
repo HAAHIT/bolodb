@@ -52,8 +52,12 @@
   );
 
   function toggleView() {
+    // Capture the view actually on screen *before* flipping the flag — once
+    // userPickedView is true, effectiveView resolves to viewMode, so reading it
+    // afterwards would ignore the model's chart default and no-op the first click.
+    const current = effectiveView;
     userPickedView = true;
-    viewMode = effectiveView === 'table' ? 'chart' : 'table';
+    viewMode = current === 'table' ? 'chart' : 'table';
   }
 
   function yes() { justVerified = true; onVerify(turn.id, 'correct', null); setTimeout(() => justVerified = false, 1600); }

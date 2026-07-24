@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from backend.app.dependencies import get_current_workspace
+from backend.app.dependencies import require_permission
 import backend.app.controllers.conversations as ctrl
 
 log = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ class RenameConversationReq(BaseModel):
 
 
 @router.get("")
-async def list_conversations(workspace=Depends(get_current_workspace)):
+async def list_conversations(workspace=Depends(require_permission("queries.execute"))):
     try:
         workspace_id = workspace["workspace_id"]
         convs = await ctrl.list_conversations(workspace_id)
@@ -33,7 +33,7 @@ async def list_conversations(workspace=Depends(get_current_workspace)):
 @router.post("")
 async def create_conversation(
     req: CreateConversationReq,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("queries.execute")),
 ):
     try:
         workspace_id = workspace["workspace_id"]
@@ -51,7 +51,7 @@ async def create_conversation(
 @router.get("/{conversation_id}")
 async def get_conversation(
     conversation_id: str,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("queries.execute")),
 ):
     try:
         workspace_id = workspace["workspace_id"]
@@ -70,7 +70,7 @@ async def get_conversation(
 async def rename_conversation(
     conversation_id: str,
     req: RenameConversationReq,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("queries.execute")),
 ):
     try:
         workspace_id = workspace["workspace_id"]
@@ -92,7 +92,7 @@ async def rename_conversation(
 @router.delete("/{conversation_id}")
 async def delete_conversation(
     conversation_id: str,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("queries.execute")),
 ):
     try:
         workspace_id = workspace["workspace_id"]
@@ -110,7 +110,7 @@ async def delete_conversation(
 
 
 @router.delete("")
-async def clear_conversations(workspace=Depends(get_current_workspace)):
+async def clear_conversations(workspace=Depends(require_permission("queries.execute"))):
     try:
         workspace_id = workspace["workspace_id"]
         await ctrl.clear_conversations(workspace_id)

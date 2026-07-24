@@ -86,6 +86,17 @@
       opener = document.activeElement as HTMLElement;
       window.addEventListener('keydown', handleKey);
       document.body.style.overflow = 'hidden';
+      // Move focus into the dialog so keyboard users can't Tab through the
+      // background controls behind the modal. The type-to-confirm input
+      // autofocuses itself; otherwise focus the first focusable control.
+      if (!requireText) {
+        requestAnimationFrame(() => {
+          const focusable = dialogNode?.querySelector<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          );
+          (focusable ?? dialogNode)?.focus();
+        });
+      }
       return () => {
         window.removeEventListener('keydown', handleKey);
         document.body.style.overflow = '';

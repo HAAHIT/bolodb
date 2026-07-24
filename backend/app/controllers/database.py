@@ -195,6 +195,14 @@ async def connect_sample(db, kb, cfg, workspace_id=None, user_id=None):
     result["alias_name"] = SAMPLE_ALIAS
 
     if workspace_id:
+        # Preserve a custom alias the user set on a previous connect; only
+        # brand-new sample connections get the default SAMPLE_ALIAS. Mirrors
+        # connect()'s alias handling so reconnecting never clobbers a rename.
+        existing = await mdb.get_recent_connection_by_db_id(
+            workspace_id, result["db_id"]
+        )
+        alias_name = (existing.get("alias_name") if existing else None) or SAMPLE_ALIAS
+        result["alias_name"] = alias_name
         try:
             await mdb.save_recent_connection(
                 workspace_id=workspace_id,
@@ -203,7 +211,7 @@ async def connect_sample(db, kb, cfg, workspace_id=None, user_id=None):
                 dialect=result["dialect"],
                 db_id=result["db_id"],
                 table_count=result["tables"],
-                alias_name=SAMPLE_ALIAS,
+                alias_name=alias_name,
             )
         except ConnectionKeyError:
             logger.exception("Recent-connection encryption key is not configured")

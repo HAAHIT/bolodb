@@ -282,7 +282,8 @@
     opacity: 0;
     transition: all 0.15s;
   }
-  .card:hover .icon-btn {
+  .card:hover .icon-btn,
+  .card:focus-within .icon-btn {
     opacity: 1;
   }
   .del-btn:hover { color: var(--low); background: var(--c-low-tint); }

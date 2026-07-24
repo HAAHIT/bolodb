@@ -37,12 +37,19 @@
     try {
       await apiCall("/api/auth/verify-email", { email, code: code.trim() });
       posthog.capture("email_verified", { method: "otp" });
+    } catch (err: any) {
+      error = err.message || "Verification failed";
+      posthog.captureException(err);
+      loading = false;
+      return;
+    }
 
-      // Let appState init handle where they should go based on their state
+    // Verification already succeeded — a failure past this point is an app-state
+    // refresh problem, not a verification failure, so don't mislabel it.
+    try {
       appState.isLoaded = false;
       await appState.init(true);
     } catch (err: any) {
-      error = err.message || "Verification failed";
       posthog.captureException(err);
     } finally {
       loading = false;

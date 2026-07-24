@@ -2,6 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Request, HTTPException
 from backend.app.dependencies import (
+    require_permission,
     get_db,
     get_kb,
     get_providers,
@@ -19,7 +20,7 @@ router = APIRouter()
 async def onboard_save(
     request: Request,
     req: SaveOnboardReq,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("catalog.manage")),
     db=Depends(get_db),
     kb=Depends(get_kb),
 ):
@@ -37,7 +38,8 @@ async def onboard_save(
 @limiter.limit("5/minute")
 async def api_generate_starters(
     request: Request,
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("catalog.manage")),
+    _execute_permission=Depends(require_permission("queries.execute")),
     db=Depends(get_db),
     kb=Depends(get_kb),
     providers=Depends(get_providers),

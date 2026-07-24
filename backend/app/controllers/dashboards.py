@@ -74,8 +74,6 @@ async def update_panels_batch(workspace_id: str, dashboard_id: str, updates: lis
 
 # --- Execution ---
 
-_NUMERIC_TYPES = ("integer", "float", "numeric", "number")
-
 
 def _normalize_columns(columns, rows):
     """

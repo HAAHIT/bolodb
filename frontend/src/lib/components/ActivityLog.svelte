@@ -14,10 +14,14 @@
   async function loadActivity(loadMore = false) {
     const ws = appState.activeWorkspace;
     if (!ws) return;
+    // Guard against overlapping requests: rapid "Load older" clicks would
+    // otherwise fire concurrent page fetches whose out-of-order resolution
+    // leaves activities/hasMore inconsistent.
+    if (loading) return;
+    loading = true;
     try {
       if (!loadMore) {
         page = 1;
-        loading = true;
       } else {
         page += 1;
       }

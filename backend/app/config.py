@@ -15,15 +15,40 @@ import os
 
 log = logging.getLogger(__name__)
 
-ACTIVITY_LOG_RETENTION_DAYS = int(os.environ.get("ACTIVITY_LOG_RETENTION_DAYS", "30"))
+
+def _env_number(name, default, cast, minimum=None):
+    """Read a numeric env var without ever crashing process startup.
+
+    A malformed value (e.g. ``ACTIVITY_CLEANUP_INTERVAL_HOURS=daily``) must not
+    abort import and take every route down with it — fall back to the default
+    and warn. ``minimum`` clamps the result so a misconfigured 0/negative
+    interval can't turn the cleanup loop into a busy loop.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        value = cast(default)
+    else:
+        try:
+            value = cast(raw)
+        except (TypeError, ValueError):
+            log.warning("Invalid %s=%r; falling back to default %r", name, raw, default)
+            value = cast(default)
+    if minimum is not None:
+        value = max(minimum, value)
+    return value
+
+
+ACTIVITY_LOG_RETENTION_DAYS = _env_number(
+    "ACTIVITY_LOG_RETENTION_DAYS", 30, int, minimum=1
+)
 # Periodic pruning of activity rows past the retention window. Safe to run
 # in-process because BoloDB is deployed single-process; set the flag to "false"
 # if that ever stops being true and the job moves to a dedicated worker.
 ACTIVITY_CLEANUP_ENABLED = os.environ.get(
     "ACTIVITY_CLEANUP_ENABLED", "true"
 ).lower() not in ("false", "0", "no")
-ACTIVITY_CLEANUP_INTERVAL_HOURS = float(
-    os.environ.get("ACTIVITY_CLEANUP_INTERVAL_HOURS", "24")
+ACTIVITY_CLEANUP_INTERVAL_HOURS = _env_number(
+    "ACTIVITY_CLEANUP_INTERVAL_HOURS", 24, float, minimum=0.1
 )
 
 DEFAULTS = {

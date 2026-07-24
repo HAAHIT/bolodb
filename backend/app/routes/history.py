@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
-from backend.app.dependencies import get_current_workspace
+from backend.app.dependencies import require_permission
 import backend.app.pgdatabase as db
 
 log = logging.getLogger(__name__)
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/history", tags=["history"])
 @router.get("")
 async def get_history(
     limit: int = Query(default=100, ge=1, le=500),
-    workspace=Depends(get_current_workspace),
+    workspace=Depends(require_permission("queries.execute")),
 ):
     try:
         workspace_id = workspace["workspace_id"]
@@ -24,7 +24,7 @@ async def get_history(
 
 
 @router.get("/stats")
-async def get_stats(workspace=Depends(get_current_workspace)):
+async def get_stats(workspace=Depends(require_permission("queries.execute"))):
     try:
         workspace_id = workspace["workspace_id"]
         stats = await db.get_query_stats(workspace_id)
@@ -35,7 +35,10 @@ async def get_stats(workspace=Depends(get_current_workspace)):
 
 
 @router.delete("/{entry_id}")
-async def delete_entry(entry_id: str, workspace=Depends(get_current_workspace)):
+async def delete_entry(
+    entry_id: str,
+    workspace=Depends(require_permission("queries.execute")),
+):
     try:
         workspace_id = workspace["workspace_id"]
         success = await db.delete_history_entry(workspace_id, entry_id)
@@ -52,7 +55,7 @@ async def delete_entry(entry_id: str, workspace=Depends(get_current_workspace)):
 
 
 @router.delete("")
-async def clear_history(workspace=Depends(get_current_workspace)):
+async def clear_history(workspace=Depends(require_permission("queries.execute"))):
     try:
         workspace_id = workspace["workspace_id"]
         await db.clear_history(workspace_id)

@@ -156,6 +156,8 @@ async def add_panel(
         return JSONResponse(panel)
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(404, str(e))
     except Exception:
         log.exception("Failed to add panel")
         raise HTTPException(500, "Failed to add panel")
@@ -200,6 +202,8 @@ async def update_panel(
         return JSONResponse({"message": "Updated successfully"})
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(404, str(e))
     except Exception:
         log.exception("Failed to update panel")
         raise HTTPException(500, "Failed to update panel")

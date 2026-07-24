@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException
 
 from backend.app.dependencies import (
     require_permission,
+    get_current_db_id,
     get_db,
     get_kb,
     get_providers,
@@ -21,10 +22,11 @@ async def get_catalog(
     workspace=Depends(require_permission("catalog.view")),
     db=Depends(get_db),
     kb=Depends(get_kb),
+    db_id=Depends(get_current_db_id),
 ):
     """Return the saved semantic catalog for the connected database."""
     try:
-        return await ctrl.get_catalog(workspace["workspace_id"], db, kb)
+        return await ctrl.get_catalog(workspace["workspace_id"], db, kb, db_id)
     except HTTPException:
         raise
     except Exception:
@@ -38,10 +40,13 @@ async def save_catalog(
     workspace=Depends(require_permission("catalog.manage")),
     db=Depends(get_db),
     kb=Depends(get_kb),
+    db_id=Depends(get_current_db_id),
 ):
     """Replace the connected database's semantic catalog with ``payload``."""
     try:
-        return await ctrl.save_catalog(workspace["workspace_id"], db, kb, payload)
+        return await ctrl.save_catalog(
+            workspace["workspace_id"], db, kb, payload, db_id
+        )
     except HTTPException:
         raise
     except Exception:
@@ -56,10 +61,11 @@ async def suggest_catalog(
     workspace=Depends(require_permission("catalog.manage")),
     db=Depends(get_db),
     providers=Depends(get_providers),
+    db_id=Depends(get_current_db_id),
 ):
     """Return AI + schema-derived catalog suggestions (not yet saved)."""
     try:
-        return await ctrl.suggest(workspace["workspace_id"], db, providers)
+        return await ctrl.suggest(workspace["workspace_id"], db, providers, db_id)
     except HTTPException:
         raise
     except Exception:

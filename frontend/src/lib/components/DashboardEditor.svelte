@@ -94,6 +94,13 @@
       position: { x: 0, y: maxY, w: panelW, h: panelH },
     });
 
+    closeAddModal();
+  }
+
+  // Reset all draft state whenever the modal closes — cancelling or clicking
+  // the backdrop must not leave vizTouched/selectedQueryId stale, or the next
+  // open would suppress the AI-suggested visualization for a new query.
+  function closeAddModal() {
     showAddModal = false;
     selectedQueryId = '';
     panelTitle = '';
@@ -157,11 +164,11 @@
 {#if showAddModal}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="modal-backdrop" onclick={() => (showAddModal = false)}>
+  <div class="modal-backdrop" onclick={closeAddModal}>
     <div class="modal" onclick={(e) => e.stopPropagation()}>
       <div class="modal-header">
         <h3>Add chart panel</h3>
-        <button class="icon-close" onclick={() => (showAddModal = false)} aria-label="Close">✕</button>
+        <button class="icon-close" onclick={closeAddModal} aria-label="Close">✕</button>
       </div>
       <div class="modal-body">
         <label class="field">
@@ -208,7 +215,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary" onclick={() => (showAddModal = false)}>Cancel</button>
+        <button class="btn-secondary" onclick={closeAddModal}>Cancel</button>
         <button class="btn-primary" onclick={submitAddPanel} disabled={!selectedQueryId}>Add panel</button>
       </div>
     </div>

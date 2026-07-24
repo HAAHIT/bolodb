@@ -143,7 +143,7 @@ async def update_panel(workspace_id: str, dashboard_id: str, panel_id: str, **kw
                 )
             )
             if not d.scalar_one_or_none():
-                return False
+                raise ValueError("Dashboard not found in workspace")
 
             if kwargs.get("saved_query_id"):
                 sq = await session.execute(

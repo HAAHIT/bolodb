@@ -34,6 +34,9 @@
       densityPref = meta.densityPref === 'compact' ? 'compact' : 'comfortable';
       analyticsOptIn = meta.analyticsOptIn !== false;
       applyDensity(densityPref);
+      // Apply the saved theme immediately so the page matches the stored
+      // preference even when localStorage is stale.
+      appState.applyTheme(resolveTheme(themePref));
     } catch (e: any) {
       error = e.message || 'Could not load your profile';
       if (e.status === 401) goto('/login');
